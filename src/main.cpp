@@ -25,28 +25,64 @@ static ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
 void my_display_code()
 {
-    // 2. Show a simple window that we create ourselves. We use a Begin/End pair to created a named window.
+    static float f = 0.0f;
+    static int counter = 0;
+
+    ImGui::SetNextWindowPos(ImVec2(0.f,0.f), ImGuiSetCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(glutGet(GLUT_WINDOW_WIDTH), glutGet(GLUT_WINDOW_HEIGHT)), ImGuiSetCond_Always);
+    // Create a window called "Hello, world!" and append into it.
+    ImGui::Begin("Hello, world!", 0, ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+
+    if (ImGui::BeginMenuBar())
     {
-        static float f = 0.0f;
-        static int counter = 0;
-
-        ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
-
-        ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
-        ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
-        ImGui::Checkbox("Another Window", &show_another_window);
-
-        ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
-        ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
-
-        if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
-            counter++;
-        ImGui::SameLine();
-        ImGui::Text("counter = %d", counter);
-
-        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-        ImGui::End();
+        if (ImGui::BeginMenu("File"))
+        {
+            if (ImGui::MenuItem("Open..", "Ctrl+O")) { /* Do stuff */ }
+            if (ImGui::MenuItem("Save", "Ctrl+S"))   { /* Do stuff */ }
+            if (ImGui::MenuItem("Close", "Ctrl+W"))  { }
+            ImGui::EndMenu();
+        }
+        ImGui::EndMenuBar();
     }
+
+
+    static int selected = 0;
+    ImGui::BeginChild("left pane", ImVec2(150, 0), true);
+    for (int i = 0; i < 100; i++)
+    {
+        char label[128];
+        sprintf(label, "MyObject %d", i);
+        if (ImGui::Selectable(label, selected == i))
+            selected = i;
+    }
+    ImGui::EndChild();
+    ImGui::SameLine();
+
+    // right
+    ImGui::BeginGroup();
+    ImGui::BeginChild("item view", ImVec2(0, -ImGui::GetFrameHeightWithSpacing())); // Leave room for 1 line below us
+    ImGui::Text("MyObject: %d", selected);
+    ImGui::Separator();
+    if (ImGui::BeginTabBar("##Tabs", ImGuiTabBarFlags_None))
+    {
+        if (ImGui::BeginTabItem("Description"))
+        {
+            ImGui::TextWrapped("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. ");
+            ImGui::EndTabItem();
+        }
+        if (ImGui::BeginTabItem("Details"))
+        {
+            ImGui::Text("ID: 0123456789");
+            ImGui::EndTabItem();
+        }
+        ImGui::EndTabBar();
+    }
+    ImGui::EndChild();
+    if (ImGui::Button("Revert")) {}
+    ImGui::SameLine();
+    if (ImGui::Button("Save")) {}
+    ImGui::EndGroup();
+    ImGui::End();
 }
 
 void glut_display_func()
@@ -286,7 +322,7 @@ int main(int argc, char** argv)
     ret = run_command(gui, "settings set target.x86-disassembly-flavor intel");
     if (ret != 0) { return EXIT_FAILURE; }
 
-    ret = lldbgui::launch(gui, "/home/zac/lldbgui/test/a.out" , const_argv_ptr);
+    ret = lldbgui::launch(gui, "/home/zac/lldbg/test/a.out" , const_argv_ptr);
     if (ret != 0) { return EXIT_FAILURE; }
 
     ret = run_command(gui, "breakpoint set --file simple.cpp --line 5");
@@ -298,14 +334,15 @@ int main(int argc, char** argv)
     ret = lldbgui::process_events(gui);
     if (ret != 0) { return EXIT_FAILURE; }
 
-    return 0;
-
     // Create GLUT window
     glutInit(&argc, argv);
     glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE, GLUT_ACTION_GLUTMAINLOOP_RETURNS);
     glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_MULTISAMPLE);
     glutInitWindowSize(1280, 720);
     glutCreateWindow("Dear ImGui FreeGLUT+OpenGL2 Example");
+
+    std::cout << "window width: " << glutGet(GLUT_WINDOW_WIDTH) << std::endl;
+    std::cout << "window height: " << glutGet(GLUT_WINDOW_HEIGHT) << std::endl;
 
     // Setup GLUT display function
     // We will also call ImGui_ImplFreeGLUT_InstallFuncs() to get all the other functions installed for us,
@@ -320,6 +357,14 @@ int main(int argc, char** argv)
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
     //ImGui::StyleColorsClassic();
+
+    ImGui::GetStyle().WindowRounding = 0.0f;// <- Set this on init or use ImGui::PushStyleVar()
+    ImGui::GetStyle().ChildRounding = 0.0f;
+    ImGui::GetStyle().FrameRounding = 0.0f;
+    ImGui::GetStyle().GrabRounding = 0.0f;
+    ImGui::GetStyle().PopupRounding = 0.0f;
+    ImGui::GetStyle().ScrollbarRounding = 0.0f;
+
 
     // Setup Platform/Renderer bindings
     ImGui_ImplFreeGLUT_Init();
