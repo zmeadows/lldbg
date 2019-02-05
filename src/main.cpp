@@ -28,10 +28,13 @@ void my_display_code()
     static float f = 0.0f;
     static int counter = 0;
 
+    const int window_width = glutGet(GLUT_WINDOW_WIDTH);
+    const int window_height = glutGet(GLUT_WINDOW_HEIGHT);
+
     ImGui::SetNextWindowPos(ImVec2(0.f,0.f), ImGuiSetCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(glutGet(GLUT_WINDOW_WIDTH), glutGet(GLUT_WINDOW_HEIGHT)), ImGuiSetCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(window_width, window_height), ImGuiSetCond_Always);
     // Create a window called "Hello, world!" and append into it.
-    ImGui::Begin("Hello, world!", 0, ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    ImGui::Begin("Hello, world!", 0, ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoTitleBar);
 
     if (ImGui::BeginMenuBar())
     {
@@ -47,7 +50,7 @@ void my_display_code()
 
 
     static int selected = 0;
-    ImGui::BeginChild("left pane", ImVec2(150, 0), true);
+    ImGui::BeginChild("left pane", ImVec2(300, 0), true);
     for (int i = 0; i < 100; i++)
     {
         char label[128];
@@ -60,17 +63,27 @@ void my_display_code()
 
     // right
     ImGui::BeginGroup();
-    ImGui::BeginChild("item view", ImVec2(0, -ImGui::GetFrameHeightWithSpacing())); // Leave room for 1 line below us
-    ImGui::Text("MyObject: %d", selected);
-    ImGui::Separator();
+
+    ImGui::BeginChild("item view", ImVec2(window_width - 600, 600)); // Leave room for 1 line below us
     if (ImGui::BeginTabBar("##Tabs", ImGuiTabBarFlags_None))
     {
-        if (ImGui::BeginTabItem("Description"))
+        if (ImGui::BeginTabItem("main.cpp"))
         {
-            ImGui::TextWrapped("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. ");
+
+            const char* t = "#include <stdio.h>\n"
+                            "int main( int argc, const char* argv[] )\n"
+                            "{\n"
+                            "    int sum = 0;\n"
+                            "    for(int i = 0; i < 10; i++)\n"
+                            "    {\n"
+                            "    	sum += i;\n"
+                            "    }\n"
+                            "}\n";
+
+            ImGui::TextWrapped(t);
             ImGui::EndTabItem();
         }
-        if (ImGui::BeginTabItem("Details"))
+        if (ImGui::BeginTabItem("lib.h"))
         {
             ImGui::Text("ID: 0123456789");
             ImGui::EndTabItem();
@@ -78,10 +91,127 @@ void my_display_code()
         ImGui::EndTabBar();
     }
     ImGui::EndChild();
-    if (ImGui::Button("Revert")) {}
-    ImGui::SameLine();
-    if (ImGui::Button("Save")) {}
+
+    // right
+    ImGui::BeginChild("log view", ImVec2(window_width - 600, 0)); // Leave room for 1 line below us
+    if (ImGui::BeginTabBar("##Tabsasdf", ImGuiTabBarFlags_None))
+    {
+        if (ImGui::BeginTabItem("Console"))
+        {
+            ImGui::TextWrapped("Console History");
+            ImGui::TextWrapped("Console History");
+            ImGui::TextWrapped("Console History");
+            ImGui::EndTabItem();
+        }
+        if (ImGui::BeginTabItem("Log"))
+        {
+            ImGui::TextWrapped("Log Message");
+            ImGui::TextWrapped("Log Message");
+            ImGui::TextWrapped("Log Message");
+            ImGui::EndTabItem();
+        }
+        ImGui::EndTabBar();
+    }
+    ImGui::EndChild();
+
     ImGui::EndGroup();
+
+    ImGui::SameLine();
+
+    ImGui::BeginGroup();
+
+    ImGui::BeginChild("right pane", ImVec2(0, 0), true);
+    if (ImGui::BeginTabBar("##Tabs2", ImGuiTabBarFlags_None))
+    {
+        if (ImGui::BeginTabItem("Threads"))
+        {
+            for (int i = 0; i < 4; i++)
+            {
+                char label[128];
+                sprintf(label, "Thread %d", i);
+                if (ImGui::Selectable(label, selected == i))
+                    selected = i;
+            }
+            ImGui::EndTabItem();
+        }
+        ImGui::EndTabBar();
+    }
+
+    if (ImGui::BeginTabBar("##Tabs3", ImGuiTabBarFlags_None))
+    {
+        if (ImGui::BeginTabItem("Stack Trace"))
+        {
+            for (int i = 0; i < 8; i++)
+            {
+                char label[128];
+                sprintf(label, "Func %d", i);
+                if (ImGui::Selectable(label, selected == i))
+                    selected = i;
+            }
+            ImGui::EndTabItem();
+        }
+        ImGui::EndTabBar();
+    }
+
+    if (ImGui::BeginTabBar("##Tabs11", ImGuiTabBarFlags_None))
+    {
+        if (ImGui::BeginTabItem("Locals"))
+        {
+            for (int i = 0; i < 4; i++)
+            {
+                char label[128];
+                sprintf(label, "Local %d", i);
+                if (ImGui::Selectable(label, selected == i))
+                    selected = i;
+            }
+            ImGui::EndTabItem();
+        }
+        if (ImGui::BeginTabItem("Registers"))
+        {
+            for (int i = 0; i < 4; i++)
+            {
+                char label[128];
+                sprintf(label, "Registers %d", i);
+                if (ImGui::Selectable(label, selected == i))
+                    selected = i;
+            }
+            ImGui::EndTabItem();
+        }
+        ImGui::EndTabBar();
+    }
+
+    if (ImGui::BeginTabBar("##Tabs5", ImGuiTabBarFlags_None))
+    {
+        if (ImGui::BeginTabItem("Watchpoints"))
+        {
+            for (int i = 0; i < 4; i++)
+            {
+                char label[128];
+                sprintf(label, "Watch %d", i);
+                if (ImGui::Selectable(label, selected == i))
+                    selected = i;
+            }
+            ImGui::EndTabItem();
+        }
+        if (ImGui::BeginTabItem("Breakpoints"))
+        {
+            for (int i = 0; i < 4; i++)
+            {
+                char label[128];
+                sprintf(label, "Break %d", i);
+                if (ImGui::Selectable(label, selected == i))
+                    selected = i;
+            }
+            ImGui::EndTabItem();
+        }
+        ImGui::EndTabBar();
+    }
+
+    ImGui::EndChild();
+    ImGui::SameLine();
+
+    ImGui::EndGroup();
+
     ImGui::End();
 }
 
@@ -364,6 +494,7 @@ int main(int argc, char** argv)
     ImGui::GetStyle().GrabRounding = 0.0f;
     ImGui::GetStyle().PopupRounding = 0.0f;
     ImGui::GetStyle().ScrollbarRounding = 0.0f;
+    ImGui::GetStyle().TabRounding = 0.0f;
 
 
     // Setup Platform/Renderer bindings
