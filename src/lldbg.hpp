@@ -2,33 +2,72 @@
 
 #include "lldb/API/LLDB.h"
 
+#include <iostream>
+
 namespace lldbg {
 
 using err_t = int;
 
-struct lldbg {
-    lldb::SBDebugger debugger;
-    lldb::SBCommandInterpreter interpreter;
-    lldb::SBTarget target;
-    lldb::SBProcess process;
-    lldb::SBListener listener;
-    lldb::pid_t pid;
+class LLDBCommandLine {
+    lldb::SBCommandInterpreter m_interpreter;
+    std::vector<std::string> m_input_history;
+    std::vector<std::string> m_output_history;
+public:
+
+    LLDBCommandLine(lldb::SBCommandInterpreter&);
+
+    bool run_command(const char* command) {
+        //TODO: log nullptr
+        if (!command) return;
+        m_input_history.emplace_back(command);
+
+        lldb::SBCommandReturnObject return_object;
+        m_interpreter.HandleCommand(command, return_object);
+        if (return_object.Succeeded()) {
+            const char* output = return_object.GetOutput();
+            if (output) {
+                m_output_history.emplace_back(return_object.GetOutput());
+            }
+        }
+    }
 };
 
-extern lldbg instance;
-void initialize_instance(void);
-void destroy_instance(void);
+class Application {
+    lldb::SBDebugger m_debugger;
+    LLDBEventListenerThread m_event_listener;
+    LLDBCommandLine m_command_line;
 
-err_t continue_execution(lldbg& gui);
+    std::vector<std::string> m_stdout;
 
-err_t run_command(lldbg& gui, const char* command);
+    Renderer m_renderer;
 
-void dump_state(lldbg& gui);
+    void stop_process();
+    void pause_process();
+    void continue_process();
 
-err_t process_events(lldbg& gui);
+public:
+    bool start_process(const char* exe_filepath, const char** argv);
 
-err_t launch(lldbg& gui, const char* full_exe_path, const char** argv);
+    void tick(void) {
+        m_renderer.draw(m_debugger.GetSelectedTarget().GetProcess());
+    }
 
-err_t test(lldbg& gui, const char** const_argv_ptr);
+    Application(int* argcp, char** argv)
+        : m_renderer()
+        , m_debugger(lldb::SBDebugger::Create())
+        , m_interpreter(m_debugger.GetCommandInterpreter())
+        , m_event_listener()
+    {
+        m_debugger.SetAsync(true);
+    }
+
+    Application() = delete;
+    Application(const Application&) = delete;
+    Application& operator=(const Application&) = delete;
+    Application& operator=(Application&&) = delete;
+};
+
+extern Application g_application;
+
 
 }
