@@ -4,6 +4,7 @@
 
 #include "lldbg.hpp"
 #include "Defer.hpp"
+#include "Log.hpp"
 
 #include <GL/freeglut.h>
 #include "imgui.h"
@@ -11,6 +12,8 @@
 #include "examples/imgui_impl_opengl2.h"
 
 namespace lldbg {
+
+Logger g_logger;
 
 void main_loop() {
     // Start the Dear ImGui frame

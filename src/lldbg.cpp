@@ -1,5 +1,7 @@
 #include "lldbg.hpp"
 
+#include "Log.hpp"
+
 #include <chrono>
 #include <iostream>
 #include <queue>
@@ -13,6 +15,10 @@ namespace lldbg {
 Application g_application;
 
 bool Application::start_process(const char* exe_filepath, const char** argv) {
+    m_debugger = lldb::SBDebugger::Create();
+    m_debugger.SetAsync(true);
+    m_command_line.replace_interpreter(m_debugger.GetCommandInterpreter());
+
     //TODO: loop through running processes (if any) and kill them
     //and log information about it.
     lldb::SBError error;
@@ -21,6 +27,8 @@ bool Application::start_process(const char* exe_filepath, const char** argv) {
         std::cerr << "Error during target creation: " << error.GetCString() << std::endl;
         return false;
     }
+
+    LOG(Debug) << "Succesfully created target for executable: " << exe_filepath;
 
     const lldb::SBFileSpec file_spec = target.GetExecutable();
     // const char* exe_name_spec = file_spec.GetFilename();
@@ -36,19 +44,27 @@ bool Application::start_process(const char* exe_filepath, const char** argv) {
         return false;
     }
 
+    LOG(Debug) << "Succesfully launched process for executable: " << exe_filepath;
+
     size_t ms_attaching = 0;
     while (process.GetState() == lldb::eStateAttaching) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         ms_attaching += 100;
-        if (ms_attaching/1000 > 10) {
-            std::cerr << "Took > 10 seconds to launch process, giving up!" << std::endl;
+        if (ms_attaching/1000 > 5) {
+            std::cerr << "Took >5 seconds to launch process, giving up!" << std::endl;
             return false;
         }
     }
 
-    std::cout << "process pid: " << process.GetProcessID() << std::endl;
+    LOG(Debug) << "Succesfully attached to process for executable: " << exe_filepath;
+
+    assert(m_command_line.run_command("settings set auto-confirm 1"));
+    assert(m_command_line.run_command("settings set target.x86-disassembly-flavor intel"));
+    assert(m_command_line.run_command("breakpoint set --file simple.cpp --line 5"));
 
     m_event_listener.start(m_debugger);
+
+    get_process().Continue();
 
     return true;
 }

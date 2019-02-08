@@ -1,5 +1,7 @@
 #include "renderer.hpp"
 
+#include "Log.hpp"
+
 #include <stdio.h>
 #include <string>
 
@@ -84,18 +86,19 @@ void draw(lldb::SBProcess process)
     ImGui::BeginChild("log view", ImVec2(window_width - 600, 0)); // Leave room for 1 line below us
     if (ImGui::BeginTabBar("##Tabsasdf", ImGuiTabBarFlags_None))
     {
+        if (ImGui::BeginTabItem("Log"))
+        {
+            lldbg::g_logger.for_each_message([](const lldbg::LogMessage& message) -> void {
+                ImGui::TextWrapped(message.message.c_str());
+            });
+            ImGui::EndTabItem();
+        }
+
         if (ImGui::BeginTabItem("Console"))
         {
             ImGui::TextWrapped("Console History");
             ImGui::TextWrapped("Console History");
             ImGui::TextWrapped("Console History");
-            ImGui::EndTabItem();
-        }
-        if (ImGui::BeginTabItem("Log"))
-        {
-            ImGui::TextWrapped("Log Message");
-            ImGui::TextWrapped("Log Message");
-            ImGui::TextWrapped("Log Message");
             ImGui::EndTabItem();
         }
         ImGui::EndTabBar();

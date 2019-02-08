@@ -2,34 +2,65 @@
 
 #include <mutex>
 #include <vector>
+#include <sstream>
+
+#define LOG(LEV) lldbg::LogMessageStream(lldbg::LogLevel::LEV)
 
 namespace lldbg {
 
-struct LogMessage {
-    enum class Level {
-        Info,
-        Debug,
-        Warning,
-        Error
-    };
+enum class LogLevel {
+    Info,
+    Debug,
+    Warning,
+    Error
+};
 
-    const LogMessage::Level level;
+struct LogMessage {
+    const LogLevel level;
     const std::string message;
 
-    LogMessage(Level level, const std::string& message) :
-        level(level), message(message) {}
+    LogMessage(LogLevel level, std::string&& message)
+        : level(level), message(std::move(message)) {}
 };
 
 class Logger {
     std::mutex m_mutex;
     std::vector<LogMessage> m_messages;
 
-    //TODO: add log file
 public:
-    void log(LogMessage&& message) {
+    void log(LogLevel level, std::string&& message) {
         std::unique_lock<std::mutex> lock(m_mutex);
-        m_messages.emplace_back(message);
+        m_messages.emplace_back(level, std::move(message));
+    };
+
+    template <typename Callable>
+    void for_each_message(Callable&& f) {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        for (const LogMessage& message : m_messages) {
+            f(message);
+        }
+    }
+};
+
+extern Logger g_logger;
+
+class LogMessageStream {
+    const LogLevel level;
+    std::ostringstream oss;
+
+public:
+    template <typename T>
+    LogMessageStream& operator<<(const T& data) {
+        oss << data;
+        return *this;
+    }
+
+    LogMessageStream(LogLevel level) : level(level) {}
+    ~LogMessageStream() {
+        oss << std::endl;
+        g_logger.log(level, std::move(oss.str()));
     };
 };
 
 }
+

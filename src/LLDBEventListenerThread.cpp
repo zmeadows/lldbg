@@ -2,7 +2,10 @@
 
 #include "lldb/API/LLDB.h"
 
+#include "Log.hpp"
+
 #include <assert.h>
+#include <iostream>
 
 namespace lldbg {
 
@@ -31,6 +34,8 @@ void LLDBEventListenerThread::start(lldb::SBDebugger& debugger) {
     if (!m_thread) {
         m_thread.reset(new std::thread(&LLDBEventListenerThread::poll_events, this));
     }
+
+    LOG(Debug) << "Successfully launched LLDBEventListenerThread.";
 }
 
 void LLDBEventListenerThread::stop(lldb::SBDebugger& debugger) {
@@ -42,7 +47,10 @@ void LLDBEventListenerThread::stop(lldb::SBDebugger& debugger) {
             .GetProcess()
             .GetBroadcaster()
             .RemoveListener(m_listener);
+
     m_listener.Clear();
+
+    LOG(Debug) << "Successfully stopped LLDBEventListenerThread.";
 }
 
 void LLDBEventListenerThread::poll_events() {
