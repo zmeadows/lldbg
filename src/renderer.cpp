@@ -2,6 +2,8 @@
 
 #include <stdio.h>
 #include <string>
+
+
 #include "imgui.h"
 #include "examples/imgui_impl_freeglut.h"
 #include "examples/imgui_impl_opengl2.h"
@@ -9,7 +11,7 @@
 
 namespace lldbg {
 
-void Renderer::draw()
+void draw(lldb::SBProcess process)
 {
     static float f = 0.0f;
     static int counter = 0;
@@ -200,26 +202,5 @@ void Renderer::draw()
 
     ImGui::End();
 }
-
-// void glut_display_func()
-// {
-//     // Start the Dear ImGui frame
-//     ImGui_ImplOpenGL2_NewFrame();
-//     ImGui_ImplFreeGLUT_NewFrame();
-//
-//     my_display_code();
-//
-//     // Rendering
-//     ImGui::Render();
-//     ImGuiIO& io = ImGui::GetIO();
-//     glViewport(0, 0, (GLsizei)io.DisplaySize.x, (GLsizei)io.DisplaySize.y);
-//     // glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
-//     glClear(GL_COLOR_BUFFER_BIT);
-//     ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
-//
-//     glutSwapBuffers();
-//     glutPostRedisplay();
-// }
-
 
 }

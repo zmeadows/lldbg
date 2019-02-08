@@ -11,7 +11,8 @@ LLDBEventListenerThread::LLDBEventListenerThread()
 { }
 
 
-void LLDBEventListenerThread::start(lldb::Debugger& debugger) {
+//TODO: rename to start_listening and stop_listening to separate better from start/stop of debugger
+void LLDBEventListenerThread::start(lldb::SBDebugger& debugger) {
 
     m_listener = debugger.GetListener();
 
@@ -32,7 +33,7 @@ void LLDBEventListenerThread::start(lldb::Debugger& debugger) {
     }
 }
 
-void LLDBEventListenerThread::stop(lldb::Debugger& debugger) {
+void LLDBEventListenerThread::stop(lldb::SBDebugger& debugger) {
     m_continue.store(false);
     m_thread->join();
     m_thread.reset(nullptr);

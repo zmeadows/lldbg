@@ -3,10 +3,14 @@
 #include "lldb/API/LLDB.h"
 
 #include "lldbg.hpp"
-#include "renderer.hpp"
 #include "Defer.hpp"
 
 #include <GL/freeglut.h>
+#include "imgui.h"
+#include "examples/imgui_impl_freeglut.h"
+#include "examples/imgui_impl_opengl2.h"
+
+namespace lldbg {
 
 void main_loop() {
     // Start the Dear ImGui frame
@@ -73,10 +77,12 @@ void cleanup_rendering() {
     ImGui::DestroyContext();
 }
 
+}
+
 int main(int argc, char** argv)
 {
     lldb::SBDebugger::Initialize();
-    lldbg::initialize_renderer(argc, argv);
+    lldbg::initialize_rendering(&argc, argv);
 
     Defer(
         lldb::SBDebugger::Terminate();
@@ -91,6 +97,8 @@ int main(int argc, char** argv)
     }
 
     const char** const_argv_ptr = const_argv.data();
+
+    lldbg::g_application.start_process("/home/zac/lldbg/test/a.out", const_argv_ptr);
 
     glutMainLoop();
 

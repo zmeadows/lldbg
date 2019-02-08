@@ -2,6 +2,10 @@
 
 #include "lldb/API/LLDB.h"
 
+#include "renderer.hpp"
+
+#include "LLDBEventListenerThread.hpp"
+
 #include <iostream>
 
 namespace lldbg {
@@ -14,60 +18,68 @@ class LLDBCommandLine {
     std::vector<std::string> m_output_history;
 public:
 
-    LLDBCommandLine(lldb::SBCommandInterpreter&);
+    LLDBCommandLine(lldb::SBCommandInterpreter interpreter) : m_interpreter(interpreter) {}
 
     bool run_command(const char* command) {
         //TODO: log nullptr
-        if (!command) return;
+        if (!command) return false;
         m_input_history.emplace_back(command);
 
-        lldb::SBCommandReturnObject return_object;
-        m_interpreter.HandleCommand(command, return_object);
-        if (return_object.Succeeded()) {
-            const char* output = return_object.GetOutput();
+        lldb::SBCommandReturnObject ret;
+        m_interpreter.HandleCommand(command, ret);
+
+        if (ret.Succeeded()) {
+            const char* output = ret.GetOutput();
             if (output) {
-                m_output_history.emplace_back(return_object.GetOutput());
+                m_output_history.emplace_back(ret.GetOutput());
             }
+            return true;
         }
+
+        return false;
     }
 };
 
 class Application {
     lldb::SBDebugger m_debugger;
-    LLDBEventListenerThread m_event_listener;
-    LLDBCommandLine m_command_line;
+    lldbg::LLDBEventListenerThread m_event_listener;
+    lldbg::LLDBCommandLine m_command_line;
 
-    std::vector<std::string> m_stdout;
+    lldb::SBProcess process() { return m_debugger.GetSelectedTarget().GetProcess(); }
 
-    Renderer m_renderer;
-
-    void stop_process();
-    void pause_process();
-    void continue_process();
+    void handle_event(lldb::SBEvent);
 
 public:
     bool start_process(const char* exe_filepath, const char** argv);
+    void kill_process();
+    void pause_process();
+    void continue_process();
 
     void tick(void) {
-        m_renderer.draw(m_debugger.GetSelectedTarget().GetProcess());
+        while (m_event_listener.events_are_waiting()) {
+            lldb::SBEvent event = m_event_listener.pop_event();
+        }
+        draw(process());
     }
 
-    Application(int* argcp, char** argv)
-        : m_renderer()
-        , m_debugger(lldb::SBDebugger::Create())
-        , m_interpreter(m_debugger.GetCommandInterpreter())
+    Application()
+        : m_debugger(lldb::SBDebugger::Create())
         , m_event_listener()
+        , m_command_line(m_debugger.GetCommandInterpreter())
     {
         m_debugger.SetAsync(true);
     }
 
-    Application() = delete;
     Application(const Application&) = delete;
     Application& operator=(const Application&) = delete;
     Application& operator=(Application&&) = delete;
 };
 
+// We only use a global variable because of how freeglut
+// requires a frame update function with signature void(void).
+// It is not used anywhere other than main_loop from main.cpp
 extern Application g_application;
 
+void dump_state(lldb::SBProcess process);
 
 }

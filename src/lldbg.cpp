@@ -4,24 +4,25 @@
 #include <iostream>
 #include <queue>
 #include <thread>
+#include <assert.h>
 
 #include <GL/freeglut.h>
 
 namespace lldbg {
 
-Application instance;
+Application g_application;
 
 bool Application::start_process(const char* exe_filepath, const char** argv) {
     //TODO: loop through running processes (if any) and kill them
     //and log information about it.
     lldb::SBError error;
-    lldb::SBTarget target = debugger.CreateTarget(exe_filepath, nullptr, nullptr, true, error);
+    lldb::SBTarget target = m_debugger.CreateTarget(exe_filepath, nullptr, nullptr, true, error);
     if (!error.Success()) {
         std::cerr << "Error during target creation: " << error.GetCString() << std::endl;
         return false;
     }
 
-    const lldb::SBFileSpec file_spec = gui.target.GetExecutable();
+    const lldb::SBFileSpec file_spec = target.GetExecutable();
     // const char* exe_name_spec = file_spec.GetFilename();
     // const char* exe_dir_spec = file_spec.GetDirectory();
 
@@ -30,7 +31,7 @@ bool Application::start_process(const char* exe_filepath, const char** argv) {
     lldb::SBProcess process = target.Launch(launch_info, error);
 
     if (!error.Success()) {
-        std::cerr << "Failed to launch: " << full_exe_path << std::endl;
+        std::cerr << "Failed to launch: " << exe_filepath << std::endl;
         std::cerr << "Error during launch: " << error.GetCString() << std::endl;
         return false;
     }
@@ -48,40 +49,31 @@ bool Application::start_process(const char* exe_filepath, const char** argv) {
     std::cout << "process pid: " << process.GetProcessID() << std::endl;
 
     m_event_listener.start(m_debugger);
+
+    return true;
 }
 
-err_t continue_execution(Application& gui) {
-    if (!gui.process.IsValid()) {
-        std::cerr << "process invalid" << std::endl;
-        return -1;
-    }
-
-    gui.process.Continue();
-    return 0;
+void Application::continue_process() {
+    lldb::SBProcess process = m_debugger.GetSelectedTarget().GetProcess();
+    assert(process.IsValid());
+    process.Continue();
 }
 
-err_t run_command(Application& gui, const char* command) {
-    lldb::SBCommandReturnObject return_object;
-    gui.interpreter.HandleCommand(command, return_object);
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-
-    if (return_object.Succeeded()) {
-        std::cout << "command succeeded: " << command << std::endl;
-        if (return_object.GetOutput()) {
-            std::cout << "output:" << std::endl;
-            std::cout << return_object.GetOutput() << std::endl;
-        }
-        return 0;
-    } else {
-        std::cerr << "Failed to run command: " << command << std::endl;
-        return -1;
-    }
+void Application::pause_process() {
+    lldb::SBProcess process = m_debugger.GetSelectedTarget().GetProcess();
+    assert(process.IsValid());
+    process.Stop();
 }
 
-void dump_state(Application& gui) {
-    for (auto thread_idx = 0; thread_idx < gui.process.GetNumThreads(); thread_idx++) {
-        lldb::SBThread th = gui.process.GetThreadAtIndex(thread_idx);
+void Application::kill_process() {
+    lldb::SBProcess process = m_debugger.GetSelectedTarget().GetProcess();
+    assert(process.IsValid());
+    process.Kill();
+}
+
+void dump_state(lldb::SBProcess process) {
+    for (auto thread_idx = 0; thread_idx < process.GetNumThreads(); thread_idx++) {
+        lldb::SBThread th = process.GetThreadAtIndex(thread_idx);
         std::cout << "Thread " << thread_idx << ": " << th.GetName() << std::endl;
 
         for (auto frame_idx = 0; frame_idx < th.GetNumFrames(); frame_idx++) {
@@ -102,32 +94,28 @@ void dump_state(Application& gui) {
     }
 }
 
-err_t test(Application& gui, const char** const_argv_ptr) {
-    err_t ret;
-
-    ret = run_command(gui, "settings set auto-confirm 1");
-    if (ret != 0) { return EXIT_FAILURE; }
-
-    ret = run_command(gui, "settings set target.x86-disassembly-flavor intel");
-    if (ret != 0) { return EXIT_FAILURE; }
-
-    ret = launch(gui, "/home/zac/lldbg/test/a.out" , const_argv_ptr);
-    if (ret != 0) { return EXIT_FAILURE; }
-
-    ret = run_command(gui, "breakpoint set --file simple.cpp --line 5");
-    if (ret != 0) { return EXIT_FAILURE; }
-
-    ret = continue_execution(gui);
-    if (ret != 0) { return EXIT_FAILURE; }
-
-    ret = process_events(gui);
-    if (ret != 0) { return EXIT_FAILURE; }
-
-    return 0;
-}
-
-void main_loop(void) {
-    glutMainLoop();
-}
+// err_t test(Application& gui, const char** const_argv_ptr) {
+//     err_t ret;
+//
+//     ret = run_command(gui, "settings set auto-confirm 1");
+//     if (ret != 0) { return EXIT_FAILURE; }
+//
+//     ret = run_command(gui, "settings set target.x86-disassembly-flavor intel");
+//     if (ret != 0) { return EXIT_FAILURE; }
+//
+//     ret = launch(gui, "/home/zac/lldbg/test/a.out" , const_argv_ptr);
+//     if (ret != 0) { return EXIT_FAILURE; }
+//
+//     ret = run_command(gui, "breakpoint set --file simple.cpp --line 5");
+//     if (ret != 0) { return EXIT_FAILURE; }
+//
+//     ret = continue_execution(gui);
+//     if (ret != 0) { return EXIT_FAILURE; }
+//
+//     ret = process_events(gui);
+//     if (ret != 0) { return EXIT_FAILURE; }
+//
+//     return 0;
+// }
 
 }
