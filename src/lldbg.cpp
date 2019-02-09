@@ -12,12 +12,53 @@
 
 namespace lldbg {
 
-Application g_application;
+
+bool LLDBCommandLine::run_command(const char* command) {
+    //TODO: log nullptr
+    if (!command) return false;
+    m_input_history.emplace_back(command);
+
+    lldb::SBCommandReturnObject ret;
+    m_interpreter.HandleCommand(command, ret);
+
+    if (ret.Succeeded()) {
+        const char* output = ret.GetOutput();
+        if (output) {
+            m_output_history.emplace_back(ret.GetOutput());
+            std::cout << m_output_history.back() << std::endl;
+        }
+        return true;
+    }
+
+    return false;
+}
+
+void Application::tick(void) {
+    lldb::SBEvent event;
+
+    while (true) {
+        std::unique_ptr<lldb::SBEvent> event = m_event_listener.pop_event();
+
+        if (event) {
+            const lldb::StateType new_state = lldb::SBProcess::GetStateFromEvent(*event);
+            const char* state_descr = lldb::SBDebugger::StateAsCString(new_state);
+            LOG(Debug) << "Found event with new state: " << state_descr;
+        } else {
+            break;
+        }
+    }
+    // dump_state(get_process());
+    //assert(get_process().GetState() == lldb::SBProcess::GetStateFromEvent(event));
+
+    draw(get_process(), m_render_state);
+}
 
 bool Application::start_process(const char* exe_filepath, const char** argv) {
     m_debugger = lldb::SBDebugger::Create();
     m_debugger.SetAsync(true);
     m_command_line.replace_interpreter(m_debugger.GetCommandInterpreter());
+
+    //TODO: convert all print statement below to Error-level logging
 
     //TODO: loop through running processes (if any) and kill them
     //and log information about it.

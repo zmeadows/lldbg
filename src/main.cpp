@@ -14,6 +14,7 @@
 namespace lldbg {
 
 Logger g_logger;
+Application g_application;
 
 void main_loop() {
     // Start the Dear ImGui frame

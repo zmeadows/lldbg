@@ -20,6 +20,7 @@ bool MyTreeNode(const char* label)
 
     // Icon, text
     float button_sz = g.FontSize + g.Style.FramePadding.y*2;
+    //TODO: set colors from style?
     window->DrawList->AddRectFilled(pos, ImVec2(pos.x+button_sz, pos.y+button_sz), opened ? ImColor(51,105,173) : ImColor(42,79,130));
     ImGui::RenderText(ImVec2(pos.x + button_sz + g.Style.ItemInnerSpacing.x, pos.y + g.Style.FramePadding.y), label);
 
