@@ -1,6 +1,7 @@
 #include "renderer.hpp"
 
 #include "Log.hpp"
+#include "CustomTreeNode.hpp"
 
 #include <stdio.h>
 #include <string>
@@ -17,6 +18,8 @@ void draw(lldb::SBProcess process)
 {
     static float f = 0.0f;
     static int counter = 0;
+    static int selected_thread = -1;
+    static int selected_frame = -1;
 
     //TODO: update this with a callback instead of grabbing every frame
     const int window_width = glutGet(GLUT_WINDOW_WIDTH);
@@ -41,13 +44,22 @@ void draw(lldb::SBProcess process)
 
     static int selected = 0;
     ImGui::BeginChild("left pane", ImVec2(300, 0), true);
-    for (int i = 0; i < 100; i++)
-    {
-        char label[128];
-        sprintf(label, "MyObject %d", i);
-        if (ImGui::Selectable(label, selected == i))
-            selected = i;
+    if (MyTreeNode("dir1")) {
+        if (MyTreeNode("dir2")) {
+            ImGui::Text("file1");
+            ImGui::TreePop();
+        }
+        ImGui::Text("file2");
+        ImGui::Text("file3");
+        ImGui::TreePop();
     }
+
+    if (MyTreeNode("dir3")) {
+        ImGui::Text("file4");
+        ImGui::Text("file5");
+        ImGui::TreePop();
+    }
+
     ImGui::EndChild();
     ImGui::SameLine();
 
@@ -84,7 +96,7 @@ void draw(lldb::SBProcess process)
 
     // right
     ImGui::BeginChild("log view", ImVec2(window_width - 600, 0)); // Leave room for 1 line below us
-    if (ImGui::BeginTabBar("##Tabsasdf", ImGuiTabBarFlags_None))
+    if (ImGui::BeginTabBar("##ConsoleLogTabs", ImGuiTabBarFlags_None))
     {
         if (ImGui::BeginTabItem("Log"))
         {
@@ -112,33 +124,32 @@ void draw(lldb::SBProcess process)
     ImGui::BeginGroup();
 
     ImGui::BeginChild("right pane", ImVec2(0, 0), true);
-    if (ImGui::BeginTabBar("##Tabs2", ImGuiTabBarFlags_None))
+    if (ImGui::BeginTabBar("##ThreadTabs", ImGuiTabBarFlags_None))
     {
         if (ImGui::BeginTabItem("Threads"))
         {
-            for (int i = 0; i < 4; i++)
-            {
+            for (auto i = 0; i < process.GetNumThreads(); i++) {
                 char label[128];
                 sprintf(label, "Thread %d", i);
-                if (ImGui::Selectable(label, selected == i))
-                    selected = i;
+                if (ImGui::Selectable(label, i == selected_thread)) {
+                    selected_thread = i;
+                }
             }
             ImGui::EndTabItem();
         }
         ImGui::EndTabBar();
     }
 
-    if (ImGui::BeginTabBar("##Tabs3", ImGuiTabBarFlags_None))
+    if (ImGui::BeginTabBar("##StackTraceTabs", ImGuiTabBarFlags_None))
     {
         if (ImGui::BeginTabItem("Stack Trace"))
         {
-            for (int i = 0; i < 8; i++)
-            {
-                char label[128];
-                sprintf(label, "Func %d", i);
-                if (ImGui::Selectable(label, selected == i))
-                    selected = i;
-            }
+            // for (auto i = 0; i < th.GetNumFrames(); frame_idx++) {
+            //     char label[128];
+            //     sprintf(label, "Func %d", i);
+            //     if (ImGui::Selectable(label, selected_frame == i))
+            //         selected_frame = i;
+            // }
             ImGui::EndTabItem();
         }
         ImGui::EndTabBar();
