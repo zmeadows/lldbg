@@ -6,6 +6,7 @@
 #include "Log.hpp"
 
 #include "LLDBEventListenerThread.hpp"
+#include "LLDBCommandLine.hpp"
 
 #include <iostream>
 #include <assert.h>
@@ -15,22 +16,6 @@ namespace lldbg {
 using err_t = int;
 
 void dump_state(lldb::SBProcess process);
-
-class LLDBCommandLine {
-    lldb::SBCommandInterpreter m_interpreter;
-    std::vector<std::string> m_input_history;
-    std::vector<std::string> m_output_history;
-public:
-
-    void replace_interpreter(lldb::SBCommandInterpreter interpreter) {
-        m_interpreter = interpreter;
-    }
-
-    bool run_command(const char* command);
-
-    const std::vector<std::string>& input_history() const { return m_input_history; }
-    const std::vector<std::string>& output_history() const { return m_output_history; }
-};
 
 //TODO: just make this a simple struct?
 class Application {

@@ -60,9 +60,12 @@ bool Splitter(bool split_vertically, float thickness, float* size1, float* size2
 
 namespace lldbg {
 
-void draw(lldb::SBProcess process, RenderState& state)
+void draw(lldb::SBProcess process, LLDBCommandLine& command_line, RenderState& state)
 {
     const bool stopped = process.GetState() == lldb::eStateStopped;
+
+    // ImGuiIO& io = ImGui::GetIO();
+    // io.FontGlobalScale = 1.1;
 
     static int window_width = glutGet(GLUT_WINDOW_WIDTH);
     static int window_height = glutGet(GLUT_WINDOW_HEIGHT);
@@ -91,11 +94,26 @@ void draw(lldb::SBProcess process, RenderState& state)
             if (ImGui::MenuItem("Close", "Ctrl+W"))  { /* Do stuff */ }
             ImGui::EndMenu();
         }
+
+        if (ImGui::BeginMenu("View"))
+        {
+            if (ImGui::MenuItem("Layout", NULL)) { /* Do stuff */ }
+            if (ImGui::MenuItem("Zoom In", "+")) { /* Do stuff */ }
+            if (ImGui::MenuItem("Zoom Out", "-")) { /* Do stuff */ }
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("Help"))
+        {
+            if (ImGui::MenuItem("About", "F12")) { /* Do stuff */ }
+            ImGui::EndMenu();
+        }
         ImGui::EndMenuBar();
     }
 
     ImGui::BeginChild("FileBrowserPane", ImVec2(300, 0), true);
-    // if (ImGui::Button("CWD")) { }
+    ImGui::TextUnformatted("File Explorer");
+    ImGui::Separator();
 
     if (MyTreeNode("dir1")) {
         if (MyTreeNode("dir2")) {
@@ -158,10 +176,45 @@ void draw(lldb::SBProcess process, RenderState& state)
 
     ImGui::Spacing();
 
-    // right
-    ImGui::BeginChild("LogConsole", ImVec2(window_width - 900, console_height));
+    ImGui::BeginChild("LogConsole", ImVec2(window_width - 900, console_height - 2 * ImGui::GetFrameHeightWithSpacing()));
     if (ImGui::BeginTabBar("##ConsoleLogTabs", ImGuiTabBarFlags_None))
     {
+        if (ImGui::BeginTabItem("Console"))
+        {
+            for (const CommandLineEntry& entry : command_line.get_history()) {
+                ImGui::TextColored(ImVec4(255,0,0,255), "> %s", entry.input.c_str());
+                if (entry.succeeded) {
+                    ImGui::TextUnformatted(entry.output.c_str());
+                } else {
+                    ImGui::Text("error: %s is not a valid command.", entry.input.c_str());
+                }
+
+                ImGui::TextUnformatted("\n");
+            }
+            static char input_buf[1024];
+
+            auto command_input_callback = [](ImGuiTextEditCallbackData* data) -> int {
+                return 0;
+            };
+
+            const ImGuiInputTextFlags command_input_flags =
+                ImGuiInputTextFlags_EnterReturnsTrue
+                | ImGuiInputTextFlags_CallbackCompletion
+                | ImGuiInputTextFlags_CallbackHistory;
+
+
+            if (ImGui::InputText("COMMAND:", input_buf, 1024, command_input_flags, command_input_callback))
+            {
+                command_line.run_command(input_buf);
+                strcpy(input_buf, "");
+            }
+
+            // always scroll to the bottom of the command history
+            ImGui::SetScrollHere(1.0f);
+
+            ImGui::EndTabItem();
+        }
+
         if (ImGui::BeginTabItem("Log"))
         {
             lldbg::g_logger.for_each_message([](const lldbg::LogMessage& message) -> void {
@@ -169,16 +222,10 @@ void draw(lldb::SBProcess process, RenderState& state)
             });
             ImGui::EndTabItem();
         }
-
-        if (ImGui::BeginTabItem("Console"))
-        {
-            ImGui::TextWrapped("Console History");
-            ImGui::TextWrapped("Console History");
-            ImGui::TextWrapped("Console History");
-            ImGui::EndTabItem();
-        }
         ImGui::EndTabBar();
     }
+
+
     ImGui::EndChild();
 
     ImGui::EndGroup();

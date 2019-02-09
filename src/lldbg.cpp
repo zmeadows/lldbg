@@ -12,27 +12,6 @@
 
 namespace lldbg {
 
-
-bool LLDBCommandLine::run_command(const char* command) {
-    //TODO: log nullptr
-    if (!command) return false;
-    m_input_history.emplace_back(command);
-
-    lldb::SBCommandReturnObject ret;
-    m_interpreter.HandleCommand(command, ret);
-
-    if (ret.Succeeded()) {
-        const char* output = ret.GetOutput();
-        if (output) {
-            m_output_history.emplace_back(ret.GetOutput());
-            std::cout << m_output_history.back() << std::endl;
-        }
-        return true;
-    }
-
-    return false;
-}
-
 void Application::tick(void) {
     lldb::SBEvent event;
 
@@ -50,7 +29,7 @@ void Application::tick(void) {
     // dump_state(get_process());
     //assert(get_process().GetState() == lldb::SBProcess::GetStateFromEvent(event));
 
-    draw(get_process(), m_render_state);
+    draw(get_process(), m_command_line, m_render_state);
 }
 
 bool Application::start_process(const char* exe_filepath, const char** argv) {
@@ -99,8 +78,8 @@ bool Application::start_process(const char* exe_filepath, const char** argv) {
 
     LOG(Debug) << "Succesfully attached to process for executable: " << exe_filepath;
 
-    assert(m_command_line.run_command("settings set auto-confirm 1"));
-    assert(m_command_line.run_command("settings set target.x86-disassembly-flavor intel"));
+    assert(m_command_line.run_command("settings set auto-confirm 1", true));
+    assert(m_command_line.run_command("settings set target.x86-disassembly-flavor intel", true));
     assert(m_command_line.run_command("breakpoint set --file simple.cpp --line 5"));
 
     m_event_listener.start(m_debugger);
