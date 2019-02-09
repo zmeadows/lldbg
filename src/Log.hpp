@@ -58,7 +58,7 @@ public:
     LogMessageStream(LogLevel level) : level(level) {}
     ~LogMessageStream() {
         oss << std::endl;
-        g_logger.log(level, std::move(oss.str()));
+        g_logger.log(level, oss.str());
     };
 };
 
