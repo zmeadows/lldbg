@@ -2,15 +2,20 @@
 
 #include "lldb/API/LLDB.h"
 
-#include "lldbg.hpp"
+#include "Application.hpp"
 #include "Defer.hpp"
 #include "Log.hpp"
 #include "FileSystem.hpp"
+#include "Timer.hpp"
 
 #include <GL/freeglut.h>
 #include "imgui.h"
 #include "examples/imgui_impl_freeglut.h"
 #include "examples/imgui_impl_opengl2.h"
+
+#include <vector>
+#include <string>
+#include <fstream>
 
 namespace lldbg {
 
@@ -22,7 +27,7 @@ void main_loop() {
     ImGui_ImplOpenGL2_NewFrame();
     ImGui_ImplFreeGLUT_NewFrame();
 
-    g_application.tick();
+    tick(g_application);
 
     // Rendering
     ImGui::Render();
@@ -103,7 +108,7 @@ int main(int argc, char** argv)
 
     const char** const_argv_ptr = const_argv.data();
 
-    lldbg::g_application.start_process("/home/zac/lldbg/test/a.out", const_argv_ptr);
+    start_process(lldbg::g_application, "/home/zac/lldbg/test/a.out", const_argv_ptr);
 
     glutMainLoop();
 

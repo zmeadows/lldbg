@@ -11,44 +11,18 @@
 
 namespace fs = std::experimental::filesystem;
 
-namespace {
+namespace lldbg {
 
-std::vector<std::string> read_lines(const fs::path& filepath) {
-    assert(fs::is_regular_file(filepath));
-
-    std::ifstream infile(filepath.c_str());
-
-    std::vector<std::string> contents;
-
-    std::string line;
-    while (std::getline(infile, line)) {
-        contents.push_back(line);
-    }
-
-    return contents;
-}
-
+// Keeping this as simple as possible for now.
+// Each file is stored as a std::vector of std::string.
+// A quick benchmark suggests loading a 3k line file takes 0.5ms.
+// So we can safely load ~10 typical files per frame if needed.
+// That should be enough for now (or ever?).
 class FileStorage {
     std::unordered_map<std::string, std::vector<std::string>> m_cache;
 
 public:
-    void cache(const std::string& filepath) {
-        auto it = m_cache.find(filepath);
-        if (it != m_cache.end()) {
-            LOG(Error) << "Attempted to cache file that has already been cached: " << filepath;
-            return;
-        }
-        m_cache.emplace(filepath, read_lines(filepath));
-    }
-
-    const std::vector<std::string>* get(const std::string& filepath) const {
-        const auto it = m_cache.find(filepath);
-        if (it == m_cache.end()) {
-            LOG(Error) << "Attempted to access contents of file that hasn't been cached: " << filepath;
-            return nullptr;
-        }
-        return &it->second;
-    }
+    const std::vector<std::string>* read(const std::string& filepath);
 };
 
 struct FileTreeNode {
@@ -56,57 +30,14 @@ struct FileTreeNode {
     const fs::path location; // canonical
     const bool is_directory;
 
-    static std::unique_ptr<FileTreeNode> create(const fs::path& relative_path) {
-        if (!fs::exists(relative_path)) return nullptr;
-        fs::path canonical_path = fs::canonical(relative_path);
+    static std::unique_ptr<FileTreeNode> create(const fs::path& relative_path);
+    static std::unique_ptr<FileTreeNode> create(const char* relative_location);
 
-        if (!fs::is_directory(canonical_path) && !fs::is_regular_file(canonical_path)) {
-            LOG(Error) << "Attemped to load a path ("
-                       << canonical_path
-                       << ") that wasn't a directory or regular file!";
-            return nullptr;
-        }
-
-        return std::unique_ptr<FileTreeNode>(new FileTreeNode(canonical_path));
-    }
-
-    static std::unique_ptr<FileTreeNode> create(const char* relative_location) {
-        return FileTreeNode::create(fs::path(relative_location));
-    }
-
-    void open_children() {
-        if (this->children.empty()) {
-            for (const auto& p : fs::directory_iterator(this->location)) {
-                this->children.push_back(FileTreeNode::create(p));
-            }
-        }
-    }
-
+    void open_children();
 
 private:
     FileTreeNode(const fs::path& new_path)
         : location(new_path), is_directory(fs::is_directory(new_path)) {}
-};
-
-}
-
-namespace lldbg {
-
-class FileBrowser {
-    FileStorage m_store;
-    std::unique_ptr<FileTreeNode> m_base_node;
-
-public:
-    FileBrowser() {}
-    FileBrowser(const char* location) : m_base_node(FileTreeNode::create(location)) {}
-
-    bool replace_base_node(const char* location) {
-        auto new_node = FileTreeNode::create(location);
-        std::swap(m_base_node, new_node);
-        return static_cast<bool>(m_base_node);
-    }
-
-    FileTreeNode* base_node(void) { return m_base_node.get(); }
 };
 
 }
