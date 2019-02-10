@@ -5,6 +5,7 @@
 #include "lldbg.hpp"
 #include "Defer.hpp"
 #include "Log.hpp"
+#include "FileSystem.hpp"
 
 #include <GL/freeglut.h>
 #include "imgui.h"

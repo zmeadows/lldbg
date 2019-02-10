@@ -1,6 +1,7 @@
 #pragma once
 
 #include "LLDBCommandLine.hpp"
+#include "FileSystem.hpp"
 
 #include <memory>
 #include <vector>
@@ -61,6 +62,7 @@ struct RenderState {
     //FileBrowser file_browser;
 };
 
-void draw(lldb::SBProcess process, LLDBCommandLine& command_line, RenderState& state);
+void draw(lldb::SBProcess process, LLDBCommandLine& command_line, FileBrowser& fs, RenderState& state);
+void draw(FileBrowser& fs);
 
 }

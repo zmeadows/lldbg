@@ -56,11 +56,28 @@ bool Splitter(bool split_vertically, float thickness, float* size1, float* size2
     return SplitterBehavior(bb, id, split_vertically ? ImGuiAxis_X : ImGuiAxis_Y, size1, size2, min_size1, min_size2, 0.0f);
 }
 
+void draw(FileTreeNode* node) {
+    if (!node) return;
+    if (node->is_directory) {
+        if (MyTreeNode(node->location.c_str())) {
+            node->open_children();
+            for (const auto& child_node : node->children) {
+                draw(child_node.get());
+            }
+            ImGui::TreePop();
+        }
+    } else {
+        ImGui::TextUnformatted(node->location.c_str());
+    }
+}
+
+
 }
 
 namespace lldbg {
 
-void draw(lldb::SBProcess process, LLDBCommandLine& command_line, RenderState& state)
+
+void draw(lldb::SBProcess process, LLDBCommandLine& command_line, FileBrowser& fs, RenderState& state)
 {
     const bool stopped = process.GetState() == lldb::eStateStopped;
 
@@ -115,21 +132,7 @@ void draw(lldb::SBProcess process, LLDBCommandLine& command_line, RenderState& s
     ImGui::TextUnformatted("File Explorer");
     ImGui::Separator();
 
-    if (MyTreeNode("dir1")) {
-        if (MyTreeNode("dir2")) {
-            ImGui::TextUnformatted("file1");
-            ImGui::TreePop();
-        }
-        ImGui::TextUnformatted("file2");
-        ImGui::TextUnformatted("file3");
-        ImGui::TreePop();
-    }
-
-    if (MyTreeNode("dir3")) {
-        ImGui::Text("file4");
-        ImGui::Text("file5");
-        ImGui::TreePop();
-    }
+    draw(fs.base_node());
 
     ImGui::EndChild();
     ImGui::SameLine();

@@ -29,13 +29,15 @@ void Application::tick(void) {
     // dump_state(get_process());
     //assert(get_process().GetState() == lldb::SBProcess::GetStateFromEvent(event));
 
-    draw(get_process(), m_command_line, m_render_state);
+    draw(get_process(), m_command_line, m_filesystem, m_render_state);
 }
 
 bool Application::start_process(const char* exe_filepath, const char** argv) {
     m_debugger = lldb::SBDebugger::Create();
     m_debugger.SetAsync(true);
     m_command_line.replace_interpreter(m_debugger.GetCommandInterpreter());
+
+    m_filesystem = FileBrowser("/home/zac/lldbg");
 
     //TODO: convert all print statement below to Error-level logging
 

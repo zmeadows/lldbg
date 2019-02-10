@@ -4,6 +4,7 @@
 
 #include "renderer.hpp"
 #include "Log.hpp"
+#include "FileSystem.hpp"
 
 #include "LLDBEventListenerThread.hpp"
 #include "LLDBCommandLine.hpp"
@@ -22,6 +23,7 @@ class Application {
     lldb::SBDebugger m_debugger;
     lldbg::LLDBEventListenerThread m_event_listener;
     lldbg::LLDBCommandLine m_command_line;
+    lldbg::FileBrowser m_filesystem;
 
     RenderState m_render_state;
 
