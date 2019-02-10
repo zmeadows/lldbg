@@ -20,6 +20,7 @@ struct RenderState {
     int viewed_frame_index = -1;
     int window_width = -1;
     int window_height = -1;
+    std::string viewed_file;
 };
 
 struct Application {

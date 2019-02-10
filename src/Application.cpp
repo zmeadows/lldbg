@@ -18,16 +18,23 @@ namespace {
 
 // A convenience struct for extracting pertinent display information from an lldb::SBFrame
 struct StackFrameDescription {
-    const char* function_name = nullptr;
-    const char* file_name = nullptr;
+    std::string function_name;
+    std::string file_name;
+    std::string directory;
     int line = -1;
     int column = -1;
 
     static StackFrameDescription build(lldb::SBFrame frame) {
         StackFrameDescription description;
 
-        description.function_name = frame.GetDisplayFunctionName();
-        description.file_name = frame.GetLineEntry().GetFileSpec().GetFilename();
+        auto build_string = [](const char* cstr) -> std::string {
+            return cstr ? std::string(cstr) : std::string();
+        };
+
+        description.function_name = build_string(frame.GetDisplayFunctionName());
+        description.file_name = build_string(frame.GetLineEntry().GetFileSpec().GetFilename());
+        description.directory = build_string(frame.GetLineEntry().GetFileSpec().GetDirectory());
+        description.directory.append("/"); //FIXME: not cross-platform
         description.line = (int) frame.GetLineEntry().GetLine();
         description.column = (int) frame.GetLineEntry().GetColumn();
 
@@ -76,18 +83,26 @@ bool Splitter(bool split_vertically, float thickness, float* size1, float* size2
     return SplitterBehavior(bb, id, split_vertically ? ImGuiAxis_X : ImGuiAxis_Y, size1, size2, min_size1, min_size2, 0.0f);
 }
 
-void draw(lldbg::FileTreeNode* node) {
+void draw_file_browser(lldbg::FileTreeNode* node, lldbg::Application& app)
+{
     if (!node) return;
+
     if (node->is_directory) {
         if (MyTreeNode(node->location.c_str())) {
             node->open_children();
             for (const auto& child_node : node->children) {
-                draw(child_node.get());
+                draw_file_browser(child_node.get(), app);
             }
             ImGui::TreePop();
         }
     } else {
-        ImGui::TextUnformatted(node->location.c_str());
+        if (ImGui::Selectable(node->location.c_str(), node->location.compare(app.render_state.viewed_file) == 0)) {
+            app.render_state.viewed_file = node->location;
+            app.viewed_file = app.file_storage.read(node->location);
+            // for (const std::string& l : *app.viewed_file) {
+            // }
+            LOG(Debug) << "Selected " << app.render_state.viewed_file;
+        }
     }
 }
 
@@ -249,7 +264,7 @@ void draw(Application& app)
     ImGui::TextUnformatted("File Explorer");
     ImGui::Separator();
 
-    ::draw(file_node);
+    draw_file_browser(file_node, app);
 
     ImGui::EndChild();
     ImGui::SameLine();
@@ -266,30 +281,24 @@ void draw(Application& app)
     }
 
     ImGui::BeginChild("FileViewer", ImVec2(window_width - 900, file_viewer_height));
-    if (ImGui::BeginTabBar("##Tabs", ImGuiTabBarFlags_None))
+    if (ImGui::BeginTabBar("##FileViewerTabs", ImGuiTabBarFlags_Reorderable | ImGuiTabBarFlags_AutoSelectNewTabs))
     {
-        if (ImGui::BeginTabItem("main.cpp"))
+        if (ImGui::BeginTabItem("PERMANENT"))
         {
-
-            std::string program = "#include <stdio.h>\n"
-                            "int main( int argc, const char* argv[] )\n"
-                            "{\n"
-                            "    int sum = 0;\n"
-                            "    for(int i = 0; i < 10; i++)\n"
-                            "    {\n"
-                            "    	sum += i;\n"
-                            "    }\n"
-                            "}\n";
-
-            ImGui::TextUnformatted(program.c_str());
+            ImGui::TextUnformatted("blah");
             ImGui::EndTabItem();
         }
-        if (ImGui::BeginTabItem("lib.h"))
-        {
-            ImGui::Text("ID: 0123456789");
+
+        if (app.viewed_file != nullptr) {
+            if (ImGui::BeginTabItem(app.render_state.viewed_file.c_str(), NULL,ImGuiTabItemFlags_NoPushId))
+            {
+                for (const std::string& line : *app.viewed_file) {
+                    ImGui::TextUnformatted(line.c_str());
+                }
+            }
             ImGui::EndTabItem();
         }
-        //TODO: what happens when the TabBar is filled?
+
         ImGui::EndTabBar();
     }
     ImGui::EndChild();
@@ -408,28 +417,25 @@ void draw(Application& app)
                 for (uint32_t i = 0; i < viewed_thread.GetNumFrames(); i++) {
                     auto desc = StackFrameDescription::build(viewed_thread.GetFrameAtIndex(i));
 
-                    if (ImGui::Selectable(desc.function_name ? desc.function_name : "unknown", (int) i == selected_row)) {
+                    if (ImGui::Selectable(desc.function_name.c_str() ? desc.function_name.c_str() : "unknown", (int) i == selected_row)) {
+                        const std::string full_path = desc.directory + desc.file_name;
+                        app.render_state.viewed_file = full_path;
+                        app.viewed_file = app.file_storage.read(full_path);
                         selected_row = (int) i;
                     }
                     ImGui::NextColumn();
 
-                    if (ImGui::Selectable(desc.file_name ? desc.function_name : "unknown", (int) i == selected_row)) {
-                        selected_row = (int) i;
-                    }
+                    ImGui::Selectable(desc.file_name.c_str() ? desc.function_name.c_str() : "unknown", (int) i == selected_row);
                     ImGui::NextColumn();
 
                     char line_buf[32];
                     sprintf(line_buf, "%d", desc.line);
-                    if (ImGui::Selectable(line_buf, (int) i == selected_row)) {
-                        selected_row = (int) i;
-                    }
+                    ImGui::Selectable(line_buf, (int) i == selected_row);
                     ImGui::NextColumn();
 
                     char column_buf[32];
                     sprintf(column_buf, "%d", desc.column);
-                    if (ImGui::Selectable(column_buf, (int) i == selected_row)) {
-                        selected_row = (int) i;
-                    }
+                    ImGui::Selectable(column_buf, (int) i == selected_row);
                     ImGui::NextColumn();
                 }
 
