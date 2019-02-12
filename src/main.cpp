@@ -48,7 +48,7 @@ void initialize_rendering(int* argcp, char** argv) {
     glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE, GLUT_ACTION_GLUTMAINLOOP_RETURNS);
     glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_MULTISAMPLE);
     glutInitWindowSize(1280, 720);
-    glutCreateWindow("lldgb");
+    glutCreateWindow("lldbg");
 
     // std::cout << "window width: " << glutGet(GLUT_WINDOW_WIDTH) << std::endl;
     // std::cout << "window height: " << glutGet(GLUT_WINDOW_HEIGHT) << std::endl;
@@ -114,7 +114,7 @@ int main(int argc, char** argv)
 
     ImGuiIO& io = ImGui::GetIO();
     io.Fonts->AddFontDefault();
-    lldbg::g_application.render_state.font = io.Fonts->AddFontFromFileTTF("/home/zac/lldbg/lib/imgui/misc/fonts/Roboto-Medium.ttf", 16.0f);
+    lldbg::g_application.render_state.font = io.Fonts->AddFontFromFileTTF("../lib/imgui/misc/fonts/Hack-Regular.ttf", 15.0f);
 
 
     glutMainLoop();
