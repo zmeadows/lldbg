@@ -5,11 +5,13 @@ The basic goal is to provide vim/emacs users with a lightweight, cross-platform,
 
 ### TODO
 #### Short Term
-- [x] basic file explorer pane
+- [x] file explorer pane
 - [x] cache open files in memory and display in tabs
-- [x] display full stack trace
+- [x] display full stack trace with file name, line, column
 - [x] display file contents
 - [x] show local variables for each stack frame
+- [x] lldb console
+- [x] viewable log messages
 - [ ] clickable tree view of local variables with children
 - [ ] highlight breakpoints in file contents with markers
 - [ ] show registers
