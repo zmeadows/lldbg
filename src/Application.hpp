@@ -4,11 +4,11 @@
 
 #include "Log.hpp"
 #include "FileSystem.hpp"
+
 #include "LLDBEventListenerThread.hpp"
 #include "LLDBCommandLine.hpp"
 
 #include "imgui.h"
-
 #include <iostream>
 #include <assert.h>
 
@@ -23,6 +23,10 @@ struct RenderState final {
     int window_height = -1;
     bool request_manual_tab_change = false;
     ImFont* font = nullptr;
+
+    static constexpr float DEFAULT_FILEBROWSER_WIDTH_PERCENT = 0.2;
+    static constexpr float DEFAULT_FILEVIEWER_WIDTH_PERCENT = 0.6;
+    static constexpr float DEFAULT_STACKTRACE_WIDTH_PERCENT = 0.2;
 };
 
 

@@ -72,12 +72,12 @@ bool MyTreeNode(const char* label)
     return opened;
 }
 
-bool Splitter(bool split_vertically, float thickness, float* size1, float* size2, float min_size1, float min_size2, float splitter_long_axis_size = -1.f)
+bool Splitter(const char* name, bool split_vertically, float thickness, float* size1, float* size2, float min_size1, float min_size2, float splitter_long_axis_size = -1.f)
 {
     using namespace ImGui;
     ImGuiContext& g = *GImGui;
     ImGuiWindow* window = g.CurrentWindow;
-    ImGuiID id = window->GetID("##Splitter");
+    ImGuiID id = window->GetID(name);
     ImRect bb;
     bb.Min = window->DC.CursorPos + (split_vertically ? ImVec2(*size1, 0.0f) : ImVec2(0.0f, *size1));
     bb.Max = bb.Min + CalcItemSize(split_vertically ? ImVec2(thickness, splitter_long_axis_size) : ImVec2(splitter_long_axis_size, thickness), 0.0f, 0.0f);
@@ -292,7 +292,16 @@ void draw(Application& app)
         }
     }
 
-    ImGui::BeginChild("FileBrowserPane", ImVec2(300, 0), true);
+    static float file_browser_width = (float) window_width * app.render_state.DEFAULT_FILEBROWSER_WIDTH_PERCENT;
+    static float file_viewer_width = (float) window_width * app.render_state.DEFAULT_FILEVIEWER_WIDTH_PERCENT;
+    Splitter("##S1", true, 3.0f, &file_browser_width, &file_viewer_width, 100, 100, window_height);
+
+    if (window_resized) {
+        file_browser_width = file_browser_width * (float) new_width / (float) old_width;
+        file_viewer_width = file_viewer_width * (float) new_width / (float) old_width;
+    }
+
+    ImGui::BeginChild("FileBrowserPane", ImVec2(file_browser_width, 0), true);
     ImGui::TextUnformatted("File Explorer");
     ImGui::Separator();
     draw_file_browser(file_node, app);
@@ -304,7 +313,7 @@ void draw(Application& app)
 
     static float file_viewer_height = window_height/2;
     static float console_height = window_height/2;
-    Splitter(false, 5.0f, &file_viewer_height, &console_height, 100, 100, window_width-900);
+    Splitter("##S2", false, 3.0f, &file_viewer_height, &console_height, 100, 100, file_viewer_width);
 
     if (window_resized) {
         file_viewer_height = file_viewer_height * (float) new_height / (float) old_height;
@@ -312,7 +321,7 @@ void draw(Application& app)
     }
 
     {
-        ImGui::BeginChild("FileViewer", ImVec2(window_width - 900, file_viewer_height));
+        ImGui::BeginChild("FileViewer", ImVec2(file_viewer_width, file_viewer_height));
         Defer(ImGui::EndChild());
 
         if (ImGui::BeginTabBar("##FileViewerTabs", ImGuiTabBarFlags_AutoSelectNewTabs | ImGuiTabBarFlags_NoTooltip)) {
@@ -333,13 +342,14 @@ void draw(Application& app)
     ImGui::Spacing();
 
     { // START LOG/CONSOLE
-        ImGui::BeginChild("LogConsole", ImVec2(window_width - 900, console_height - 2 * ImGui::GetFrameHeightWithSpacing()));
+        ImGui::BeginChild("LogConsole", ImVec2(file_viewer_width, console_height - 2 * ImGui::GetFrameHeightWithSpacing()));
         Defer(ImGui::EndChild());
 
         if (ImGui::BeginTabBar("##ConsoleLogTabs", ImGuiTabBarFlags_None))
         {
             if (ImGui::BeginTabItem("Console"))
             {
+                ImGui::BeginChild("ConsoleEntries");
                 for (const CommandLineEntry& entry : command_line.get_history()) {
                     ImGui::TextColored(ImVec4(255,0,0,255), "> %s", entry.input.c_str());
                     if (entry.succeeded) {
@@ -371,13 +381,17 @@ void draw(Application& app)
                 // always scroll to the bottom of the command history
                 ImGui::SetScrollHere(1.0f);
 
+                ImGui::EndChild();
                 ImGui::EndTabItem();
             }
 
             if (ImGui::BeginTabItem("Log")) {
+                ImGui::BeginChild("LogEntries");
                 lldbg::g_logger.for_each_message([](const lldbg::LogMessage& message) -> void {
                     ImGui::TextUnformatted(message.message.c_str());
                 });
+                ImGui::SetScrollHere(1.0f);
+                ImGui::EndChild();
                 ImGui::EndTabItem();
             }
             ImGui::EndTabBar();
@@ -395,7 +409,7 @@ void draw(Application& app)
     const float locals_height     = window_height/4;
     const float breakpoint_height = window_height/4;
 
-    ImGui::BeginChild("#ThreadsChild", ImVec2(0, threads_height), true);
+    ImGui::BeginChild("#ThreadsChild", ImVec2(window_width - file_browser_width - file_viewer_width, threads_height), true);
     if (ImGui::BeginTabBar("#ThreadsTabs", ImGuiTabBarFlags_None))
     {
         if (ImGui::BeginTabItem("Threads"))
@@ -481,6 +495,7 @@ void draw(Application& app)
     {
         if (ImGui::BeginTabItem("Locals"))
         {
+            //TODO: turn this into a recursive tree that displays children of structs/arrays
             if (stopped && state.viewed_frame_index >= 0) {
                 lldb::SBThread viewed_thread = process.GetThreadAtIndex(state.viewed_thread_index);
                 lldb::SBFrame frame = viewed_thread.GetFrameAtIndex(state.viewed_frame_index);
