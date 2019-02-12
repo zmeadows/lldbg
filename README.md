@@ -18,7 +18,7 @@ The basic goal is to provide vim/emacs users with a lightweight, cross-platform,
 - [ ] adjustable splitters between each main UI element
 - [ ] adjustable font family
 - [ ] adjustable font size
-- [ ] automatically scale based on DPI display
+- [ ] automatically scale based on DPI of display
 - [ ] add color themes
 - [ ] local config file for specifying font family/size, color theme, etc
 - [ ] toggle inline assembly view
@@ -33,7 +33,7 @@ The basic goal is to provide vim/emacs users with a lightweight, cross-platform,
 - [ ] command line argument to turn on logging at start
 
 #### Long Term
-- [ ] syntax highlight
+- [ ] syntax highlighting
 
 ### screenshot
 ![alt text](https://raw.githubusercontent.com/zmeadows/lldbg/master/screenshot.png)
