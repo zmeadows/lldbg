@@ -7,13 +7,13 @@
 
 namespace lldbg {
 
-struct CommandLineEntry {
+struct CommandLineEntry final {
     bool succeeded;
     std::string input;
     std::string output;
 };
 
-class LLDBCommandLine {
+class LLDBCommandLine final {
     lldb::SBCommandInterpreter m_interpreter;
     std::vector<CommandLineEntry> m_history;
 public:

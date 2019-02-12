@@ -15,7 +15,7 @@ enum class LogLevel {
     Error
 };
 
-struct LogMessage {
+struct LogMessage final {
     const LogLevel level;
     const std::string message;
 
@@ -23,7 +23,7 @@ struct LogMessage {
         : level(level), message(std::move(message)) {}
 };
 
-class Logger {
+class Logger final {
     std::mutex m_mutex;
     std::vector<LogMessage> m_messages;
 
@@ -33,6 +33,7 @@ public:
         m_messages.emplace_back(level, std::move(message));
     };
 
+    //TODO: just do begin/end
     template <typename Callable>
     void for_each_message(Callable&& f) {
         std::unique_lock<std::mutex> lock(m_mutex);
@@ -44,7 +45,7 @@ public:
 
 extern Logger g_logger;
 
-class LogMessageStream {
+class LogMessageStream final {
     const LogLevel level;
     std::ostringstream oss;
 

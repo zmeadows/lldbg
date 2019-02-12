@@ -1,6 +1,7 @@
 #include "Application.hpp"
 
 #include "Log.hpp"
+#include "Defer.hpp"
 
 #include <chrono>
 #include <iostream>
@@ -83,25 +84,57 @@ bool Splitter(bool split_vertically, float thickness, float* size1, float* size2
     return SplitterBehavior(bb, id, split_vertically ? ImGuiAxis_X : ImGuiAxis_Y, size1, size2, min_size1, min_size2, 0.0f);
 }
 
+
+void draw_open_files(lldbg::Application& app) {
+    assert(app.open_files.size() > 0);
+
+    const int ifocus = app.open_files.focus_index();
+    int iremove = -1;
+
+    for (int i = 0; i < app.open_files.size(); i++) {
+        const lldbg::FileReference& ref = app.open_files.get_file_at_index(i);
+
+        const auto flags = (app.render_state.request_manual_tab_change && i == ifocus)
+                            ? ImGuiTabItemFlags_SetSelected : ImGuiTabItemFlags_None;
+
+        bool keep_open = true;
+
+        if (ImGui::BeginTabItem(ref.short_name.c_str(), &keep_open, flags)) {
+            Defer(ImGui::EndTabItem());
+            ImGui::BeginChild("FileContents");
+            for (const std::string& line : *ref.contents) {
+                ImGui::TextUnformatted(line.c_str());
+            }
+            ImGui::EndChild();
+        }
+
+        if (!keep_open) { iremove = i; }
+    }
+
+    if (iremove != -1) {
+        app.open_files.close(iremove);
+    }
+
+    app.render_state.request_manual_tab_change = false;
+}
+
 void draw_file_browser(lldbg::FileTreeNode* node, lldbg::Application& app)
 {
     if (!node) return;
 
     if (node->is_directory) {
         if (MyTreeNode(node->location.c_str())) {
+            Defer(ImGui::TreePop());
             node->open_children();
             for (const auto& child_node : node->children) {
                 draw_file_browser(child_node.get(), app);
             }
-            ImGui::TreePop();
         }
     } else {
-        if (ImGui::Selectable(node->location.c_str(), node->location.compare(app.render_state.viewed_file) == 0)) {
-            app.render_state.viewed_file = node->location;
-            app.viewed_file = app.file_storage.read(node->location);
-            // for (const std::string& l : *app.viewed_file) {
-            // }
-            LOG(Debug) << "Selected " << app.render_state.viewed_file;
+        if (ImGui::Selectable(node->location.c_str())) { //, node->location.compare(app.render_state.viewed_file) == 0)) {
+            app.open_files.open(app.file_storage, node->location, true);
+            app.render_state.request_manual_tab_change = true;
+            LOG(Debug) << "Selected " << node->location;
         }
     }
 }
@@ -232,41 +265,39 @@ void draw(Application& app)
 
     ImGui::SetNextWindowPos(ImVec2(0.f,0.f), ImGuiSetCond_Always);
     ImGui::SetNextWindowSize(ImVec2(window_width, window_height), ImGuiSetCond_Always);
-    ImGui::Begin("lldbg", 0, ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoTitleBar);
 
-    if (ImGui::BeginMenuBar())
-    {
-        if (ImGui::BeginMenu("File"))
-        {
+    ImGui::Begin("lldbg", 0, ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoTitleBar);
+    ImGui::PushFont(app.render_state.font);
+
+    if (ImGui::BeginMenuBar()) {
+        Defer(ImGui::EndMenuBar());
+
+        if (ImGui::BeginMenu("File")) {
+            Defer(ImGui::EndMenu());
             if (ImGui::MenuItem("Open..", "Ctrl+O")) { /* Do stuff */ }
             if (ImGui::MenuItem("Save", "Ctrl+S"))   { /* Do stuff */ }
             if (ImGui::MenuItem("Close", "Ctrl+W"))  { /* Do stuff */ }
-            ImGui::EndMenu();
         }
 
-        if (ImGui::BeginMenu("View"))
-        {
+        if (ImGui::BeginMenu("View")) {
+            Defer(ImGui::EndMenu());
             if (ImGui::MenuItem("Layout", NULL)) { /* Do stuff */ }
             if (ImGui::MenuItem("Zoom In", "+")) { /* Do stuff */ }
             if (ImGui::MenuItem("Zoom Out", "-")) { /* Do stuff */ }
-            ImGui::EndMenu();
         }
 
-        if (ImGui::BeginMenu("Help"))
-        {
+        if (ImGui::BeginMenu("Help")) {
+            Defer(ImGui::EndMenu());
             if (ImGui::MenuItem("About", "F12")) { /* Do stuff */ }
-            ImGui::EndMenu();
         }
-        ImGui::EndMenuBar();
     }
 
     ImGui::BeginChild("FileBrowserPane", ImVec2(300, 0), true);
     ImGui::TextUnformatted("File Explorer");
     ImGui::Separator();
-
     draw_file_browser(file_node, app);
-
     ImGui::EndChild();
+
     ImGui::SameLine();
 
     ImGui::BeginGroup();
@@ -280,82 +311,78 @@ void draw(Application& app)
         console_height = console_height * (float) new_height / (float) old_height;
     }
 
-    ImGui::BeginChild("FileViewer", ImVec2(window_width - 900, file_viewer_height));
-    if (ImGui::BeginTabBar("##FileViewerTabs", ImGuiTabBarFlags_Reorderable | ImGuiTabBarFlags_AutoSelectNewTabs))
     {
-        if (ImGui::BeginTabItem("PERMANENT"))
-        {
-            ImGui::TextUnformatted("blah");
-            ImGui::EndTabItem();
-        }
+        ImGui::BeginChild("FileViewer", ImVec2(window_width - 900, file_viewer_height));
+        Defer(ImGui::EndChild());
 
-        if (app.viewed_file != nullptr) {
-            if (ImGui::BeginTabItem(app.render_state.viewed_file.c_str(), NULL,ImGuiTabItemFlags_NoPushId))
-            {
-                for (const std::string& line : *app.viewed_file) {
-                    ImGui::TextUnformatted(line.c_str());
+        if (ImGui::BeginTabBar("##FileViewerTabs", ImGuiTabBarFlags_AutoSelectNewTabs | ImGuiTabBarFlags_NoTooltip)) {
+            Defer(ImGui::EndTabBar());
+
+            if (app.open_files.size() == 0) {
+                if (ImGui::BeginTabItem("about")) {
+                    Defer(ImGui::EndTabItem());
+                    ImGui::TextUnformatted("This is a GUI for lldb.");
                 }
+            } else {
+                draw_open_files(app);
             }
-            ImGui::EndTabItem();
-        }
 
-        ImGui::EndTabBar();
+        }
     }
-    ImGui::EndChild();
 
     ImGui::Spacing();
 
-    ImGui::BeginChild("LogConsole", ImVec2(window_width - 900, console_height - 2 * ImGui::GetFrameHeightWithSpacing()));
-    if (ImGui::BeginTabBar("##ConsoleLogTabs", ImGuiTabBarFlags_None))
-    {
-        if (ImGui::BeginTabItem("Console"))
+    { // START LOG/CONSOLE
+        ImGui::BeginChild("LogConsole", ImVec2(window_width - 900, console_height - 2 * ImGui::GetFrameHeightWithSpacing()));
+        Defer(ImGui::EndChild());
+
+        if (ImGui::BeginTabBar("##ConsoleLogTabs", ImGuiTabBarFlags_None))
         {
-            for (const CommandLineEntry& entry : command_line.get_history()) {
-                ImGui::TextColored(ImVec4(255,0,0,255), "> %s", entry.input.c_str());
-                if (entry.succeeded) {
-                    ImGui::TextUnformatted(entry.output.c_str());
-                } else {
-                    ImGui::Text("error: %s is not a valid command.", entry.input.c_str());
+            if (ImGui::BeginTabItem("Console"))
+            {
+                for (const CommandLineEntry& entry : command_line.get_history()) {
+                    ImGui::TextColored(ImVec4(255,0,0,255), "> %s", entry.input.c_str());
+                    if (entry.succeeded) {
+                        ImGui::TextUnformatted(entry.output.c_str());
+                    } else {
+                        ImGui::Text("error: %s is not a valid command.", entry.input.c_str());
+                    }
+
+                    ImGui::TextUnformatted("\n");
+                }
+                static char input_buf[1024];
+
+                auto command_input_callback = [](ImGuiTextEditCallbackData* data) -> int {
+                    return 0;
+                };
+
+                const ImGuiInputTextFlags command_input_flags =
+                    ImGuiInputTextFlags_EnterReturnsTrue
+                    | ImGuiInputTextFlags_CallbackCompletion
+                    | ImGuiInputTextFlags_CallbackHistory;
+
+
+                if (ImGui::InputText("COMMAND:", input_buf, 1024, command_input_flags, command_input_callback))
+                {
+                    command_line.run_command(input_buf);
+                    strcpy(input_buf, "");
                 }
 
-                ImGui::TextUnformatted("\n");
-            }
-            static char input_buf[1024];
+                // always scroll to the bottom of the command history
+                ImGui::SetScrollHere(1.0f);
 
-            auto command_input_callback = [](ImGuiTextEditCallbackData* data) -> int {
-                return 0;
-            };
-
-            const ImGuiInputTextFlags command_input_flags =
-                ImGuiInputTextFlags_EnterReturnsTrue
-                | ImGuiInputTextFlags_CallbackCompletion
-                | ImGuiInputTextFlags_CallbackHistory;
-
-
-            if (ImGui::InputText("COMMAND:", input_buf, 1024, command_input_flags, command_input_callback))
-            {
-                command_line.run_command(input_buf);
-                strcpy(input_buf, "");
+                ImGui::EndTabItem();
             }
 
-            // always scroll to the bottom of the command history
-            ImGui::SetScrollHere(1.0f);
-
-            ImGui::EndTabItem();
+            if (ImGui::BeginTabItem("Log")) {
+                lldbg::g_logger.for_each_message([](const lldbg::LogMessage& message) -> void {
+                    ImGui::TextUnformatted(message.message.c_str());
+                });
+                ImGui::EndTabItem();
+            }
+            ImGui::EndTabBar();
         }
-
-        if (ImGui::BeginTabItem("Log"))
-        {
-            lldbg::g_logger.for_each_message([](const lldbg::LogMessage& message) -> void {
-                ImGui::TextUnformatted(message.message.c_str());
-            });
-            ImGui::EndTabItem();
-        }
-        ImGui::EndTabBar();
-    }
-
-
-    ImGui::EndChild();
+    } // END LOG/CONSOLE
 
     ImGui::EndGroup();
 
@@ -419,8 +446,8 @@ void draw(Application& app)
 
                     if (ImGui::Selectable(desc.function_name.c_str() ? desc.function_name.c_str() : "unknown", (int) i == selected_row)) {
                         const std::string full_path = desc.directory + desc.file_name;
-                        app.render_state.viewed_file = full_path;
-                        app.viewed_file = app.file_storage.read(full_path);
+                        app.open_files.open(app.file_storage, full_path, true);
+                        app.render_state.request_manual_tab_change = true;
                         selected_row = (int) i;
                     }
                     ImGui::NextColumn();
@@ -428,12 +455,12 @@ void draw(Application& app)
                     ImGui::Selectable(desc.file_name.c_str() ? desc.function_name.c_str() : "unknown", (int) i == selected_row);
                     ImGui::NextColumn();
 
-                    char line_buf[32];
+                    static char line_buf[256];
                     sprintf(line_buf, "%d", desc.line);
                     ImGui::Selectable(line_buf, (int) i == selected_row);
                     ImGui::NextColumn();
 
-                    char column_buf[32];
+                    static char column_buf[256];
                     sprintf(column_buf, "%d", desc.column);
                     ImGui::Selectable(column_buf, (int) i == selected_row);
                     ImGui::NextColumn();
@@ -482,10 +509,12 @@ void draw(Application& app)
     ImGui::EndChild();
 
     ImGui::BeginChild("#BreakWatchPointChild", ImVec2(0, breakpoint_height), true);
-    if (ImGui::BeginTabBar("##BreakWatchPointTabs", ImGuiTabBarFlags_None))
-    {
-        if (ImGui::BeginTabItem("Watchpoints"))
-        {
+    if (ImGui::BeginTabBar("##BreakWatchPointTabs", ImGuiTabBarFlags_None)) {
+        Defer(ImGui::EndTabBar());
+
+        if (ImGui::BeginTabItem("Watchpoints")) {
+            Defer(ImGui::EndTabItem());
+
             for (int i = 0; i < 4; i++)
             {
                 char label[128];
@@ -494,10 +523,10 @@ void draw(Application& app)
                     // blah
                 }
             }
-            ImGui::EndTabItem();
         }
-        if (ImGui::BeginTabItem("Breakpoints"))
-        {
+
+        if (ImGui::BeginTabItem("Breakpoints")) {
+            Defer(ImGui::EndTabItem());
             for (int i = 0; i < 4; i++)
             {
                 char label[128];
@@ -506,13 +535,13 @@ void draw(Application& app)
                     // blah
                 }
             }
-            ImGui::EndTabItem();
         }
-        ImGui::EndTabBar();
     }
     ImGui::EndChild();
+
     ImGui::EndGroup();
 
+    ImGui::PopFont();
     ImGui::End();
 }
 

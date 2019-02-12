@@ -4,9 +4,10 @@
 
 #include "Log.hpp"
 #include "FileSystem.hpp"
-
 #include "LLDBEventListenerThread.hpp"
 #include "LLDBCommandLine.hpp"
+
+#include "imgui.h"
 
 #include <iostream>
 #include <assert.h>
@@ -15,21 +16,23 @@ namespace lldbg {
 
 using err_t = int;
 
-struct RenderState {
+struct RenderState final {
     int viewed_thread_index = -1;
     int viewed_frame_index = -1;
     int window_width = -1;
     int window_height = -1;
-    std::string viewed_file;
+    bool request_manual_tab_change = false;
+    ImFont* font = nullptr;
 };
 
-struct Application {
+
+struct Application final {
     lldb::SBDebugger debugger;
     lldbg::LLDBEventListenerThread event_listener;
     lldbg::LLDBCommandLine command_line;
     lldbg::FileStorage file_storage;
+    lldbg::OpenFiles open_files;
     std::unique_ptr<lldbg::FileTreeNode> file_browser;
-    const std::vector<std::string>* viewed_file;
     RenderState render_state;
 
     Application() = default;

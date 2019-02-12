@@ -2,7 +2,7 @@
 
 #include <chrono>
 
-class Timer {
+class Timer final {
     using Clock = std::chrono::high_resolution_clock;
     using Time = std::chrono::high_resolution_clock::time_point;
     const Time start;

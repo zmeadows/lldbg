@@ -10,7 +10,7 @@
 namespace {
 
 // A simple thread-safe queue for LLDB events
-class EventQueue {
+class EventQueue final {
     std::mutex m_mutex;
     std::deque<lldb::SBEvent> m_events;
 
@@ -44,7 +44,7 @@ public:
 namespace lldbg {
 
 // A pollable thread for collecting LLDB events from a queue
-class LLDBEventListenerThread {
+class LLDBEventListenerThread final {
     lldb::SBListener m_listener;
     std::unique_ptr<std::thread> m_thread;
     std::atomic<bool> m_continue;

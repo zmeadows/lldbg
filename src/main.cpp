@@ -27,6 +27,7 @@ void main_loop() {
     ImGui_ImplOpenGL2_NewFrame();
     ImGui_ImplFreeGLUT_NewFrame();
 
+
     tick(g_application);
 
     // Rendering
@@ -59,7 +60,7 @@ void initialize_rendering(int* argcp, char** argv) {
 
     // Setup Dear ImGui context
     ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    // ImGuiIO& io = ImGui::GetIO();
     //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
 
     // Setup Dear ImGui style
@@ -79,6 +80,7 @@ void initialize_rendering(int* argcp, char** argv) {
     ImGui_ImplFreeGLUT_Init();
     ImGui_ImplFreeGLUT_InstallFuncs();
     ImGui_ImplOpenGL2_Init();
+
 }
 
 void cleanup_rendering() {
@@ -109,6 +111,11 @@ int main(int argc, char** argv)
     const char** const_argv_ptr = const_argv.data();
 
     start_process(lldbg::g_application, "/home/zac/lldbg/test/a.out", const_argv_ptr);
+
+    ImGuiIO& io = ImGui::GetIO();
+    io.Fonts->AddFontDefault();
+    lldbg::g_application.render_state.font = io.Fonts->AddFontFromFileTTF("/home/zac/lldbg/lib/imgui/misc/fonts/Roboto-Medium.ttf", 16.0f);
+
 
     glutMainLoop();
 

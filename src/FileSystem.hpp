@@ -13,18 +13,43 @@ namespace fs = std::experimental::filesystem;
 
 namespace lldbg {
 
-// Keeping this as simple as possible for now.
-// Each file is stored as a std::vector of std::string.
-// A quick benchmark suggests loading a 3k line file takes 0.5ms.
-// So we can safely load ~10 typical files per frame if needed.
-// That should be enough for now (or ever?).
+struct FileReference {
+    std::vector<std::string>* contents;
+    fs::path canonical_path;
+    std::string short_name;
+
+    FileReference(std::vector<std::string>* _contents, fs::path _canonical_path)
+        : contents(_contents)
+        , canonical_path(_canonical_path)
+        , short_name(canonical_path.filename().string())
+    {}
+};
+
+
 class FileStorage {
     std::unordered_map<std::string, std::vector<std::string>> m_cache;
 
 public:
-    const std::vector<std::string>* read(const std::string& filepath);
+    std::unique_ptr<FileReference> read(const std::string& requested_filepath);
+    std::unique_ptr<FileReference> read(const fs::path& canonical_path);
 };
 
+class OpenFiles {
+    std::vector<FileReference> m_refs;
+    int m_focus = -1;
+
+public:
+    void open(FileStorage& storage, const std::string& requested_filepath, bool take_focus = true);
+    void close(const std::string& requested_filepath);
+    void close(size_t idx);
+    void change_focus(size_t idx);
+
+    size_t size(void) const { return m_refs.size(); }
+    int focus_index() const { return m_focus; }
+    const FileReference& get_file_at_index(size_t i) const { return m_refs[i]; }
+};
+
+//TODO: rename FileBrowserNode for clarity
 struct FileTreeNode {
     std::vector<std::unique_ptr<FileTreeNode>> children;
     const fs::path location; // canonical
