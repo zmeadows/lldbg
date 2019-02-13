@@ -47,6 +47,7 @@ public:
     size_t size(void) const { return m_refs.size(); }
     int focus_index() const { return m_focus; }
     const FileReference& get_file_at_index(size_t i) const { return m_refs[i]; }
+    const FileReference& focus() const { return m_refs[m_focus]; }
 };
 
 //TODO: rename FileBrowserNode for clarity

@@ -4,6 +4,7 @@
 
 #include "Log.hpp"
 #include "FileSystem.hpp"
+#include "TextEditor.h"
 
 #include "LLDBEventListenerThread.hpp"
 #include "LLDBCommandLine.hpp"
@@ -38,6 +39,7 @@ struct Application final {
     lldbg::OpenFiles open_files;
     std::unique_ptr<lldbg::FileTreeNode> file_browser;
     RenderState render_state;
+    TextEditor text_editor;
 
     Application() = default;
     ~Application() { event_listener.stop(debugger); }

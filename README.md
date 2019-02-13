@@ -12,6 +12,7 @@ The basic goal is to provide vim/emacs users with a lightweight, cross-platform,
 - [x] show local variables for each stack frame
 - [x] lldb console
 - [x] viewable log messages
+- [X] syntax highlighting
 - [ ] clickable tree view of local variables with children
 - [ ] highlight breakpoints in file contents with markers
 - [ ] show registers
@@ -34,8 +35,6 @@ The basic goal is to provide vim/emacs users with a lightweight, cross-platform,
 - [ ] menu option to enable/disable logging (disabled by default)
 - [ ] command line argument to turn on logging at start
 
-#### Long Term
-- [ ] syntax highlighting
 
 ### screenshot
 ![alt text](https://raw.githubusercontent.com/zmeadows/lldbg/master/screenshot.png)

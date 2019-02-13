@@ -102,9 +102,15 @@ void draw_open_files(lldbg::Application& app) {
         if (ImGui::BeginTabItem(ref.short_name.c_str(), &keep_open, flags)) {
             Defer(ImGui::EndTabItem());
             ImGui::BeginChild("FileContents");
-            for (const std::string& line : *ref.contents) {
-                ImGui::TextUnformatted(line.c_str());
+            if (!app.render_state.request_manual_tab_change && i != ifocus) {
+                app.open_files.change_focus(i);
+                app.text_editor.SetTextLines(*ref.contents);
             }
+
+            app.text_editor.Render("TextEditor");
+            // for (const std::string& line : *ref.contents) {
+            //     ImGui::TextUnformatted(line.c_str());
+            // }
             ImGui::EndChild();
         }
 
@@ -134,6 +140,8 @@ void draw_file_browser(lldbg::FileTreeNode* node, lldbg::Application& app)
         if (ImGui::Selectable(node->location.c_str())) { //, node->location.compare(app.render_state.viewed_file) == 0)) {
             app.open_files.open(app.file_storage, node->location, true);
             app.render_state.request_manual_tab_change = true;
+            const lldbg::FileReference& ref = app.open_files.focus();
+            app.text_editor.SetTextLines(*ref.contents);
             LOG(Debug) << "Selected " << node->location;
         }
     }
@@ -167,6 +175,14 @@ bool start_process(Application& app, const char* exe_filepath, const char** argv
     app.command_line.replace_interpreter(app.debugger.GetCommandInterpreter());
 
     app.file_browser = FileTreeNode::create("/home/zac/lldbg");
+
+    app.text_editor.SetLanguageDefinition(TextEditor::LanguageDefinition::CPlusPlus());
+    app.text_editor.SetText(
+        "int main(int argv, char** argv) {\n"
+        "    std::cout << \"Hello, World!\" << std::endl;\n"
+        "}\n"
+        );
+    app.text_editor.SetReadOnly(true);
 
     //TODO: convert all print statement below to Error-level logging
 
@@ -462,6 +478,8 @@ void draw(Application& app)
                         const std::string full_path = desc.directory + desc.file_name;
                         app.open_files.open(app.file_storage, full_path, true);
                         app.render_state.request_manual_tab_change = true;
+                        const lldbg::FileReference& ref = app.open_files.focus();
+                        app.text_editor.SetTextLines(*ref.contents);
                         selected_row = (int) i;
                     }
                     ImGui::NextColumn();
