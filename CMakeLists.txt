@@ -41,7 +41,11 @@ include_directories(lib/imgui)
 include_directories(lib/imgui/examples)
 file(GLOB IMGUI_SOURCES "${CMAKE_SOURCE_DIR}/lib/imgui/*.cpp" "${CMAKE_SOURCE_DIR}/lib/imgui/examples/*freeglut.cpp" "${CMAKE_SOURCE_DIR}/lib/imgui/examples/*opengl2.cpp")
 
-add_executable(lldbgui ${CMAKE_SOURCE_DIR}/src/main.cpp ${LLDBGUI_SOURCES} ${IMGUI_SOURCES})
+include_directories(lib/ImGuiColorTextEdit)
+file(GLOB IMGUI_COLOR_TEXT_EDIT_SOURCES "${CMAKE_SOURCE_DIR}/lib/ImGuiColorTextEdit/*.cpp")
+
+
+add_executable(lldbgui ${CMAKE_SOURCE_DIR}/src/main.cpp ${LLDBGUI_SOURCES} ${IMGUI_SOURCES} ${IMGUI_COLOR_TEXT_EDIT_SOURCES})
 target_link_libraries(lldbgui ${LLDB} ${GLUT_LIBRARIES} ${OPENGL_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 target_link_libraries(lldbgui stdc++fs)
 
