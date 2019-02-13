@@ -376,7 +376,15 @@ void draw(Application& app)
 
                     ImGui::TextUnformatted("\n");
                 }
-                static char input_buf[1024];
+
+                // always scroll to the bottom of the command history after running a command
+                const bool should_scroll_now = app.render_state.ran_command_last_frame;
+                auto auto_scroll =  [&]() -> void {
+                    if (should_scroll_now) {
+                        ImGui::SetScrollHere(1.0f);
+                        app.render_state.ran_command_last_frame = false;
+                    }
+                };
 
                 auto command_input_callback = [](ImGuiTextEditCallbackData* data) -> int {
                     return 0;
@@ -388,16 +396,17 @@ void draw(Application& app)
                     | ImGuiInputTextFlags_CallbackHistory;
 
 
-                if (ImGui::InputText("COMMAND:", input_buf, 1024, command_input_flags, command_input_callback))
+                static char input_buf[2048];
+                if (ImGui::InputText("lldb console", input_buf, 2048, command_input_flags, command_input_callback))
                 {
                     command_line.run_command(input_buf);
                     strcpy(input_buf, "");
+                    app.render_state.ran_command_last_frame = true;
                 }
 
-                // always scroll to the bottom of the command history
-                ImGui::SetScrollHere(1.0f);
-
+                auto_scroll();
                 ImGui::EndChild();
+
                 ImGui::EndTabItem();
             }
 

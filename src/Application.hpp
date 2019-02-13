@@ -23,6 +23,7 @@ struct RenderState final {
     int window_width = -1;
     int window_height = -1;
     bool request_manual_tab_change = false;
+    bool ran_command_last_frame = false;
     ImFont* font = nullptr;
 
     static constexpr float DEFAULT_FILEBROWSER_WIDTH_PERCENT = 0.2;
