@@ -13,11 +13,14 @@ The basic goal is to provide vim/emacs users with a lightweight, cross-platform,
 - [x] lldb console
 - [x] viewable log messages
 - [X] syntax highlighting
+- [X] show breakpoint list
+- [ ] show program status: running or stopped (with stop reason)
 - [ ] clickable tree view of local variables with children
 - [ ] highlight breakpoints in file contents with markers
+- [ ] show watchpoint list
 - [ ] show registers
 - [ ] right click to add breakpoint at specific line of viewed file
-- [ ] show line numbers in viewed files
+- [ ] mouse scroll file contents window
 - [ ] adjustable splitters between each main UI element
 - [ ] adjustable font family
 - [ ] adjustable font size
