@@ -5,6 +5,7 @@
 #include "Application.hpp"
 #include "Defer.hpp"
 #include "Log.hpp"
+#include "Draw.hpp"
 #include "FileSystem.hpp"
 #include "Timer.hpp"
 
@@ -17,10 +18,24 @@
 #include <string>
 #include <fstream>
 
-namespace lldbg {
+void tick(lldbg::Application& app) {
+    lldb::SBEvent event;
 
-Logger g_logger;
-Application g_application;
+    while (true) {
+        optional<lldb::SBEvent> event = app.event_listener.pop_event();
+
+        if (event) {
+            const lldb::StateType new_state = lldb::SBProcess::GetStateFromEvent(*event);
+            const char* state_descr = lldb::SBDebugger::StateAsCString(new_state);
+            LOG(Debug) << "Found event with new state: " << state_descr;
+        } else {
+            break;
+        }
+    }
+
+    lldbg::draw(app);
+}
+
 
 void main_loop() {
     // Start the Dear ImGui frame
@@ -28,7 +43,7 @@ void main_loop() {
     ImGui_ImplFreeGLUT_NewFrame();
 
 
-    tick(g_application);
+    tick(lldbg::g_application);
 
     // Rendering
     ImGui::Render();
@@ -49,9 +64,6 @@ void initialize_rendering(int* argcp, char** argv) {
     glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_MULTISAMPLE);
     glutInitWindowSize(1280, 720);
     glutCreateWindow("lldbg");
-
-    // std::cout << "window width: " << glutGet(GLUT_WINDOW_WIDTH) << std::endl;
-    // std::cout << "window height: " << glutGet(GLUT_WINDOW_HEIGHT) << std::endl;
 
     // Setup GLUT display function
     // We will also call ImGui_ImplFreeGLUT_InstallFuncs() to get all the other functions installed for us,
@@ -89,16 +101,14 @@ void cleanup_rendering() {
     ImGui::DestroyContext();
 }
 
-}
-
 int main(int argc, char** argv)
 {
     lldb::SBDebugger::Initialize();
-    lldbg::initialize_rendering(&argc, argv);
+    initialize_rendering(&argc, argv);
 
     Defer(
         lldb::SBDebugger::Terminate();
-        lldbg::cleanup_rendering();
+        cleanup_rendering();
         );
 
     std::vector<std::string> args( argv + 1, argv + argc );
@@ -110,10 +120,11 @@ int main(int argc, char** argv)
 
     const char** const_argv_ptr = const_argv.data();
 
-    start_process(lldbg::g_application, "/home/zac/lldbg/test/a.out", const_argv_ptr);
+    lldbg::start_process(lldbg::g_application, "/home/zac/lldbg/test/a.out", const_argv_ptr);
 
     ImGuiIO& io = ImGui::GetIO();
     io.Fonts->AddFontDefault();
+    //TODO: read font path from CMake-defined variable
     lldbg::g_application.render_state.font = io.Fonts->AddFontFromFileTTF("../lib/imgui/misc/fonts/Hack-Regular.ttf", 15.0f);
 
 

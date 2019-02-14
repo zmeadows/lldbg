@@ -15,9 +15,7 @@
 
 namespace lldbg {
 
-using err_t = int;
-
-struct RenderState final {
+struct RenderState {
     int viewed_thread_index = -1;
     int viewed_frame_index = -1;
     int window_width = -1;
@@ -31,12 +29,10 @@ struct RenderState final {
     static constexpr float DEFAULT_STACKTRACE_WIDTH_PERCENT = 0.2;
 };
 
-
-struct Application final {
+struct Application {
     lldb::SBDebugger debugger;
     lldbg::LLDBEventListenerThread event_listener;
     lldbg::LLDBCommandLine command_line;
-    lldbg::FileStorage file_storage;
     lldbg::OpenFiles open_files;
     std::unique_ptr<lldbg::FileTreeNode> file_browser;
     RenderState render_state;
@@ -59,9 +55,8 @@ bool start_process(Application& app, const char* exe_filepath, const char** argv
 void kill_process(Application& app);
 void pause_process(Application& app);
 void continue_process(Application& app);
-void tick(Application& app);
 void handle_event(Application& app, lldb::SBEvent);
-void draw(Application& app);
 
 lldb::SBProcess get_process(Application& app);
+
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Log.hpp"
+#include "Prelude.hpp"
 
 #include <assert.h>
 #include <experimental/filesystem>
@@ -26,28 +27,42 @@ struct FileReference {
 };
 
 
-class FileStorage {
-    std::unordered_map<std::string, std::vector<std::string>> m_cache;
-
-public:
-    std::unique_ptr<FileReference> read(const std::string& requested_filepath);
-    std::unique_ptr<FileReference> read(const fs::path& canonical_path);
-};
 
 class OpenFiles {
+    std::unordered_map<std::string, std::vector<std::string>> m_cache;
+
     std::vector<FileReference> m_refs;
-    int m_focus = -1;
+    optional<size_t> m_focus;
+
+    optional<FileReference> read(const std::string& requested_filepath);
+    optional<FileReference> read(const fs::path& canonical_path);
 
 public:
-    void open(FileStorage& storage, const std::string& requested_filepath, bool take_focus = true);
-    void close(const std::string& requested_filepath);
-    void close(size_t idx);
-    void change_focus(size_t idx);
+    using OpenFileIndex = size_t;
+
+    const optional<FileReference> open(const std::string& requested_filepath);
+    void close(OpenFileIndex idx);
+
+    void set_focus(OpenFileIndex idx);
+    bool is_focused(OpenFileIndex idx) const { return m_focus ? idx == *m_focus : false; }
 
     size_t size(void) const { return m_refs.size(); }
-    int focus_index() const { return m_focus; }
-    const FileReference& get_file_at_index(size_t i) const { return m_refs[i]; }
-    const FileReference& focus() const { return m_refs[m_focus]; }
+
+    const optional<FileReference> operator[](OpenFileIndex i) const {
+        if (i < m_refs.size()) {
+            return m_refs[i];
+        } else {
+            return {};
+        }
+    }
+
+    const optional<FileReference> focus() const {
+        if (m_focus) {
+            return m_refs[*m_focus];
+        } else {
+            return {};
+        }
+    }
 };
 
 //TODO: rename FileBrowserNode for clarity

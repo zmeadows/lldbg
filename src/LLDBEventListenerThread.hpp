@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Prelude.hpp"
+
 #include <deque>
 #include <memory>
 #include <mutex>
@@ -25,12 +27,16 @@ public:
         m_events.push_back(new_event);
     }
 
-    std::unique_ptr<lldb::SBEvent> pop(void) {
+    optional<lldb::SBEvent> pop(void) {
         std::unique_lock<std::mutex> lock(m_mutex);
-        if (m_events.empty()) return nullptr;
-        auto front_copy = std::unique_ptr<lldb::SBEvent>(new lldb::SBEvent(m_events.front()));
-        m_events.pop_front();
-        return front_copy;
+
+        if (m_events.empty()) {
+            return {};
+        } else {
+            lldb::SBEvent oldest_event = m_events.front();
+            m_events.pop_front();
+            return oldest_event;
+        }
     }
 
     void clear(void) {
@@ -55,7 +61,7 @@ class LLDBEventListenerThread final {
 public:
     void start(lldb::SBDebugger&);
     void stop(lldb::SBDebugger&);
-    std::unique_ptr<lldb::SBEvent> pop_event() { return m_events.pop(); }
+    optional<lldb::SBEvent> pop_event() { return m_events.pop(); }
 
     LLDBEventListenerThread();
 

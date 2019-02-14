@@ -65,35 +65,35 @@ void FileTreeNode::open_children() {
     }
 }
 
-std::unique_ptr<FileReference> FileStorage::read(const std::string& requested_filepath) {
+optional<FileReference> OpenFiles::read(const std::string& requested_filepath) {
     return read(fs::canonical(requested_filepath));
 }
 
-std::unique_ptr<FileReference> FileStorage::read(const fs::path& canonical_path) {
+optional<FileReference> OpenFiles::read(const fs::path& canonical_path) {
     const std::string canonical_path_str = canonical_path.string();
 
     const auto it = m_cache.find(canonical_path_str);
 
     if (it == m_cache.end()) { // file hasn't been cached already
         if (!fs::exists(canonical_path)) {
-            LOG(Error) << "Attempted to add non-existent file to storage: " << canonical_path;
-            return nullptr;
+            LOG(Error) << "Attempted to add non-existent file to cache: " << canonical_path;
+            return {};
         }
 
         if (!fs::is_regular_file(canonical_path)) {
-            LOG(Error) << "Attempted to add something other than regular file to storage: " << canonical_path;
-            return nullptr;
+            LOG(Error) << "Attempted to add something other than regular file to cache: " << canonical_path;
+            return {};
         }
 
         auto it = m_cache.emplace(canonical_path_str, read_lines(canonical_path));
-        return std::unique_ptr<FileReference>(new FileReference(&it.first->second, canonical_path));
+        return FileReference(&it.first->second, canonical_path);
 
     } else { // found the file in the cache
-        return std::unique_ptr<FileReference>(new FileReference(&it->second, canonical_path));
+        return FileReference(&it->second, canonical_path);
     }
 }
 
-void OpenFiles::open(FileStorage& storage, const std::string& requested_filepath, bool take_focus) {
+const optional<FileReference> OpenFiles::open(const std::string& requested_filepath) {
     const fs::path canonical_path = fs::canonical(requested_filepath);
 
     auto it = std::find_if(m_refs.begin(), m_refs.end(), [&](const FileReference& ref) {
@@ -103,25 +103,25 @@ void OpenFiles::open(FileStorage& storage, const std::string& requested_filepath
     if (it != m_refs.end()) { //already in set
         LOG(Info) << "Attempted to add file already in OpenFiles: " << canonical_path;
 
-        if (take_focus) {
-            m_focus = it - m_refs.begin();
-        }
+        m_focus = it - m_refs.begin();
 
-        return;
+        return {};
     }
 
-    std::unique_ptr<FileReference> ref_ptr = storage.read(canonical_path);
+    optional<FileReference> ref_ptr = read(canonical_path);
 
-    if (!ref_ptr) { return; }
+    if (!ref_ptr) { return {}; }
 
     m_refs.emplace_back(*ref_ptr);
 
     LOG(Debug) << "Opened file " << requested_filepath << " and now have " << size() << " files open.";
 
-    if (take_focus) m_focus = static_cast<int>(m_refs.size()) - 1;
+    m_focus = m_refs.size() - 1;
+
+    return m_refs.back();
 }
 
-void OpenFiles::change_focus(size_t idx) {
+void OpenFiles::set_focus(size_t idx) {
     if (idx < size()) {
         m_focus = idx;
     } else {
@@ -130,27 +130,33 @@ void OpenFiles::change_focus(size_t idx) {
     }
 }
 
-void OpenFiles::close(const std::string& requested_filepath) {
-    const fs::path canonical_path = fs::canonical(requested_filepath);
-
-    auto it = std::find_if(m_refs.begin(), m_refs.end(), [&](const FileReference& ref) {
-        return ref.canonical_path == canonical_path;
-    });
-
-    if (it == m_refs.end()) {
-        LOG(Error) << "Attempted to remove unopen file from open files list: " << canonical_path;
-        return;
-    }
-
-    const size_t remove_idx = it - m_refs.begin();
-    m_refs.erase(it);
-    m_focus = static_cast<int>(remove_idx) - 1;
-}
+// void OpenFiles::close(const std::string& requested_filepath) {
+//     const fs::path canonical_path = fs::canonical(requested_filepath);
+//
+//     auto it = std::find_if(m_refs.begin(), m_refs.end(), [&](const FileReference& ref) {
+//         return ref.canonical_path == canonical_path;
+//     });
+//
+//     if (it == m_refs.end()) {
+//         LOG(Error) << "Attempted to remove unopen file from open files list: " << canonical_path;
+//         return;
+//     }
+//
+//     const size_t remove_idx = it - m_refs.begin();
+//     m_refs.erase(it);
+//     m_focus = static_cast<int>(remove_idx) - 1;
+// }
 
 void OpenFiles::close(size_t idx) {
     assert(idx < size());
     m_refs.erase(m_refs.begin() + idx);
-    m_focus = static_cast<int>(idx) - 1;
+
+    if (m_refs.empty()) {
+        m_focus = {};
+    } else {
+        assert(idx > 0);
+        m_focus = idx - 1;
+    }
 }
 
 }
