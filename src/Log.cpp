@@ -2,6 +2,5 @@
 
 
 namespace lldbg {
-Logger g_logger;
 }
 

@@ -101,6 +101,11 @@ void cleanup_rendering() {
     ImGui::DestroyContext();
 }
 
+namespace lldbg {
+Logger g_logger;
+Application g_application;
+}
+
 int main(int argc, char** argv)
 {
     lldb::SBDebugger::Initialize();

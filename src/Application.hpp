@@ -56,6 +56,7 @@ void kill_process(Application& app);
 void pause_process(Application& app);
 void continue_process(Application& app);
 void handle_event(Application& app, lldb::SBEvent);
+void manually_open_and_or_focus_file(Application& app, const std::string filepath);
 
 lldb::SBProcess get_process(Application& app);
 

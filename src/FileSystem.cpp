@@ -105,7 +105,7 @@ const optional<FileReference> OpenFiles::open(const std::string& requested_filep
 
         m_focus = it - m_refs.begin();
 
-        return {};
+        return focus();
     }
 
     optional<FileReference> ref_ptr = read(canonical_path);

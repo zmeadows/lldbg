@@ -17,7 +17,6 @@
 
 namespace lldbg {
 
-Application g_application;
 
 bool start_process(Application& app, const char* exe_filepath, const char** argv) {
     app.debugger = lldb::SBDebugger::Create();
@@ -107,6 +106,16 @@ void kill_process(Application& app) {
 lldb::SBProcess get_process(Application& app) {
     assert(app.debugger.GetNumTargets() <= 1);
     return app.debugger.GetSelectedTarget().GetProcess();
+}
+
+void manually_open_and_or_focus_file(Application& app, const std::string filepath) {
+    const optional<FileReference> maybe_ref = app.open_files.open(filepath);
+    if (maybe_ref) {
+        app.render_state.request_manual_tab_change = true;
+        app.text_editor.SetTextLines(*(*maybe_ref).contents);
+    } else {
+        LOG(Error) << "Attempted to manually focus/open file that couldn't be opened: " << filepath;
+    }
 }
 
 }

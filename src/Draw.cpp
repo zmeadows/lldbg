@@ -16,6 +16,7 @@
 #include <GL/freeglut.h>
 
 namespace {
+
 // A convenience struct for extracting pertinent display information from an lldb::SBFrame
 struct StackFrameDescription {
     std::string function_name;
@@ -41,6 +42,11 @@ struct StackFrameDescription {
         return description;
     }
 };
+
+std::string build_string(const char* cstr) {
+    return cstr ? std::string(cstr) : std::string();
+};
+
 
 bool MyTreeNode(const char* label)
 {
@@ -384,14 +390,13 @@ void draw(Application& app)
 
                 lldb::SBThread viewed_thread = process.GetThreadAtIndex(app.render_state.viewed_thread_index);
                 for (uint32_t i = 0; i < viewed_thread.GetNumFrames(); i++) {
+                    //TODO: save description and don't rebuild every frame
                     const auto desc = StackFrameDescription::build(viewed_thread.GetFrameAtIndex(i));
 
                     if (ImGui::Selectable(desc.function_name.c_str() ? desc.function_name.c_str() : "unknown", (int) i == selected_row)) {
+                        //TODO: factor out
                         const std::string full_path = desc.directory + desc.file_name;
-                        app.open_files.open(full_path);
-                        app.render_state.request_manual_tab_change = true;
-                        const lldbg::FileReference& ref = *app.open_files.focus();
-                        app.text_editor.SetTextLines(*ref.contents);
+                        manually_open_and_or_focus_file(app, full_path);
                         selected_row = (int) i;
                     }
                     ImGui::NextColumn();
@@ -479,11 +484,11 @@ void draw(Application& app)
                 ImGui::Text("LINE");
                 ImGui::NextColumn();
                 ImGui::Separator();
+                Defer(ImGui::Columns(1));
 
                 lldb::SBTarget target = app.debugger.GetSelectedTarget();
                 for (uint32_t i = 0; i < target.GetNumBreakpoints(); i++)
                 {
-
                     lldb::SBBreakpoint breakpoint = target.GetBreakpointAtIndex(i);
                     lldb::SBBreakpointLocation location = breakpoint.FindLocationByID(breakpoint.GetID());
 
@@ -499,19 +504,22 @@ void draw(Application& app)
 
                     lldb::SBLineEntry line_entry = address.GetLineEntry();
 
-                    const char* filename = line_entry.GetFileSpec().GetFilename();
-                    ImGui::Selectable(filename, (int) i == selected_row);
+                    //TODO: save description and don't rebuild every frame
+                    const std::string filename = build_string(line_entry.GetFileSpec().GetFilename());
+                    if (ImGui::Selectable(filename.c_str(), (int) i == selected_row)) {
+                        //TODO: factor out
+                        const std::string directory = build_string(line_entry.GetFileSpec().GetDirectory()) + "/";
+                        const std::string full_path = directory + filename;
+                        manually_open_and_or_focus_file(app, full_path);
+                        selected_row = (int) i;
+                    }
                     ImGui::NextColumn();
 
-                    int line_number = line_entry.GetLine();
-
                     static char line_buf[256];
-                    sprintf(line_buf, "%d", line_number);
+                    sprintf(line_buf, "%d", line_entry.GetLine());
                     ImGui::Selectable(line_buf, (int) i == selected_row);
                     ImGui::NextColumn();
                 }
-
-                ImGui::Columns(1);
             }
         }
     }

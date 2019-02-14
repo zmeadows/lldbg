@@ -19,8 +19,8 @@ struct LogMessage final {
     const LogLevel level;
     const std::string message;
 
-    LogMessage(LogLevel level, std::string&& message)
-        : level(level), message(std::move(message)) {}
+    LogMessage(LogLevel level, const std::string& message)
+        : level(level), message(message) {}
 };
 
 class Logger final {
@@ -28,9 +28,9 @@ class Logger final {
     std::vector<LogMessage> m_messages;
 
 public:
-    void log(LogLevel level, std::string&& message) {
+    void log(LogLevel level, const std::string& message) {
         std::unique_lock<std::mutex> lock(m_mutex);
-        m_messages.emplace_back(level, std::move(message));
+        m_messages.emplace_back(level, message);
     };
 
     //TODO: just do begin/end
