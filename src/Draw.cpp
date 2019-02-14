@@ -315,6 +315,7 @@ void draw(Application& app)
             if (ImGui::BeginTabItem("Log")) {
                 ImGui::BeginChild("LogEntries");
                 lldbg::g_logger.for_each_message([](const lldbg::LogMessage& message) -> void {
+                    //TODO: colorize based on log level
                     ImGui::TextUnformatted(message.message.c_str());
                 });
                 ImGui::SetScrollHere(1.0f);
@@ -466,13 +467,51 @@ void draw(Application& app)
 
         if (ImGui::BeginTabItem("Breakpoints")) {
             Defer(ImGui::EndTabItem());
-            for (int i = 0; i < 4; i++)
-            {
-                char label[128];
-                sprintf(label, "Break %d", i);
-                if (ImGui::Selectable(label, i == 0)) {
-                    // blah
+
+            if (stopped && app.render_state.viewed_thread_index >= 0) {
+
+                static int selected_row = -1;
+
+                ImGui::Columns(2);
+                ImGui::Separator();
+                ImGui::Text("FILE");
+                ImGui::NextColumn();
+                ImGui::Text("LINE");
+                ImGui::NextColumn();
+                ImGui::Separator();
+
+                lldb::SBTarget target = app.debugger.GetSelectedTarget();
+                for (uint32_t i = 0; i < target.GetNumBreakpoints(); i++)
+                {
+
+                    lldb::SBBreakpoint breakpoint = target.GetBreakpointAtIndex(i);
+                    lldb::SBBreakpointLocation location = breakpoint.FindLocationByID(breakpoint.GetID());
+
+                    if (!location.IsValid()) {
+                        LOG(Error) << "Invalid breakpoint location encountered!";
+                    }
+
+                    lldb::SBAddress address = location.GetAddress();
+
+                    if (!address.IsValid()) {
+                        LOG(Error) << "Invalid lldb::SBAddress for breakpoint!";
+                    }
+
+                    lldb::SBLineEntry line_entry = address.GetLineEntry();
+
+                    const char* filename = line_entry.GetFileSpec().GetFilename();
+                    ImGui::Selectable(filename, (int) i == selected_row);
+                    ImGui::NextColumn();
+
+                    int line_number = line_entry.GetLine();
+
+                    static char line_buf[256];
+                    sprintf(line_buf, "%d", line_number);
+                    ImGui::Selectable(line_buf, (int) i == selected_row);
+                    ImGui::NextColumn();
                 }
+
+                ImGui::Columns(1);
             }
         }
     }
