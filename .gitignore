@@ -1,2 +1,5 @@
 build
 bin
+.lvimrc
+imgui.ini
+*a.out
