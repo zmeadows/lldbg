@@ -152,54 +152,6 @@ void draw_file_browser(lldbg::FileTreeNode* node_to_draw, lldbg::Application& ap
     }
 }
 
-void draw_console(lldbg::Application& app) {
-    ImGui::BeginChild("ConsoleEntries");
-    for (const lldbg::CommandLineEntry& entry : app.command_line.get_history()) {
-        ImGui::TextColored(ImVec4(255,0,0,255), "> %s", entry.input.c_str());
-        if (entry.succeeded) {
-            ImGui::TextUnformatted(entry.output.c_str());
-        } else {
-            ImGui::Text("error: %s is not a valid command.", entry.input.c_str());
-        }
-
-        ImGui::TextUnformatted("\n");
-    }
-
-    // always scroll to the bottom of the command history after running a command
-    const bool should_scroll_now = app.render_state.ran_command_last_frame;
-    auto auto_scroll =  [&]() -> void {
-        if (should_scroll_now) {
-            ImGui::SetScrollHere(1.0f);
-            app.render_state.ran_command_last_frame = false;
-        }
-    };
-
-    auto command_input_callback = [](ImGuiTextEditCallbackData* data) -> int {
-        return 0;
-    };
-
-    const ImGuiInputTextFlags command_input_flags =
-        ImGuiInputTextFlags_EnterReturnsTrue
-        | ImGuiInputTextFlags_CallbackCompletion
-        | ImGuiInputTextFlags_CallbackHistory;
-
-
-    static char input_buf[2048];
-    if (ImGui::InputText("lldb console", input_buf, 2048, command_input_flags, command_input_callback))
-    {
-        app.command_line.run_command(input_buf);
-        strcpy(input_buf, "");
-        app.render_state.ran_command_last_frame = true;
-    }
-
-    // Keep auto focus on the input box
-    if (ImGui::IsItemHovered() || (ImGui::IsRootWindowOrAnyChildFocused() && !ImGui::IsAnyItemActive() && !ImGui::IsMouseClicked(0)))
-        ImGui::SetKeyboardFocusHere(-1); // Auto focus previous widget
-
-    auto_scroll();
-    ImGui::EndChild();
-}
-
 }
 
 namespace lldbg {
@@ -276,6 +228,9 @@ void draw(Application& app)
 
     static float file_viewer_height = window_height/2;
     static float console_height = window_height/2;
+
+    const float old_console_height = console_height;
+
     Splitter("##S2", false, 3.0f, &file_viewer_height, &console_height, 100, 100, file_viewer_width);
 
     if (window_resized) {
@@ -308,7 +263,52 @@ void draw(Application& app)
         if (ImGui::BeginTabBar("##ConsoleLogTabs", ImGuiTabBarFlags_None))
         {
             if (ImGui::BeginTabItem("Console")) {
-                draw_console(app);
+
+                ImGui::BeginChild("ConsoleEntries");
+
+                for (const lldbg::CommandLineEntry& entry : app.command_line.get_history()) {
+                    ImGui::TextColored(ImVec4(255,0,0,255), "> %s", entry.input.c_str());
+                    if (entry.succeeded) {
+                        ImGui::TextUnformatted(entry.output.c_str());
+                    } else {
+                        ImGui::Text("error: %s is not a valid command.", entry.input.c_str());
+                    }
+
+                    ImGui::TextUnformatted("\n");
+                }
+
+                // always scroll to the bottom of the command history after running a command
+                const bool should_auto_scroll_command_window =
+                    app.render_state.ran_command_last_frame
+                    || old_console_height != console_height;
+
+                auto command_input_callback = [](ImGuiTextEditCallbackData* data) -> int {
+                    return 0;
+                };
+
+                const ImGuiInputTextFlags command_input_flags =
+                    ImGuiInputTextFlags_EnterReturnsTrue;
+
+
+                static char input_buf[2048];
+                if (ImGui::InputText("lldb console", input_buf, 2048, command_input_flags, command_input_callback))
+                {
+                    app.command_line.run_command(input_buf);
+                    strcpy(input_buf, "");
+                    app.render_state.ran_command_last_frame = true;
+                }
+
+                // Keep auto focus on the input box
+                if (ImGui::IsItemHovered() || (ImGui::IsRootWindowOrAnyChildFocused() && !ImGui::IsAnyItemActive() && !ImGui::IsMouseClicked(0)))
+                    ImGui::SetKeyboardFocusHere(-1); // Auto focus previous widget
+
+                if (should_auto_scroll_command_window) {
+                    ImGui::SetScrollHere(1.0f);
+                    app.render_state.ran_command_last_frame = false;
+                }
+
+                ImGui::EndChild();
+
                 ImGui::EndTabItem();
             }
 
