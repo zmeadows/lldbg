@@ -9,8 +9,9 @@
 namespace lldbg {
 
 enum class LogLevel {
-    Info,
+    Verbose,
     Debug,
+    Info,
     Warning,
     Error
 };

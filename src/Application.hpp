@@ -15,6 +15,7 @@
 
 namespace lldbg {
 
+// rename UserInterface?
 struct RenderState {
     int viewed_thread_index = -1;
     int viewed_frame_index = -1;

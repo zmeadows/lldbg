@@ -1,13 +1,14 @@
 #include "FileSystem.hpp"
 
 #include "Log.hpp"
+#include "Prelude.hpp"
 
 #include <algorithm>
 
 namespace {
 
-std::vector<std::string> read_lines(const fs::path& filepath) {
-    assert(fs::is_regular_file(filepath));
+std::vector<std::string> read_lines(const std::filesystem::path& filepath) {
+    assert(std::filesystem::is_regular_file(filepath));
 
     std::ifstream infile(filepath.c_str());
 
@@ -27,11 +28,11 @@ std::vector<std::string> read_lines(const fs::path& filepath) {
 
 namespace lldbg {
 
-std::unique_ptr<FileTreeNode> FileTreeNode::create(const fs::path& relative_path) {
-    if (!fs::exists(relative_path)) { return nullptr; }
-    fs::path canonical_path = fs::canonical(relative_path);
+std::unique_ptr<FileTreeNode> FileTreeNode::create(const std::filesystem::path& relative_path) {
+    if (!std::filesystem::exists(relative_path)) { return nullptr; }
+    std::filesystem::path canonical_path = std::filesystem::canonical(relative_path);
 
-    if (!fs::is_directory(canonical_path) && !fs::is_regular_file(canonical_path)) {
+    if (!std::filesystem::is_directory(canonical_path) && !std::filesystem::is_regular_file(canonical_path)) {
         LOG(Error) << "Attemped to load a path ("
                    << canonical_path
                    << ") that wasn't a directory or regular file!";
@@ -42,12 +43,12 @@ std::unique_ptr<FileTreeNode> FileTreeNode::create(const fs::path& relative_path
 }
 
 std::unique_ptr<FileTreeNode> FileTreeNode::create(const char* relative_location) {
-    return FileTreeNode::create(fs::path(relative_location));
+    return FileTreeNode::create(std::filesystem::path(relative_location));
 }
 
 void FileTreeNode::open_children() {
     if (this->children.empty()) {
-        for (const auto& p : fs::directory_iterator(this->location)) {
+        for (const auto& p : std::filesystem::directory_iterator(this->location)) {
             this->children.push_back(FileTreeNode::create(p));
         }
 
@@ -65,98 +66,81 @@ void FileTreeNode::open_children() {
     }
 }
 
-optional<FileReference> OpenFiles::read(const std::string& requested_filepath) {
-    return read(fs::canonical(requested_filepath));
-}
-
-optional<FileReference> OpenFiles::read(const fs::path& canonical_path) {
+std::variant<FileReadError, FileReference>
+OpenFiles::read_from_disk(const std::filesystem::path& canonical_path)
+{
     const std::string canonical_path_str = canonical_path.string();
 
-    const auto it = m_cache.find(canonical_path_str);
+    const auto old_it = m_cache.find(canonical_path_str);
 
-    if (it == m_cache.end()) { // file hasn't been cached already
-        if (!fs::exists(canonical_path)) {
-            LOG(Error) << "Attempted to add non-existent file to cache: " << canonical_path;
-            return {};
+    if (old_it == m_cache.end()) { // file hasn't been cached already
+        if (!std::filesystem::exists(canonical_path)) {
+            return FileReadError::DoesNotExist;
         }
 
-        if (!fs::is_regular_file(canonical_path)) {
-            LOG(Error) << "Attempted to add something other than regular file to cache: " << canonical_path;
-            return {};
+        if (!std::filesystem::is_regular_file(canonical_path)) {
+            return FileReadError::NotRegularFile;
         }
 
-        auto it = m_cache.emplace(canonical_path_str, read_lines(canonical_path));
-        return FileReference(&it.first->second, canonical_path);
+        auto new_it = m_cache.emplace(canonical_path_str, read_lines(canonical_path));
+
+        std::vector<std::string>* new_contents = &new_it.first->second;
+
+        return FileReference(new_contents, canonical_path);
 
     } else { // found the file in the cache
-        return FileReference(&it->second, canonical_path);
+        return FileReference(&old_it->second, canonical_path);
     }
 }
 
-const optional<FileReference> OpenFiles::open(const std::string& requested_filepath) {
-    const fs::path canonical_path = fs::canonical(requested_filepath);
+bool OpenFiles::open(const std::string& requested_filepath) {
+    const std::filesystem::path canonical_path = std::filesystem::canonical(requested_filepath);
 
     auto it = std::find_if(m_refs.begin(), m_refs.end(), [&](const FileReference& ref) {
         return ref.canonical_path == canonical_path;
     });
 
     if (it != m_refs.end()) { //already in set
-        LOG(Info) << "Attempted to add file already in OpenFiles: " << canonical_path;
-
         m_focus = it - m_refs.begin();
-
-        return focus();
+        return true;
     }
 
-    optional<FileReference> ref_ptr = read(canonical_path);
+    return MATCH( read_from_disk(canonical_path),
 
-    if (!ref_ptr) { return {}; }
+        [&](const FileReadError& error) {
+            switch (error) {
+                case FileReadError::DoesNotExist:
+                    LOG(Warning) << "Attempted to open non-existent file: " << requested_filepath;
+                    break;
+                case FileReadError::NotRegularFile:
+                    LOG(Warning) << "Attempted to open something other than a regular file (maybe a directory?): " << requested_filepath;
+                    break;
+            };
 
-    m_refs.emplace_back(*ref_ptr);
+            return false;
+        },
 
-    LOG(Debug) << "Opened file " << requested_filepath << " and now have " << size() << " files open.";
+        [&](const FileReference& ref) {
+            LOG(Verbose) << "Successfully opened file: " << requested_filepath;
+            m_refs.emplace_back(ref);
+            m_focus = m_refs.size() - 1;
 
-    m_focus = m_refs.size() - 1;
+            LOG(Debug) << "Number of open files: " << size();
+            return true;
+        }
+    );
 
-    return m_refs.back();
 }
 
-void OpenFiles::set_focus(size_t idx) {
-    if (idx < size()) {
-        m_focus = idx;
-    } else {
-        LOG(Error) << "Attempted to change focus to an invalid index of "
-                   << idx << " with an OpenFiles set of size " << size();
-    }
-}
-
-// void OpenFiles::close(const std::string& requested_filepath) {
-//     const fs::path canonical_path = fs::canonical(requested_filepath);
-//
-//     auto it = std::find_if(m_refs.begin(), m_refs.end(), [&](const FileReference& ref) {
-//         return ref.canonical_path == canonical_path;
-//     });
-//
-//     if (it == m_refs.end()) {
-//         LOG(Error) << "Attempted to remove unopen file from open files list: " << canonical_path;
-//         return;
-//     }
-//
-//     const size_t remove_idx = it - m_refs.begin();
-//     m_refs.erase(it);
-//     m_focus = static_cast<int>(remove_idx) - 1;
-// }
-
-void OpenFiles::close(size_t idx) {
-    assert(idx < size());
-    m_refs.erase(m_refs.begin() + idx);
-
-    if (m_refs.empty()) {
-        m_focus = {};
-    } else {
-        assert(idx > 0);
-        m_focus = idx - 1;
-    }
+void OpenFiles::close(const std::string& filepath) {
+    const std::filesystem::path path_to_close = std::filesystem::canonical(filepath);
+    for_each_open_file([path_to_close](const FileReference& ref, bool) -> std::optional<Action> {
+        if (ref.canonical_path == path_to_close) {
+            return Action::Close;
+        } else {
+            return {};
+        }
+    });
 }
 
 }

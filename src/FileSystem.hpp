@@ -1,84 +1,97 @@
 #pragma once
 
 #include "Log.hpp"
-#include "Prelude.hpp"
 
 #include <assert.h>
-#include <experimental/filesystem>
+#include <filesystem>
 #include <fstream>
 #include <memory>
+#include <optional>
 #include <unordered_map>
+#include <variant>
 #include <vector>
-
-namespace fs = std::experimental::filesystem;
 
 namespace lldbg {
 
+enum class FileReadError {
+    DoesNotExist,
+    NotRegularFile
+};
+
 struct FileReference {
     std::vector<std::string>* contents;
-    fs::path canonical_path;
+    std::filesystem::path canonical_path;
     std::string short_name;
 
-    FileReference(std::vector<std::string>* _contents, fs::path _canonical_path)
+    FileReference(std::vector<std::string>* _contents, std::filesystem::path _canonical_path)
         : contents(_contents)
         , canonical_path(_canonical_path)
         , short_name(canonical_path.filename().string())
     {}
 };
 
-
-
 class OpenFiles {
+    // IDEA: timestamp last time file was open, and release memory if it has been >X minutes?
     std::unordered_map<std::string, std::vector<std::string>> m_cache;
 
     std::vector<FileReference> m_refs;
-    optional<size_t> m_focus;
+    std::optional<size_t> m_focus;
 
-    optional<FileReference> read(const std::string& requested_filepath);
-    optional<FileReference> read(const fs::path& canonical_path);
+
+    using FileReadResult = std::variant<FileReadError, FileReference>;
+
+    FileReadResult read_from_disk(const std::filesystem::path& canonical_path);
 
 public:
-    using OpenFileIndex = size_t;
+    bool open(const std::string& filepath);
+    void close(const std::string& filepath);
+    size_t size() const { return m_refs.size(); }
 
-    const optional<FileReference> open(const std::string& requested_filepath);
-    void close(OpenFileIndex idx);
+    enum class Action { ChangeFocusTo, Close };
 
-    void set_focus(OpenFileIndex idx);
-    bool is_focused(OpenFileIndex idx) const { return m_focus ? idx == *m_focus : false; }
-
-    size_t size(void) const { return m_refs.size(); }
-
-    const optional<FileReference> operator[](OpenFileIndex i) const {
-        if (i < m_refs.size()) {
-            return m_refs[i];
-        } else {
-            return {};
-        }
-    }
-
-    const optional<FileReference> focus() const {
-        if (m_focus) {
-            return m_refs[*m_focus];
-        } else {
-            return {};
-        }
-    }
+    template <typename Callable>
+    void for_each_open_file(Callable&& f);
 };
+
+template <typename Callable>
+void OpenFiles::for_each_open_file(Callable&& f) {
+    for (auto i = 0; i < m_refs.size(); i++) {
+        std::optional<Action> maybe_action = f(m_refs[i], i == *m_focus);
+
+        if (!maybe_action) {
+            continue;
+        }
+
+        switch (*maybe_action) {
+            case Action::ChangeFocusTo:
+                m_focus = i;
+                break;
+            case Action::Close:
+                m_refs.erase(m_refs.begin() + i);
+                if (m_refs.empty()) {
+                    m_focus = {};
+                } else {
+                    m_focus = i - 1;
+                }
+                break;
+        }
+    }
+}
 
 //TODO: rename FileBrowserNode for clarity
 struct FileTreeNode {
     std::vector<std::unique_ptr<FileTreeNode>> children;
-    const fs::path location; // canonical
+    const std::filesystem::path location; // canonical
     const bool is_directory;
 
-    static std::unique_ptr<FileTreeNode> create(const fs::path& relative_path);
+    static std::unique_ptr<FileTreeNode> create(const std::filesystem::path& relative_path);
     static std::unique_ptr<FileTreeNode> create(const char* relative_location);
 
     void open_children();
 
 private:
-    FileTreeNode(const fs::path& new_path)
-        : location(new_path), is_directory(fs::is_directory(new_path)) {}
+    FileTreeNode(const std::filesystem::path& new_path)
+        : location(new_path), is_directory(std::filesystem::is_directory(new_path)) {}
 };
 
 }

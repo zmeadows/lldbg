@@ -27,7 +27,7 @@ public:
         m_events.push_back(new_event);
     }
 
-    optional<lldb::SBEvent> pop(void) {
+    std::optional<lldb::SBEvent> pop(void) {
         std::unique_lock<std::mutex> lock(m_mutex);
 
         if (m_events.empty()) {
@@ -61,7 +61,7 @@ class LLDBEventListenerThread final {
 public:
     void start(lldb::SBDebugger&);
     void stop(lldb::SBDebugger&);
-    optional<lldb::SBEvent> pop_event() { return m_events.pop(); }
+    std::optional<lldb::SBEvent> pop_event() { return m_events.pop(); }
 
     LLDBEventListenerThread();
 

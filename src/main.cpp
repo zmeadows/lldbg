@@ -22,7 +22,7 @@ void tick(lldbg::Application& app) {
     lldb::SBEvent event;
 
     while (true) {
-        optional<lldb::SBEvent> event = app.event_listener.pop_event();
+        std::optional<lldb::SBEvent> event = app.event_listener.pop_event();
 
         if (event) {
             const lldb::StateType new_state = lldb::SBProcess::GetStateFromEvent(*event);
@@ -102,19 +102,16 @@ void cleanup_rendering() {
 }
 
 namespace lldbg {
+
 Logger g_logger;
 Application g_application;
+
 }
 
 int main(int argc, char** argv)
 {
     lldb::SBDebugger::Initialize();
     initialize_rendering(&argc, argv);
-
-    Defer(
-        lldb::SBDebugger::Terminate();
-        cleanup_rendering();
-        );
 
     std::vector<std::string> args( argv + 1, argv + argc );
     std::vector<const char*> const_argv;
@@ -134,6 +131,9 @@ int main(int argc, char** argv)
 
 
     glutMainLoop();
+
+    lldb::SBDebugger::Terminate();
+    cleanup_rendering();
 
     return 0;
 }

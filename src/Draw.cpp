@@ -90,27 +90,23 @@ bool Splitter(const char* name, bool split_vertically, float thickness, float* s
 }
 
 void draw_open_files(lldbg::Application& app) {
-    assert(app.open_files.size() > 0);
-
-    optional<size_t> iremove = {};
-
-    for (size_t i = 0; i < app.open_files.size(); i++) {
-        const lldbg::FileReference ref = *app.open_files[i];
-
-        const bool is_focused = app.open_files.is_focused(i);
+    app.open_files.for_each_open_file([&](const lldbg::FileReference& ref, bool is_focused) {
+        std::optional<lldbg::OpenFiles::Action> action;
 
         // we programmatically set the focused tab if manual tab change requested
         // for example when clicking an entry in the stack trace or file explorer
-        const auto flags = (app.render_state.request_manual_tab_change && is_focused
-                            ? ImGuiTabItemFlags_SetSelected : ImGuiTabItemFlags_None);
+        auto tab_flags = ImGuiTabItemFlags_None;
+        if (app.render_state.request_manual_tab_change && is_focused) {
+            tab_flags = ImGuiTabItemFlags_SetSelected;
+            app.text_editor.SetTextLines(*ref.contents);
+        }
 
-        bool keep_open = true;
-
-        if (ImGui::BeginTabItem(ref.short_name.c_str(), &keep_open, flags)) {
+        bool keep_tab_open = true;
+        if (ImGui::BeginTabItem(ref.short_name.c_str(), &keep_tab_open, tab_flags)) {
             ImGui::BeginChild("FileContents");
             if (!app.render_state.request_manual_tab_change && !is_focused) {
-                // user clicked a tab
-                app.open_files.set_focus(i);
+                // user clicked tab
+                action = lldbg::OpenFiles::Action::ChangeFocusTo;
                 app.text_editor.SetTextLines(*ref.contents);
             }
             app.text_editor.Render("TextEditor");
@@ -118,15 +114,12 @@ void draw_open_files(lldbg::Application& app) {
             ImGui::EndTabItem();
         }
 
-        if (!keep_open) {
-            // user clicked close on this tab
-            iremove = i;
+        if (!keep_tab_open) {
+            action = lldbg::OpenFiles::Action::Close;
         }
-    }
 
-    if (iremove) {
-        app.open_files.close(*iremove);
-    }
+        return action;
+    });
 
     app.render_state.request_manual_tab_change = false;
 }
@@ -137,23 +130,15 @@ void draw_file_browser(lldbg::FileTreeNode* node_to_draw, lldbg::Application& ap
 
     if (node_to_draw->is_directory) {
         if (MyTreeNode(node_to_draw->location.c_str())) {
-            Defer(ImGui::TreePop());
             node_to_draw->open_children();
             for (const auto& child_node : node_to_draw->children) {
                 draw_file_browser(child_node.get(), app);
             }
+            ImGui::TreePop();
         }
     } else {
         if (ImGui::Selectable(node_to_draw->location.c_str())) { //, node_to_draw->location.compare(app.render_state.viewed_file) == 0)) {
-            const optional<lldbg::FileReference> ref = app.open_files.open(node_to_draw->location);
-            if (ref) {
-                app.render_state.request_manual_tab_change = true;
-                const lldbg::FileReference& ref = *app.open_files.focus();
-                app.text_editor.SetTextLines(*ref.contents);
-                LOG(Debug) << "Selected " << node_to_draw->location;
-            } else {
-                LOG(Error) << "Failed to read/open file selected from file browser: " << node_to_draw->location;
-            }
+            manually_open_and_or_focus_file(app, node_to_draw->location);
         }
     }
 }
@@ -222,7 +207,7 @@ void draw(Application& app)
         file_viewer_width = file_viewer_width * (float) new_width / (float) old_width;
     }
 
-    ImGui::BeginChild("FileBrowserPane", ImVec2(file_browser_width, 0), true);
+    ImGui::BeginChild("FileBrowserPane", ImVec2(file_browser_width, 0));
     ImGui::TextUnformatted("File Explorer");
     ImGui::Separator();
     draw_file_browser(app.file_browser.get(), app);
@@ -339,12 +324,12 @@ void draw(Application& app)
 
     ImGui::BeginGroup();
 
-    const float threads_height    = window_height/4;
-    const float stack_height      = window_height/4;
-    const float locals_height     = window_height/4;
-    const float breakpoint_height = window_height/4;
+    const float threads_height    = (window_height - 2 * ImGui::GetFrameHeightWithSpacing())/4;
+    const float stack_height      = (window_height - 2 * ImGui::GetFrameHeightWithSpacing())/4;
+    const float locals_height     = (window_height - 2 * ImGui::GetFrameHeightWithSpacing())/4;
+    const float breakpoint_height = (window_height - 2 * ImGui::GetFrameHeightWithSpacing())/4;
 
-    ImGui::BeginChild("#ThreadsChild", ImVec2(window_width - file_browser_width - file_viewer_width, threads_height), true);
+    ImGui::BeginChild("#ThreadsChild", ImVec2(window_width - file_browser_width - file_viewer_width, threads_height));
     if (ImGui::BeginTabBar("#ThreadsTabs", ImGuiTabBarFlags_None))
     {
         if (ImGui::BeginTabItem("Threads"))
@@ -369,7 +354,7 @@ void draw(Application& app)
     }
     ImGui::EndChild();
 
-    ImGui::BeginChild("#StackTraceChild", ImVec2(0, stack_height), true);
+    ImGui::BeginChild("#StackTraceChild", ImVec2(0, stack_height));
     if (ImGui::BeginTabBar("##StackTraceTabs", ImGuiTabBarFlags_None))
     {
         if (ImGui::BeginTabItem("Stack Trace"))
@@ -420,7 +405,7 @@ void draw(Application& app)
     }
     ImGui::EndChild();
 
-    ImGui::BeginChild("#LocalsChild", ImVec2(0, locals_height), true);
+    ImGui::BeginChild("#LocalsChild", ImVec2(0, locals_height));
     if (ImGui::BeginTabBar("##LocalsTabs", ImGuiTabBarFlags_None))
     {
         if (ImGui::BeginTabItem("Locals"))
@@ -439,21 +424,39 @@ void draw(Application& app)
         }
         if (ImGui::BeginTabItem("Registers"))
         {
-            for (int i = 0; i < 4; i++)
-            {
-                char label[128];
-                sprintf(label, "Registers %d", i);
-                if (ImGui::Selectable(label, i == 0)) {
-                    // blah
-                }
-            }
+            ImGui::BeginChild("RegisterContents");
+            // FIXME: why does this stall the program?
+            // if (stopped && app.render_state.viewed_frame_index >= 0) {
+            //     lldb::SBThread viewed_thread = process.GetThreadAtIndex(app.render_state.viewed_thread_index);
+            //     lldb::SBFrame frame = viewed_thread.GetFrameAtIndex(app.render_state.viewed_frame_index);
+            //     lldb::SBValueList register_collections = frame.GetRegisters();
+
+            //     for (uint32_t i = 0; i < register_collections.GetSize(); i++) {
+            //         lldb::SBValue register_set = register_collections.GetValueAtIndex(i);
+            //         //const std::string label = std::string(register_set.GetName()) + std::to_string(i);
+            //         const std::string label = "Configuration##" + std::to_string(i);
+
+            //         if (MyTreeNode(label.c_str())) {
+
+            //             for (uint32_t i = 0; register_set.GetNumChildren(); i++) {
+            //                 lldb::SBValue child = register_set.GetChildAtIndex(i);
+            //                 if (child.GetName()) {
+            //                     ImGui::TextUnformatted(child.GetName());
+            //                 }
+            //             }
+
+            //             ImGui::TreePop();
+            //         }
+            //     }
+            // }
+            ImGui::EndChild();
             ImGui::EndTabItem();
         }
         ImGui::EndTabBar();
     }
     ImGui::EndChild();
 
-    ImGui::BeginChild("#BreakWatchPointChild", ImVec2(0, breakpoint_height), true);
+    ImGui::BeginChild("#BreakWatchPointChild", ImVec2(0, breakpoint_height));
     if (ImGui::BeginTabBar("##BreakWatchPointTabs", ImGuiTabBarFlags_None)) {
         Defer(ImGui::EndTabBar());
 
