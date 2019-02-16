@@ -25,9 +25,14 @@ struct RenderState {
     bool ran_command_last_frame = false;
     ImFont* font = nullptr;
 
-    static constexpr float DEFAULT_FILEBROWSER_WIDTH_PERCENT = 0.2;
+    static constexpr float DEFAULT_FILEBROWSER_WIDTH_PERCENT = 0.12;
     static constexpr float DEFAULT_FILEVIEWER_WIDTH_PERCENT = 0.6;
-    static constexpr float DEFAULT_STACKTRACE_WIDTH_PERCENT = 0.2;
+    static constexpr float DEFAULT_STACKTRACE_WIDTH_PERCENT = 0.28;
+};
+
+struct ExitDialog {
+    std::string process_name;
+    int exit_code;
 };
 
 struct Application {
@@ -35,9 +40,11 @@ struct Application {
     lldbg::LLDBEventListenerThread event_listener;
     lldbg::LLDBCommandLine command_line;
     lldbg::OpenFiles open_files;
-    std::unique_ptr<lldbg::FileTreeNode> file_browser;
+    std::unique_ptr<lldbg::FileBrowserNode> file_browser;
     RenderState render_state;
     TextEditor text_editor;
+
+    std::optional<ExitDialog> exit_dialog;
 
     Application() = default;
     ~Application() { event_listener.stop(debugger); }
@@ -57,7 +64,7 @@ void kill_process(Application& app);
 void pause_process(Application& app);
 void continue_process(Application& app);
 void handle_event(Application& app, lldb::SBEvent);
-void manually_open_and_or_focus_file(Application& app, const std::string filepath);
+void manually_open_and_or_focus_file(Application& app, const char* filepath);
 
 lldb::SBProcess get_process(Application& app);
 

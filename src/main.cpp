@@ -28,6 +28,14 @@ void tick(lldbg::Application& app) {
             const lldb::StateType new_state = lldb::SBProcess::GetStateFromEvent(*event);
             const char* state_descr = lldb::SBDebugger::StateAsCString(new_state);
             LOG(Debug) << "Found event with new state: " << state_descr;
+
+            if (new_state == lldb::eStateExited) {
+                lldbg::ExitDialog dialog;
+                dialog.process_name = "asdf";
+                dialog.exit_code = get_process(app).GetExitStatus();
+                app.exit_dialog = dialog;
+                LOG(Debug) << "Set exit dialog";
+            }
         } else {
             break;
         }
@@ -80,13 +88,13 @@ void initialize_rendering(int* argcp, char** argv) {
     //ImGui::StyleColorsClassic();
 
     // disable all rounding
-    ImGui::GetStyle().WindowRounding = 0.0f;// <- Set this on init or use ImGui::PushStyleVar()
-    ImGui::GetStyle().ChildRounding = 0.0f;
-    ImGui::GetStyle().FrameRounding = 0.0f;
-    ImGui::GetStyle().GrabRounding = 0.0f;
-    ImGui::GetStyle().PopupRounding = 0.0f;
+    ImGui::GetStyle().WindowRounding    = 0.0f;
+    ImGui::GetStyle().ChildRounding     = 0.0f;
+    ImGui::GetStyle().FrameRounding     = 0.0f;
+    ImGui::GetStyle().GrabRounding      = 0.0f;
+    ImGui::GetStyle().PopupRounding     = 0.0f;
     ImGui::GetStyle().ScrollbarRounding = 0.0f;
-    ImGui::GetStyle().TabRounding = 0.0f;
+    ImGui::GetStyle().TabRounding       = 0.0f;
 
     // Setup Platform/Renderer bindings
     ImGui_ImplFreeGLUT_Init();

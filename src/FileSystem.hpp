@@ -37,15 +37,20 @@ class OpenFiles {
     std::vector<FileReference> m_refs;
     std::optional<size_t> m_focus;
 
-
-    using FileReadResult = std::variant<FileReadError, FileReference>;
-
-    FileReadResult read_from_disk(const std::filesystem::path& canonical_path);
+    const std::variant<FileReadError, FileReference> read_from_disk(const std::filesystem::path& canonical_path);
 
 public:
     bool open(const std::string& filepath);
     void close(const std::string& filepath);
     size_t size() const { return m_refs.size(); }
+
+    const std::optional<FileReference> focus() {
+        if (m_focus) {
+            return m_refs[*m_focus];
+        } else {
+            return {};
+        }
+    }
 
     enum class Action { ChangeFocusTo, Close };
 
@@ -78,20 +83,47 @@ void OpenFiles::for_each_open_file(Callable&& f) {
     }
 }
 
-//TODO: rename FileBrowserNode for clarity
-struct FileTreeNode {
-    std::vector<std::unique_ptr<FileTreeNode>> children;
-    const std::filesystem::path location; // canonical
-    const bool is_directory;
+// class BreakPointSet {
+//     std::unordered_map<std::string, std::set<size_t>> m_cache;
+// 
+// public:
+//     void Synchronize(lldb::SBTarget target);
+// 
+//     void Add(const std::string& file, size_t line);
+//     void Remove(const std::string& file, size_t line);
+//     void Clear(void);
+// };
 
-    static std::unique_ptr<FileTreeNode> create(const std::filesystem::path& relative_path);
-    static std::unique_ptr<FileTreeNode> create(const char* relative_location);
+class FileBrowserNode {
+    bool m_already_opened;
+    const std::filesystem::path m_path;
+    const std::string m_filename;
+    const bool m_is_directory;
+
+    FileBrowserNode(const std::filesystem::path& validated_path)
+        : m_already_opened(false)
+        , m_path(validated_path)
+        , m_filename(validated_path.filename().string())
+        , m_is_directory(std::filesystem::is_directory(validated_path))
+    {}
+
+public:
+    static std::unique_ptr<FileBrowserNode> create(const std::filesystem::path& relative_path);
+    static std::unique_ptr<FileBrowserNode> create(const char* relative_location);
+
+    FileBrowserNode()
+        : m_already_opened(false)
+        , m_path(std::filesystem::canonical(std::filesystem::current_path()))
+        , m_filename(m_path.has_filename() ? m_path.filename().string() : m_path.string())
+        , m_is_directory(std::filesystem::is_directory(m_path))
+    {}
 
     void open_children();
 
-private:
-    FileTreeNode(const std::filesystem::path& new_path)
-        : location(new_path), is_directory(std::filesystem::is_directory(new_path)) {}
+    std::vector<std::unique_ptr<FileBrowserNode>> children;
+    const char* full_path() const { return m_path.c_str(); }
+    const char* filename() const { return m_filename.c_str(); }
+    bool is_directory() const { return m_is_directory; }
 };
 
 }

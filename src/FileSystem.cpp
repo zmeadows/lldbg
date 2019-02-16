@@ -28,45 +28,61 @@ std::vector<std::string> read_lines(const std::filesystem::path& filepath) {
 
 namespace lldbg {
 
-std::unique_ptr<FileTreeNode> FileTreeNode::create(const std::filesystem::path& relative_path) {
-    if (!std::filesystem::exists(relative_path)) { return nullptr; }
-    std::filesystem::path canonical_path = std::filesystem::canonical(relative_path);
+std::unique_ptr<FileBrowserNode> FileBrowserNode::create(const std::filesystem::path& relative_path) {
 
-    if (!std::filesystem::is_directory(canonical_path) && !std::filesystem::is_regular_file(canonical_path)) {
-        LOG(Error) << "Attemped to load a path ("
-                   << canonical_path
-                   << ") that wasn't a directory or regular file!";
+    if (!std::filesystem::exists(relative_path)) {
         return nullptr;
     }
 
-    return std::unique_ptr<FileTreeNode>(new FileTreeNode(canonical_path));
+    const std::filesystem::path canonical_path = std::filesystem::canonical(relative_path);
+
+    if (!std::filesystem::is_directory(canonical_path) && !std::filesystem::is_regular_file(canonical_path)) {
+        LOG(Error) << "Attemped to load a path ("
+                     << canonical_path
+                     << ") that wasn't a directory or regular file!";
+        return nullptr;
+    }
+
+    if (!canonical_path.has_filename()) {
+        LOG(Error) << "No filename for file: " << canonical_path;
+        return nullptr;
+    }
+
+
+    return std::unique_ptr<FileBrowserNode>(new FileBrowserNode(canonical_path));
 }
 
-std::unique_ptr<FileTreeNode> FileTreeNode::create(const char* relative_location) {
-    return FileTreeNode::create(std::filesystem::path(relative_location));
+std::unique_ptr<FileBrowserNode> FileBrowserNode::create(const char* relative_location) {
+    return FileBrowserNode::create(std::filesystem::path(relative_location));
 }
 
-void FileTreeNode::open_children() {
-    if (this->children.empty()) {
-        for (const auto& p : std::filesystem::directory_iterator(this->location)) {
-            this->children.push_back(FileTreeNode::create(p));
+void FileBrowserNode::open_children()
+{
+    if (!m_already_opened) {
+        m_already_opened = true;
+
+        for (const std::filesystem::path& p : std::filesystem::directory_iterator(m_path)) {
+            std::unique_ptr<FileBrowserNode> new_child_node = FileBrowserNode::create(p);
+            if (new_child_node) {
+                this->children.emplace_back(std::move(new_child_node));
+            }
         }
 
         std::sort(this->children.begin(), this->children.end(),
-                  [](const std::unique_ptr<FileTreeNode>& a, const std::unique_ptr<FileTreeNode>& b) {
-                      if (a->is_directory && !b->is_directory) {
-                          return true;
-                      } else if (!a->is_directory && b->is_directory) {
-                          return false;
-                      } else {
-                          return a->location.string() < b->location.string();
-                      }
-                  });
-
+            [](const std::unique_ptr<FileBrowserNode>& a, const std::unique_ptr<FileBrowserNode>& b) {
+                if (a->is_directory() && !b->is_directory()) {
+                    return true;
+                } else if (!a->is_directory() && b->is_directory()) {
+                    return false;
+                } else {
+                    return a->filename() < b->filename();
+                }
+            }
+        );
     }
 }
 
-std::variant<FileReadError, FileReference>
+const std::variant<FileReadError, FileReference>
 OpenFiles::read_from_disk(const std::filesystem::path& canonical_path)
 {
     const std::string canonical_path_str = canonical_path.string();

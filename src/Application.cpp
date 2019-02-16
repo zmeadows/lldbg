@@ -22,7 +22,7 @@ bool start_process(Application& app, const char* exe_filepath, const char** argv
     app.debugger.SetAsync(true);
     app.command_line.replace_interpreter(app.debugger.GetCommandInterpreter());
 
-    app.file_browser = FileTreeNode::create("/home/zac/lldbg");
+    app.file_browser = FileBrowserNode::create("/home/zac/lldbg");
 
     app.text_editor.SetLanguageDefinition(TextEditor::LanguageDefinition::CPlusPlus());
     app.text_editor.SetText(
@@ -30,7 +30,11 @@ bool start_process(Application& app, const char* exe_filepath, const char** argv
         "    std::cout << \"Hello, World!\" << std::endl;\n"
         "}\n"
         );
-    app.text_editor.SetReadOnly(true);
+    app.text_editor.SetBreakpoints( {5} );
+
+    TextEditor::Palette pal = app.text_editor.GetPalette();
+    pal[(int) TextEditor::PaletteIndex::Breakpoint] = ImGui::GetColorU32(ImVec4(255,0,0,255));
+    app.text_editor.SetPalette(pal);
 
     //TODO: convert all print statement below to Error-level logging
 
@@ -107,8 +111,8 @@ lldb::SBProcess get_process(Application& app) {
     return app.debugger.GetSelectedTarget().GetProcess();
 }
 
-void manually_open_and_or_focus_file(Application& app, const std::string filepath) {
-    if (app.open_files.open(filepath)) {
+void manually_open_and_or_focus_file(Application& app, const char* filepath) {
+    if (app.open_files.open(std::string(filepath))) {
         app.render_state.request_manual_tab_change = true;
     }
 }

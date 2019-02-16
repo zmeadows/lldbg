@@ -90,11 +90,13 @@ bool Splitter(const char* name, bool split_vertically, float thickness, float* s
 }
 
 void draw_open_files(lldbg::Application& app) {
+    bool closed_tab = false;
+
     app.open_files.for_each_open_file([&](const lldbg::FileReference& ref, bool is_focused) {
         std::optional<lldbg::OpenFiles::Action> action;
 
         // we programmatically set the focused tab if manual tab change requested
-        // for example when clicking an entry in the stack trace or file explorer
+        // for example when the user clicks an entry in the stack trace or file explorer
         auto tab_flags = ImGuiTabItemFlags_None;
         if (app.render_state.request_manual_tab_change && is_focused) {
             tab_flags = ImGuiTabItemFlags_SetSelected;
@@ -105,7 +107,7 @@ void draw_open_files(lldbg::Application& app) {
         if (ImGui::BeginTabItem(ref.short_name.c_str(), &keep_tab_open, tab_flags)) {
             ImGui::BeginChild("FileContents");
             if (!app.render_state.request_manual_tab_change && !is_focused) {
-                // user clicked tab
+                // user selected tab directly with mouse
                 action = lldbg::OpenFiles::Action::ChangeFocusTo;
                 app.text_editor.SetTextLines(*ref.contents);
             }
@@ -115,6 +117,8 @@ void draw_open_files(lldbg::Application& app) {
         }
 
         if (!keep_tab_open) {
+            // user closed tab with mouse
+            closed_tab = true;
             action = lldbg::OpenFiles::Action::Close;
         }
 
@@ -122,23 +126,28 @@ void draw_open_files(lldbg::Application& app) {
     });
 
     app.render_state.request_manual_tab_change = false;
+
+    if (closed_tab && app.open_files.size() > 0) {
+        const lldbg::FileReference ref = *app.open_files.focus();
+        app.text_editor.SetTextLines(*ref.contents);
+    }
 }
 
-void draw_file_browser(lldbg::FileTreeNode* node_to_draw, lldbg::Application& app)
+void draw_file_browser(lldbg::Application& app, lldbg::FileBrowserNode* node_to_draw, size_t depth)
 {
-    if (!node_to_draw) return;
+    if (node_to_draw->is_directory()) {
+        const char* tree_node_label = depth == 0 ? node_to_draw->full_path() : node_to_draw->filename();
 
-    if (node_to_draw->is_directory) {
-        if (MyTreeNode(node_to_draw->location.c_str())) {
+        if (MyTreeNode(tree_node_label)) {
             node_to_draw->open_children();
-            for (const auto& child_node : node_to_draw->children) {
-                draw_file_browser(child_node.get(), app);
+            for (auto& child_node : node_to_draw->children) {
+                draw_file_browser(app, child_node.get(), depth + 1);
             }
             ImGui::TreePop();
         }
     } else {
-        if (ImGui::Selectable(node_to_draw->location.c_str())) { //, node_to_draw->location.compare(app.render_state.viewed_file) == 0)) {
-            manually_open_and_or_focus_file(app, node_to_draw->location);
+        if (ImGui::Selectable(node_to_draw->filename())) {
+            manually_open_and_or_focus_file(app, node_to_draw->full_path());
         }
     }
 }
@@ -172,7 +181,7 @@ void draw(Application& app)
     ImGui::SetNextWindowPos(ImVec2(0.f,0.f), ImGuiSetCond_Always);
     ImGui::SetNextWindowSize(ImVec2(window_width, window_height), ImGuiSetCond_Always);
 
-    ImGui::Begin("lldbg", 0, ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoTitleBar);
+    ImGui::Begin("lldbg", 0, ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoTitleBar);
     ImGui::PushFont(app.render_state.font);
 
     if (ImGui::BeginMenuBar()) {
@@ -198,6 +207,7 @@ void draw(Application& app)
         }
     }
 
+
     static float file_browser_width = (float) window_width * app.render_state.DEFAULT_FILEBROWSER_WIDTH_PERCENT;
     static float file_viewer_width = (float) window_width * app.render_state.DEFAULT_FILEVIEWER_WIDTH_PERCENT;
     Splitter("##S1", true, 3.0f, &file_browser_width, &file_viewer_width, 100, 100, window_height);
@@ -208,9 +218,18 @@ void draw(Application& app)
     }
 
     ImGui::BeginChild("FileBrowserPane", ImVec2(file_browser_width, 0));
-    ImGui::TextUnformatted("File Explorer");
+
+    if (ImGui::Button("Resume")) {
+        get_process(app).Continue();
+    }
+    ImGui::SameLine();
+
+    if (ImGui::Button("Stop")) {
+        get_process(app).Stop();
+    }
     ImGui::Separator();
-    draw_file_browser(app.file_browser.get(), app);
+
+    draw_file_browser(app, app.file_browser.get(), 0);
     ImGui::EndChild();
 
     ImGui::SameLine();
@@ -381,7 +400,7 @@ void draw(Application& app)
                     if (ImGui::Selectable(desc.function_name.c_str() ? desc.function_name.c_str() : "unknown", (int) i == selected_row)) {
                         //TODO: factor out
                         const std::string full_path = desc.directory + desc.file_name;
-                        manually_open_and_or_focus_file(app, full_path);
+                        manually_open_and_or_focus_file(app, full_path.c_str());
                         selected_row = (int) i;
                     }
                     ImGui::NextColumn();
@@ -513,7 +532,7 @@ void draw(Application& app)
                         //TODO: factor out
                         const std::string directory = build_string(line_entry.GetFileSpec().GetDirectory()) + "/";
                         const std::string full_path = directory + filename;
-                        manually_open_and_or_focus_file(app, full_path);
+                        manually_open_and_or_focus_file(app, full_path.c_str());
                         selected_row = (int) i;
                     }
                     ImGui::NextColumn();
@@ -532,6 +551,15 @@ void draw(Application& app)
 
     ImGui::PopFont();
     ImGui::End();
+
+    if (app.exit_dialog) {
+        ImGui::SetNextWindowPos(ImVec2(window_width/2.f, window_height/2.f), ImGuiSetCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(200, 200), ImGuiSetCond_Always);
+        if (ImGui::Begin("About Dear ImGui", 0, ImGuiWindowFlags_NoDecoration)) {
+            ImGui::TextUnformatted("asdF");
+        }
+        ImGui::End();
+    }
 }
 
 }
