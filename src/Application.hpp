@@ -40,6 +40,7 @@ struct Application {
     lldbg::LLDBEventListenerThread event_listener;
     lldbg::LLDBCommandLine command_line;
     lldbg::OpenFiles open_files;
+    lldbg::BreakPointSet breakpoints;
     std::unique_ptr<lldbg::FileBrowserNode> file_browser;
     RenderState render_state;
     TextEditor text_editor;
@@ -65,6 +66,8 @@ void pause_process(Application& app);
 void continue_process(Application& app);
 void handle_event(Application& app, lldb::SBEvent);
 void manually_open_and_or_focus_file(Application& app, const char* filepath);
+
+bool run_lldb_command(Application& app, const char* command);
 
 lldb::SBProcess get_process(Application& app);
 

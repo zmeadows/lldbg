@@ -1,6 +1,7 @@
 #pragma once
 
 #include <utility>
+#include <string>
 
 // #include <experimental/optional>
 //
@@ -33,3 +34,7 @@ auto make_visitor(Fs... fs)
 }
 
 #define MATCH(X, ...) std::visit(make_visitor(__VA_ARGS__), X)
+
+inline std::string build_string(const char* cstr) {
+    return cstr ? std::string(cstr) : std::string();
+};

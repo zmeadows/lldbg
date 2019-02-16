@@ -24,6 +24,21 @@ std::vector<std::string> read_lines(const std::filesystem::path& filepath) {
     return contents;
 }
 
+const std::optional<std::string> validate_path(const std::string& request) {
+    const std::filesystem::path canonical_path = std::filesystem::canonical(request);
+
+    if (!std::filesystem::exists(canonical_path)) {
+        return {};
+    }
+
+    if (!std::filesystem::is_directory(canonical_path) && !std::filesystem::is_regular_file(canonical_path)) {
+        return {};
+    }
+
+    return canonical_path.string();
+}
+
+
 }
 
 namespace lldbg {
@@ -157,6 +172,101 @@ void OpenFiles::close(const std::string& filepath) {
             return {};
         }
     });
+}
+
+void BreakPointSet::Synchronize(lldb::SBTarget target) {
+    m_cache.clear();
+
+    for (auto i = 0; i < target.GetNumBreakpoints(); i++) {
+        lldb::SBBreakpoint bp = target.GetBreakpointAtIndex(i);
+        lldb::SBBreakpointLocation location = bp.GetLocationAtIndex(0);
+
+        if (!location.IsValid()) {
+            LOG(Error) << "BreakPointSet::Synchronize :: Invalid breakpoint location encountered!";
+        }
+
+        lldb::SBAddress address = location.GetAddress();
+
+        if (!address.IsValid()) {
+            LOG(Error) << "BreakPointSet::Synchronize :: Invalid lldb::SBAddress for breakpoint!";
+        }
+
+        lldb::SBLineEntry line_entry = address.GetLineEntry();
+
+        std::string full_path;
+        full_path += build_string(line_entry.GetFileSpec().GetDirectory());
+        full_path += "/";
+        full_path += build_string(line_entry.GetFileSpec().GetFilename());
+
+        const std::string canonical_path = std::filesystem::canonical(full_path).string();
+
+        auto it = m_cache.find(canonical_path);
+
+        if (it == m_cache.end()) {
+            m_cache[canonical_path] = { (int) line_entry.GetLine() };
+        } else {
+            it->second.insert(line_entry.GetLine());
+        }
+    }
+}
+
+void BreakPointSet::Add(const std::string& file, int line) {
+    const std::optional<std::string> canonical_path = validate_path(file);
+
+    if (!canonical_path) {
+        LOG(Error) << "Attempted to add breakpoint to invalid file: " << file;
+        return;
+    }
+
+    const std::string valid_path = *canonical_path;
+
+    auto it = m_cache.find(valid_path);
+
+    if (it == m_cache.end()) {
+        m_cache[valid_path] = { line };
+    } else {
+        std::unordered_set<int>& breakpoints = it->second;
+        breakpoints.insert(line);
+    }
+}
+
+void BreakPointSet::Remove(const std::string& file, int line) {
+    const std::optional<std::string> canonical_path = validate_path(file);
+
+    if (!canonical_path) {
+        LOG(Error) << "BreakPointSet::Remove :: Attempted to remove breakpoint from invalid file: " << file;
+        return;
+    }
+
+    const std::string valid_path = *canonical_path;
+
+    auto it = m_cache.find(valid_path);
+
+    if (it == m_cache.end()) {
+        LOG(Debug) << "Attempted to remove breakpoint from file with no recorded breakpoints: " << file;
+    } else {
+        std::unordered_set<int>& breakpoints = it->second;
+        breakpoints.erase(line);
+    }
+}
+
+const std::unordered_set<int> BreakPointSet::Get(const std::string& file) {
+    const std::optional<std::string> canonical_path = validate_path(file);
+
+    if (!canonical_path) {
+        LOG(Error) << "BreakPointSet::Get :: Attempted to get breakpoints for invalid file: " << file;
+        return std::unordered_set<int>();
+    }
+
+    const std::string valid_path = *canonical_path;
+
+    auto it = m_cache.find(valid_path);
+
+    if (it == m_cache.end()) {
+        return std::unordered_set<int>();
+    } else {
+        return it->second;
+    }
 }
 
 }

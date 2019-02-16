@@ -79,11 +79,11 @@ bool start_process(Application& app, const char* exe_filepath, const char** argv
 
     assert(app.command_line.run_command("settings set auto-confirm 1", true));
     assert(app.command_line.run_command("settings set target.x86-disassembly-flavor intel", true));
-    assert(app.command_line.run_command("breakpoint set --file simple.cpp --line 5"));
+    // assert(app.command_line.run_command("breakpoint set --file simple.cpp --line 5"));
 
     app.event_listener.start(app.debugger);
 
-    get_process(app).Continue();
+    //get_process(app).Continue();
 
     return true;
 }
@@ -115,6 +115,27 @@ void manually_open_and_or_focus_file(Application& app, const char* filepath) {
     if (app.open_files.open(std::string(filepath))) {
         app.render_state.request_manual_tab_change = true;
     }
+}
+
+bool run_lldb_command(Application& app, const char* command)
+{
+    const size_t num_breakpoints_before = app.debugger.GetSelectedTarget().GetNumBreakpoints();
+
+    const bool command_succeeded = app.command_line.run_command(command);
+
+    const size_t num_breakpoints_after = app.debugger.GetSelectedTarget().GetNumBreakpoints();
+
+    if (num_breakpoints_before != num_breakpoints_after) {
+        app.breakpoints.Synchronize(app.debugger.GetSelectedTarget());
+    }
+
+    const std::optional<FileReference> maybe_ref = app.open_files.focus();
+
+    if (maybe_ref) {
+        app.text_editor.SetBreakpoints(app.breakpoints.Get( (*maybe_ref).canonical_path.string()) );
+    }
+
+    return command_succeeded;
 }
 
 }

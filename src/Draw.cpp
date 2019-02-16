@@ -1,7 +1,8 @@
 #include "Draw.hpp"
 
-#include "Log.hpp"
 #include "Defer.hpp"
+#include "Log.hpp"
+#include "Prelude.hpp"
 
 #include <chrono>
 #include <iostream>
@@ -28,10 +29,6 @@ struct StackFrameDescription {
     static StackFrameDescription build(lldb::SBFrame frame) {
         StackFrameDescription description;
 
-        auto build_string = [](const char* cstr) -> std::string {
-            return cstr ? std::string(cstr) : std::string();
-        };
-
         description.function_name = build_string(frame.GetDisplayFunctionName());
         description.file_name = build_string(frame.GetLineEntry().GetFileSpec().GetFilename());
         description.directory = build_string(frame.GetLineEntry().GetFileSpec().GetDirectory());
@@ -43,9 +40,6 @@ struct StackFrameDescription {
     }
 };
 
-std::string build_string(const char* cstr) {
-    return cstr ? std::string(cstr) : std::string();
-};
 
 
 bool MyTreeNode(const char* label)
@@ -101,6 +95,7 @@ void draw_open_files(lldbg::Application& app) {
         if (app.render_state.request_manual_tab_change && is_focused) {
             tab_flags = ImGuiTabItemFlags_SetSelected;
             app.text_editor.SetTextLines(*ref.contents);
+            app.text_editor.SetBreakpoints(app.breakpoints.Get(ref.canonical_path.string()));
         }
 
         bool keep_tab_open = true;
@@ -110,6 +105,7 @@ void draw_open_files(lldbg::Application& app) {
                 // user selected tab directly with mouse
                 action = lldbg::OpenFiles::Action::ChangeFocusTo;
                 app.text_editor.SetTextLines(*ref.contents);
+                app.text_editor.SetBreakpoints(app.breakpoints.Get(ref.canonical_path.string()));
             }
             app.text_editor.Render("TextEditor");
             ImGui::EndChild();
@@ -130,6 +126,7 @@ void draw_open_files(lldbg::Application& app) {
     if (closed_tab && app.open_files.size() > 0) {
         const lldbg::FileReference ref = *app.open_files.focus();
         app.text_editor.SetTextLines(*ref.contents);
+        app.text_editor.SetBreakpoints(app.breakpoints.Get(ref.canonical_path.string()));
     }
 }
 
@@ -303,7 +300,7 @@ void draw(Application& app)
                 static char input_buf[2048];
                 if (ImGui::InputText("lldb console", input_buf, 2048, command_input_flags, command_input_callback))
                 {
-                    app.command_line.run_command(input_buf);
+                    run_lldb_command(app, input_buf);
                     strcpy(input_buf, "");
                     app.render_state.ran_command_last_frame = true;
                 }
@@ -552,14 +549,14 @@ void draw(Application& app)
     ImGui::PopFont();
     ImGui::End();
 
-    if (app.exit_dialog) {
-        ImGui::SetNextWindowPos(ImVec2(window_width/2.f, window_height/2.f), ImGuiSetCond_Always);
-        ImGui::SetNextWindowSize(ImVec2(200, 200), ImGuiSetCond_Always);
-        if (ImGui::Begin("About Dear ImGui", 0, ImGuiWindowFlags_NoDecoration)) {
-            ImGui::TextUnformatted("asdF");
-        }
-        ImGui::End();
-    }
+    // if (app.exit_dialog) {
+    //     ImGui::SetNextWindowPos(ImVec2(window_width/2.f, window_height/2.f), ImGuiSetCond_Always);
+    //     ImGui::SetNextWindowSize(ImVec2(200, 200), ImGuiSetCond_Always);
+    //     if (ImGui::Begin("About Dear ImGui", 0, ImGuiWindowFlags_NoDecoration)) {
+    //         ImGui::TextUnformatted("asdF");
+    //     }
+    //     ImGui::End();
+    // }
 }
 
 }

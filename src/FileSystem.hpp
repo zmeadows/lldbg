@@ -1,12 +1,16 @@
 #pragma once
 
 #include "Log.hpp"
+#include "Prelude.hpp"
+
+#include "lldb/API/LLDB.h"
 
 #include <assert.h>
 #include <filesystem>
 #include <fstream>
 #include <memory>
 #include <optional>
+#include <unordered_set>
 #include <unordered_map>
 #include <variant>
 #include <vector>
@@ -83,16 +87,22 @@ void OpenFiles::for_each_open_file(Callable&& f) {
     }
 }
 
-// class BreakPointSet {
-//     std::unordered_map<std::string, std::set<size_t>> m_cache;
-// 
-// public:
-//     void Synchronize(lldb::SBTarget target);
-// 
-//     void Add(const std::string& file, size_t line);
-//     void Remove(const std::string& file, size_t line);
-//     void Clear(void);
-// };
+class BreakPointSet {
+    std::unordered_map<std::string, std::unordered_set<int>> m_cache;
+
+public:
+    void Synchronize(lldb::SBTarget target);
+    void Add(const std::string& file, int line);
+    void Remove(const std::string& file, int line);
+    const std::unordered_set<int> Get(const std::string& file);
+    size_t size(void) {
+        size_t s = 0;
+        for (auto& it : m_cache) {
+            s += it.second.size();
+        }
+        return s;
+    }
+};
 
 class FileBrowserNode {
     bool m_already_opened;
