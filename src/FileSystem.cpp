@@ -4,6 +4,7 @@
 #include "Prelude.hpp"
 
 #include <algorithm>
+#include <cstring>
 
 namespace {
 
@@ -90,7 +91,7 @@ void FileBrowserNode::open_children()
                 } else if (!a->is_directory() && b->is_directory()) {
                     return false;
                 } else {
-                    return a->filename() < b->filename();
+                    return strcmp(a->filename(),b->filename()) < 0;
                 }
             }
         );

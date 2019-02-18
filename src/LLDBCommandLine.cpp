@@ -12,18 +12,24 @@ bool LLDBCommandLine::run_command(const char* command, bool hide_from_history)
     }
 
     CommandLineEntry entry;
-
     entry.input = std::string(command);
 
     lldb::SBCommandReturnObject ret;
     m_interpreter.HandleCommand(command, ret);
 
-    const char* output = ret.GetOutput();
-    if (output) {
+    if (ret.GetOutput()) {
         entry.output = std::string(ret.GetOutput());
     }
 
     entry.succeeded = ret.Succeeded();
+
+    if (!entry.succeeded) {
+        if (ret.GetError()) {
+            entry.error_msg = std::string(ret.GetError());
+        } else {
+            entry.error_msg = "Unknown failure reason!";
+        }
+    }
 
     if (!hide_from_history) {
         m_history.emplace_back(entry);
