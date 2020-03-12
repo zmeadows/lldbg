@@ -14,12 +14,13 @@ The basic goal is to provide vim/emacs users with a lightweight, cross-platform,
 - [x] viewable log messages
 - [X] syntax highlighting
 - [X] show breakpoint list
+- [X] highlight breakpoints in file contents with markers
+- [X] click to add breakpoint at specific line of viewed file
+- [ ] intelligently handle command line arguments with cxxopts
 - [ ] show program status: running or stopped (with stop reason)
 - [ ] clickable tree view of local variables with children
-- [ ] highlight breakpoints in file contents with markers
 - [ ] show watchpoint list
 - [ ] show registers
-- [ ] right click to add breakpoint at specific line of viewed file
 - [ ] mouse scroll file contents window
 - [ ] adjustable splitters between each main UI element
 - [ ] adjustable font family
@@ -28,7 +29,6 @@ The basic goal is to provide vim/emacs users with a lightweight, cross-platform,
 - [ ] add color themes
 - [ ] local config file for specifying font family/size, color theme, etc
 - [ ] toggle inline assembly view
-- [ ] command line arguments to set working directory, initial executable and arguments
 - [ ] start/pause/stop buttons
 - [ ] button to change working directory
 - [ ] button to select different executable to debug
@@ -36,7 +36,7 @@ The basic goal is to provide vim/emacs users with a lightweight, cross-platform,
 - [ ] colored log output
 - [ ] menu option to output log to file
 - [ ] menu option to enable/disable logging (disabled by default)
-- [ ] command line argument to turn on logging at start
+- [ ] don't allow duplicate breakpoints (why does lldb allow this...?)
 
 
 ### screenshot

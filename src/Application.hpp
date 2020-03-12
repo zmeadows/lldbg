@@ -57,6 +57,15 @@ struct Application {
     Application& operator=(Application&&) = delete;
 };
 
+void delete_current_targets(Application& app);
+void kill_process(Application& app);
+void pause_process(Application& app);
+void continue_process(Application& app);
+void handle_event(Application& app, lldb::SBEvent);
+void manually_open_and_or_focus_file(Application& app, const char* filepath);
+bool run_lldb_command(Application& app, const char* command);
+void add_breakpoint_to_viewed_file(Application& app, int line);
+
 // We only use a global variable because of how freeglut
 // requires a frame update function with signature void(void).
 // It is not used anywhere other than main_loop from main.cpp
@@ -77,14 +86,6 @@ struct TargetStartError {
 const std::optional<TargetStartError> create_new_target(Application& app, const char* exe_filepath,
                                                         const char** argv, bool delay_start = true,
                                                         std::optional<std::string> workdir = {});
-void delete_current_targets(Application& app);
-void kill_process(Application& app);
-void pause_process(Application& app);
-void continue_process(Application& app);
-void handle_event(Application& app, lldb::SBEvent);
-void manually_open_and_or_focus_file(Application& app, const char* filepath);
-bool run_lldb_command(Application& app, const char* command);
-void add_breakpoint_to_viewed_file(Application& app, int line);
 
 // void reset(Application& app);
 

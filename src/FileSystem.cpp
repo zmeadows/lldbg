@@ -1,7 +1,7 @@
 #include "FileSystem.hpp"
 
-#include "Log.hpp"
 #include "Prelude.hpp"
+#include "Log.hpp"
 
 #include <algorithm>
 #include <cstring>
@@ -121,7 +121,7 @@ OpenFiles::read_from_disk(const std::filesystem::path& canonical_path)
         return FileReference(new_contents, canonical_path);
 
     } else { // found the file in the cache
-        return FileReference(&old_it->second, canonical_path);
+        return FileReference(std::addressof(old_it->second), canonical_path);
     }
 }
 

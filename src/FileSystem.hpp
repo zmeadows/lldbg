@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Log.hpp"
-#include "Prelude.hpp"
 
 #include "lldb/API/LLDB.h"
 
@@ -15,7 +14,15 @@
 #include <variant>
 #include <vector>
 
+namespace fs = std::filesystem;
+
 namespace lldbg {
+
+enum class FileType {
+    C,
+    Cpp,
+    Other
+};
 
 enum class FileReadError {
     DoesNotExist,
@@ -23,11 +30,12 @@ enum class FileReadError {
 };
 
 struct FileReference {
-    std::vector<std::string>* contents;
+    const std::vector<std::string>* contents;
     std::filesystem::path canonical_path;
     std::string short_name;
 
-    FileReference(std::vector<std::string>* _contents, std::filesystem::path _canonical_path)
+    FileReference(std::vector<std::string>* _contents,
+                  std::filesystem::path _canonical_path)
         : contents(_contents)
         , canonical_path(_canonical_path)
         , short_name(canonical_path.filename().string())
@@ -35,7 +43,6 @@ struct FileReference {
 };
 
 class OpenFiles {
-    // IDEA: timestamp last time file was open, and release memory if it has been >X minutes?
     std::unordered_map<std::string, std::vector<std::string>> m_cache;
 
     std::vector<FileReference> m_refs;
@@ -48,7 +55,7 @@ public:
     void close(const std::string& filepath);
     size_t size() const { return m_refs.size(); }
 
-    const std::optional<FileReference> focus() {
+    std::optional<FileReference> focus() {
         if (m_focus) {
             return m_refs[*m_focus];
         } else {
@@ -65,7 +72,8 @@ public:
 template <typename Callable>
 void OpenFiles::for_each_open_file(Callable&& f) {
     for (auto i = 0; i < m_refs.size(); i++) {
-        std::optional<Action> maybe_action = f(m_refs[i], i == *m_focus);
+        const auto& ref = m_refs[i];
+        std::optional<Action> maybe_action = f(ref, i == *m_focus);
 
         if (!maybe_action) {
             continue;
@@ -95,7 +103,7 @@ public:
     void Add(const std::string& file, int line);
     void Remove(const std::string& file, int line);
     const std::unordered_set<int> Get(const std::string& file);
-    size_t size(void) {
+    size_t NumBreakPoints(void) {
         size_t s = 0;
         for (auto& it : m_cache) {
             s += it.second.size();

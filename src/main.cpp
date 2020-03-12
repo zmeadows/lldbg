@@ -4,7 +4,6 @@
 
 #include "Application.hpp"
 #include "Defer.hpp"
-#include "Draw.hpp"
 #include "FileSystem.hpp"
 #include "Log.hpp"
 #include "Timer.hpp"
@@ -32,8 +31,11 @@ int main(int argc, char** argv)
 
     const char** const_argv_ptr = const_argv.data();
 
-    auto err = lldbg::create_new_target(*lldbg::g_application, "/home/zac/lldbg/test/a.out", const_argv_ptr,
-                                        true, "/home/zac/lldbg/test/");
+    auto err = lldbg::create_new_target(*lldbg::g_application,
+                                        "/home/zac/lldbg/test/a.out",
+                                        const_argv_ptr, true,
+                                        "/home/zac/lldbg/test/"
+                                        );
 
     if (err) {
         std::cout << err->msg << std::endl;
@@ -48,7 +50,7 @@ int main(int argc, char** argv)
 
     glutMainLoop();
 
-    // NOTE: important to destruct these in order, for now (bad design)
+    // NOTE: important to destruct these in order, for now
     lldbg::g_application.reset(nullptr);
     lldbg::g_logger.reset(nullptr);
 

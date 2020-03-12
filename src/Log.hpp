@@ -11,14 +11,14 @@ namespace lldbg {
 
 enum class LogLevel { Verbose, Debug, Info, Warning, Error };
 
-struct LogMessage final {
+struct LogMessage {
     const LogLevel level;
     const std::string message;
 
     LogMessage(LogLevel level, const std::string& message) : level(level), message(message) {}
 };
 
-class Logger final {
+class Logger {
     std::mutex m_mutex;
     std::vector<LogMessage> m_messages;
 
@@ -29,9 +29,8 @@ public:
         m_messages.emplace_back(level, message);
     };
 
-    // TODO: just do begin/end
-    template <typename Callable>
-    void for_each_message(Callable&& f)
+    template <typename MessageHandlerFunc>
+    void for_each_message(MessageHandlerFunc&& f)
     {
         std::unique_lock<std::mutex> lock(m_mutex);
         for (const LogMessage& message : m_messages) {
@@ -42,7 +41,7 @@ public:
 
 extern std::unique_ptr<Logger> g_logger;
 
-class LogMessageStream final {
+class LogMessageStream {
     const LogLevel level;
     std::ostringstream oss;
 
@@ -55,6 +54,7 @@ public:
     }
 
     LogMessageStream(LogLevel level) : level(level) {}
+
     ~LogMessageStream()
     {
         oss << std::endl;

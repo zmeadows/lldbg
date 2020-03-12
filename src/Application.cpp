@@ -1,5 +1,6 @@
 #include "Application.hpp"
 
+#include "Prelude.hpp"
 #include "Defer.hpp"
 #include "Log.hpp"
 

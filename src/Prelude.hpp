@@ -3,17 +3,7 @@
 #include <utility>
 #include <string>
 
-// #include <experimental/optional>
-//
-// template <typename T>
-// using optional = std::experimental::optional<T>;
-
-// template <typename Container, typename T>
-// bool contains(const Container<T>& c, const T& item) {
-//     return std::find(std::begin(c), std::end(c), item);
-// }
-//
-
+namespace {
 
 template <class ...Fs>
 struct overload : Fs... {
@@ -31,6 +21,8 @@ template <class... Fs>
 auto make_visitor(Fs... fs)
 {
     return overload<Fs...>(fs...);
+}
+
 }
 
 #define MATCH(X, ...) std::visit(make_visitor(__VA_ARGS__), X)

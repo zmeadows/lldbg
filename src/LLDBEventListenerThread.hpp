@@ -1,7 +1,5 @@
 #pragma once
 
-#include "Prelude.hpp"
-
 #include <deque>
 #include <memory>
 #include <mutex>
@@ -12,7 +10,7 @@
 namespace {
 
 // A simple thread-safe queue for LLDB events
-class EventQueue final {
+class EventQueue {
     std::mutex m_mutex;
     std::deque<lldb::SBEvent> m_events;
 
@@ -50,7 +48,7 @@ public:
 namespace lldbg {
 
 // A pollable thread for collecting LLDB events from a queue
-class LLDBEventListenerThread final {
+class LLDBEventListenerThread {
     lldb::SBListener m_listener;
     std::unique_ptr<std::thread> m_thread;
     std::atomic<bool> m_continue;
