@@ -17,7 +17,7 @@ file(GLOB LLDBGUI_SOURCES
     "${CMAKE_SOURCE_DIR}/third_party/imgui-1.75/*.cpp"
     )
 
-add_definitions(-DLLDBG_TESTS_DIR="${CMAKE_SOURCE_DIR}/tests/")
+add_definitions(-DLLDBG_TESTS_DIR="${CMAKE_SOURCE_DIR}/test/")
 
 add_executable(lldbgui ${CMAKE_SOURCE_DIR}/src/main.cpp ${LLDBGUI_SOURCES})
 
@@ -38,9 +38,7 @@ target_link_libraries(lldbgui ${LLDB_LIBRARY})
 if (NOT LLDB_LIBRARY)
     message(FATAL_ERROR "LLDB not found")
 endif()
-
 target_include_directories(lldbgui PUBLIC "third_party/llvm-10.0.0/lldb/include")
-
 
 set(OpenGL_GL_PREFERENCE "LEGACY")
 find_package(OpenGL REQUIRED)
@@ -49,6 +47,10 @@ target_include_directories(lldbgui PUBLIC "third_party/glew-2.1.0/include")
 add_definitions(-DGLEW_STATIC)
 add_subdirectory(./third_party/glew-2.1.0)
 target_link_libraries(lldbgui libglew_static)
+
+target_include_directories(lldbgui PUBLIC "third_party/fmt-6.2.1/include")
+add_subdirectory(./third_party/fmt-6.2.1/)
+target_link_libraries(lldbgui fmt)
 
 target_include_directories(lldbgui PUBLIC "third_party/glfw-3.3.2/include")
 set( ENKITS_BUILD_EXAMPLES OFF CACHE BOOL "Build basic example applications" )
@@ -62,7 +64,5 @@ target_link_libraries(lldbgui glfw ${OPENGL_glu_LIBRARY} ${GLFW_LIBRARIES})
 target_include_directories(lldbgui PUBLIC "third_party/cxxopts-2.2.0/include")
 
 add_definitions(-DIMGUI_DEFINE_MATH_OPERATORS)
-#add_subdirectory( ./third_party/imgui-1.75 )
 target_include_directories(lldbgui PUBLIC "third_party/imgui-1.75/")
-#target_link_libraries(lldbgui imgui)
 
