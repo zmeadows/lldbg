@@ -1,9 +1,5 @@
 #include "Application.hpp"
 
-#include "Defer.hpp"
-#include "Log.hpp"
-#include "Prelude.hpp"
-
 #include <cassert>
 #include <chrono>
 #include <filesystem>
@@ -11,12 +7,17 @@
 #include <queue>
 #include <thread>
 
+#include "Defer.hpp"
+#include "Log.hpp"
+#include "Prelude.hpp"
+#include "fmt/format.h"
+
 namespace fs = std::filesystem;
 
 namespace {
-
 void glfw_error_callback(int error, const char* description)
 {
+    // TODO: use lldbg Log system here
     fprintf(stderr, "GLFW Error %d: %s\n", error, description);
 }
 
@@ -37,7 +38,7 @@ struct StackFrameDescription {
         description.file_name = build_string(frame.GetLineEntry().GetFileSpec().GetFilename());
         description.directory =
             build_string(frame.GetLineEntry().GetFileSpec().GetDirectory());
-        description.directory.append("/"); // FIXME: not cross-platform
+        description.directory.append("/");  // FIXME: not cross-platform
         description.line = (int)frame.GetLineEntry().GetLine();
         description.column = (int)frame.GetLineEntry().GetColumn();
 
@@ -169,7 +170,7 @@ void draw_file_browser(lldbg::Application& app, lldbg::FileBrowserNode* node_to_
     }
 }
 
-} // namespace
+}  // namespace
 
 namespace lldbg {
 
@@ -283,7 +284,7 @@ void draw(Application& app)
         console_height = console_height * (float)new_height / (float)old_height;
     }
 
-    { // start file viewer
+    {  // start file viewer
         ImGui::BeginChild("FileViewer", ImVec2(file_viewer_width, file_viewer_height));
         if (ImGui::BeginTabBar("##FileViewerTabs", ImGuiTabBarFlags_AutoSelectNewTabs |
                                                        ImGuiTabBarFlags_NoTooltip)) {
@@ -300,11 +301,11 @@ void draw(Application& app)
             }
         }
         ImGui::EndChild();
-    } // end file viewer
+    }  // end file viewer
 
     ImGui::Spacing();
 
-    { // start console/log
+    {  // start console/log
         ImGui::BeginChild("LogConsole",
                           ImVec2(file_viewer_width,
                                  console_height - 2 * ImGui::GetFrameHeightWithSpacing()));
@@ -349,7 +350,7 @@ void draw(Application& app)
                 if (ImGui::IsItemHovered() ||
                     (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootWindow) &&
                      !ImGui::IsAnyItemActive() && !ImGui::IsMouseClicked(0)))
-                    ImGui::SetKeyboardFocusHere(-1); // Auto focus previous widget
+                    ImGui::SetKeyboardFocusHere(-1);  // Auto focus previous widget
 
                 if (should_auto_scroll_command_window) {
                     ImGui::SetScrollHere(1.0f);
@@ -363,7 +364,7 @@ void draw(Application& app)
 
             if (ImGui::BeginTabItem("Log")) {
                 ImGui::BeginChild("LogEntries");
-                lldbg::g_logger->for_each_message(
+                lldbg::Logger::get_instance()->for_each_message(
                     [](const lldbg::LogMessage& message) -> void {
                         // TODO: colorize based on log level
                         ImGui::TextUnformatted(message.message.c_str());
@@ -375,7 +376,7 @@ void draw(Application& app)
             ImGui::EndTabBar();
         }
         ImGui::EndChild();
-    } // end console/log
+    }  // end console/log
 
     ImGui::EndGroup();
 
@@ -451,9 +452,9 @@ void draw(Application& app)
                     }
                     ImGui::NextColumn();
 
-                    ImGui::Selectable(desc.file_name.c_str() ? desc.file_name.c_str()
-                                                             : "unknown",
-                                      (int)i == selected_row);
+                    ImGui::Selectable(
+                        desc.file_name.c_str() ? desc.file_name.c_str() : "unknown",
+                        (int)i == selected_row);
                     ImGui::NextColumn();
 
                     static char line_buf[256];
@@ -655,7 +656,7 @@ void Application::main_loop()
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        tick(*lldbg::g_application);
+        tick(*this);
 
         ImGui::Render();
         glfwGetFramebufferSize(render_state.window, &render_state.window_width,
@@ -679,22 +680,6 @@ int initialize_rendering(RenderState& rs)
         return -1;
     }
 
-#if __APPLE__
-    // GL 3.2 + GLSL 150
-    // const char* glsl_version = "#version 150";
-    // glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    // glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
-    // glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); // 3.2+ only
-    // glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);           // Required on Mac
-#else
-    // GL 3.0 + GLSL 130
-    // const char* glsl_version = "#version 130";
-    // glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    // glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-    // glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
-    // glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // 3.0+ only
-#endif
-
     rs.window = glfwCreateWindow(1280, 720, "lldbg", nullptr, nullptr);
 
     if (rs.window == nullptr) {
@@ -703,7 +688,7 @@ int initialize_rendering(RenderState& rs)
     }
 
     glfwMakeContextCurrent(rs.window);
-    glfwSwapInterval(1); // Enable vsync
+    glfwSwapInterval(1);  // Enable vsync
 
     const GLenum err = glewInit();
     if (err != GLEW_OK) {
@@ -716,12 +701,11 @@ int initialize_rendering(RenderState& rs)
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
     // (void)io;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
 
     io.Fonts->AddFontDefault();
-    // TODO: read font path from CMake-defined variable
-    // lldbg::g_application->render_state.font = io.Fonts->AddFontFromFileTTF(
-    //     "/Users/zac/Desktop/lldbg/assets/ttf/Hack-Regular.ttf", 15.0f);
+    const std::string font_path = fmt::format("{}/ttf/Hack-Regular.ttf", LLDBG_ASSETS_DIR);
+    rs.font = io.Fonts->AddFontFromFileTTF(font_path.c_str(), 15.0f);
 
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
@@ -743,7 +727,7 @@ int initialize_rendering(RenderState& rs)
     return 0;
 }
 
-} // namespace lldbg
+}  // namespace lldbg
 
 namespace lldbg {
 
@@ -955,6 +939,4 @@ void delete_current_targets(Application& app)
     }
 }
 
-std::unique_ptr<Application> g_application = nullptr;
-
-} // namespace lldbg
+}  // namespace lldbg

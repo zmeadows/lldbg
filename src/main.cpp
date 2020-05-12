@@ -1,53 +1,32 @@
+#include <fstream>
 #include <iostream>
-
-#include "lldb/API/LLDB.h"
+#include <string>
+#include <vector>
 
 #include "Application.hpp"
 #include "Defer.hpp"
 #include "FileSystem.hpp"
 #include "Log.hpp"
 #include "Timer.hpp"
-
+#include "fmt/format.h"
 #include "imgui.h"
+#include "lldb/API/LLDB.h"
 
-#include <fstream>
-#include <string>
-#include <vector>
-
-int main(int argc, char** argv)
+int main(int, char* argv[])
 {
-    std::cout << __LINE__ << std::endl;
-    lldbg::g_application = std::make_unique<lldbg::Application>();
-    std::cout << __LINE__ << std::endl;
-    lldbg::g_logger = std::make_unique<lldbg::Logger>();
+    const std::string target_path = fmt::format("{}/test", LLDBG_TESTS_DIR);
 
-    std::cout << (void*)lldbg::g_application.get() << std::endl;
+    lldbg::Application app;
 
-    std::vector<std::string> args(argv + 1, argv + argc);
-    std::vector<const char*> const_argv;
-
-    for (const std::string& arg : args) {
-        const_argv.push_back(arg.c_str());
-    }
-
-    const char** const_argv_ptr = const_argv.data();
-
-    auto err =
-        lldbg::create_new_target(*lldbg::g_application, "/home/zmeadows/Downloads/lldbg/test/test",
-                                 const_argv_ptr, true, "/home/zmeadows/Downloads/lldbg/test/");
+    auto err = lldbg::create_new_target(app, target_path.c_str(),
+                                        const_cast<const char**>(argv), true, LLDBG_TESTS_DIR);
 
     if (err) {
         std::cout << err->msg << std::endl;
     }
     else {
-        lldbg::g_application->main_loop();
+        app.main_loop();
     }
-
-    std::cout << __LINE__ << std::endl;
-
-    // NOTE: important to destruct these in order, for now
-    lldbg::g_application.reset(nullptr);
-    lldbg::g_logger.reset(nullptr);
 
     return 0;
 }

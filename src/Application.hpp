@@ -1,15 +1,14 @@
 #pragma once
 
-#include "lldb/API/LLDB.h"
+#include <cassert>
+#include <iostream>
 
 #include "FileSystem.hpp"
 #include "LLDBCommandLine.hpp"
 #include "LLDBEventListenerThread.hpp"
 #include "Log.hpp"
 #include "TextEditor.h"
-
-#include <cassert>
-#include <iostream>
+#include "lldb/API/LLDB.h"
 
 // clang-format off
 #include "imgui.h"
@@ -75,11 +74,6 @@ void manually_open_and_or_focus_file(Application& app, const char* filepath);
 bool run_lldb_command(Application& app, const char* command);
 void add_breakpoint_to_viewed_file(Application& app, int line);
 
-// We only use a global variable because of how freeglut
-// requires a frame update function with signature void(void).
-// It is not used anywhere other than main_loop from main.cpp
-extern std::unique_ptr<Application> g_application;
-
 struct TargetStartError {
     std::string msg = "Unknown error!";
     enum class Type {
@@ -93,12 +87,12 @@ struct TargetStartError {
 };
 
 // TODO: rename switch_to_target?
-const std::optional<TargetStartError>
-create_new_target(Application& app, const char* exe_filepath, const char** argv,
-                  bool delay_start = true, std::optional<std::string> workdir = {});
+const std::optional<TargetStartError> create_new_target(
+    Application& app, const char* exe_filepath, const char** argv, bool delay_start = true,
+    std::optional<std::string> workdir = {});
 
 // void reset(Application& app);
 
 lldb::SBProcess get_process(Application& app);
 
-} // namespace lldbg
+}  // namespace lldbg
