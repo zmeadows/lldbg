@@ -1,5 +1,4 @@
 #include "Log.hpp"
+using namespace lldbg;
 
-namespace lldbg {
-std::unique_ptr<Logger> g_logger = nullptr;
-}
+std::unique_ptr<Logger> Logger::s_instance;

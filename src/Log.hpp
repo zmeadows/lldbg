@@ -22,7 +22,17 @@ class Logger {
     std::mutex m_mutex;
     std::vector<LogMessage> m_messages;
 
+    static std::unique_ptr<Logger> s_instance;
+
 public:
+    static Logger* get_instance(void)
+    {
+        if (!s_instance) {
+            s_instance = std::make_unique<Logger>();
+        }
+        return s_instance.get();
+    }
+
     void log(LogLevel level, const std::string& message)
     {
         std::unique_lock<std::mutex> lock(m_mutex);
@@ -38,8 +48,6 @@ public:
         }
     }
 };
-
-extern std::unique_ptr<Logger> g_logger;
 
 class LogMessageStream {
     const LogLevel level;
@@ -58,9 +66,9 @@ public:
     ~LogMessageStream()
     {
         oss << std::endl;
-        g_logger->log(level, oss.str());
+        Logger::get_instance()->log(level, oss.str());
     };
 };
 
-} // namespace lldbg
+}  // namespace lldbg
 
