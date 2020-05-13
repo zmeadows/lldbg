@@ -914,6 +914,7 @@ bool run_lldb_command(Application& app, const char* command)
 void add_breakpoint_to_viewed_file(Application& app, int line)
 {
     std::optional<lldbg::FileReference> ref = app.open_files.focus();
+
     if (ref) {
         const std::string focus_filepath = (*ref).canonical_path.string();
         lldb::SBTarget target = app.debugger.GetSelectedTarget();
@@ -928,6 +929,8 @@ void add_breakpoint_to_viewed_file(Application& app, int line)
             target.BreakpointDelete(new_breakpoint.GetID());
         }
     }
+
+    // TODO: else log warning if no focused file but this function was called anyway
 }
 
 void delete_current_targets(Application& app)

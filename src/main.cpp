@@ -14,15 +14,14 @@
 
 int main(int, char* argv[])
 {
-    const std::string target_path = fmt::format("{}/test", LLDBG_TESTS_DIR);
-
     lldbg::Application app;
 
+    const std::string target_path = fmt::format("{}/test", LLDBG_TESTS_DIR);
     auto err = lldbg::create_new_target(app, target_path.c_str(),
                                         const_cast<const char**>(argv), true, LLDBG_TESTS_DIR);
 
     if (err) {
-        std::cout << err->msg << std::endl;
+        std::cerr << err->msg << std::endl;
     }
     else {
         app.main_loop();

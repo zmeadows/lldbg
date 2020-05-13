@@ -1,11 +1,11 @@
 #include "LLDBEventListenerThread.hpp"
 
-#include "lldb/API/LLDB.h"
+#include <assert.h>
+
+#include <iostream>
 
 #include "Log.hpp"
-
-#include <assert.h>
-#include <iostream>
+#include "lldb/API/LLDB.h"
 
 namespace lldbg {
 
@@ -13,7 +13,6 @@ LLDBEventListenerThread::LLDBEventListenerThread() : m_listener(), m_continue(fa
 
 void LLDBEventListenerThread::start(lldb::SBDebugger& debugger)
 {
-
     m_listener = debugger.GetListener();
 
     const uint32_t listen_flags = lldb::SBProcess::eBroadcastBitStateChanged |
@@ -50,12 +49,12 @@ void LLDBEventListenerThread::poll_events()
 {
     while (m_continue.load()) {
         lldb::SBEvent event;
+        // TODO: shorten wait time so that we can exit instantly when the user presses quit
         if (m_listener.WaitForEvent(1, event)) {
-            // TODO: when will events be invalid?
             assert(event.IsValid());
             m_events.push(event);
         }
     }
 }
 
-} // namespace lldbg
+}  // namespace lldbg

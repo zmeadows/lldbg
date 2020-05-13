@@ -71,4 +71,4 @@ public:
     LLDBEventListenerThread& operator=(LLDBEventListenerThread&&) = delete;
 };
 
-} // namespace lldbg
+}  // namespace lldbg

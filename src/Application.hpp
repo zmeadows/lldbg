@@ -91,8 +91,6 @@ const std::optional<TargetStartError> create_new_target(
     Application& app, const char* exe_filepath, const char** argv, bool delay_start = true,
     std::optional<std::string> workdir = {});
 
-// void reset(Application& app);
-
 lldb::SBProcess get_process(Application& app);
 
 }  // namespace lldbg
