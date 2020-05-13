@@ -3,3 +3,5 @@ bin
 .lvimrc
 imgui.ini
 *a.out
+.DS_Store
+**/.DS_Store
