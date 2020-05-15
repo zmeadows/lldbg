@@ -184,7 +184,7 @@ static void draw_open_files(lldbg::Application& app)
     bool closed_tab = false;
 
     app.open_files.for_each_open_file([&](const lldbg::FileReference& ref, bool is_focused) {
-        std::optional<lldbg::OpenFiles::Action> action;
+        auto action = lldbg::OpenFiles::Action::Nothing;
 
         // we programmatically set the focused tab if manual tab change requested
         // for example when the user clicks an entry in the stack trace or file explorer
@@ -728,28 +728,26 @@ void draw(Application& app)
     }
 }
 
+// TODO: make this an Application member function
 void tick(lldbg::Application& app)
 {
-    // TODO: don't use while(true) here, it's confusing.
+    // process all queued LLDB events before drawing each frame
     while (true) {
-        std::optional<lldb::SBEvent> event = app.event_listener.pop_event();
+        lldb::SBEvent event;
+        const bool found_event = app.event_listener.pop_event(event);
+        if (!found_event) break;
 
-        if (event) {
-            const lldb::StateType new_state = lldb::SBProcess::GetStateFromEvent(*event);
-            const char* state_descr = lldb::SBDebugger::StateAsCString(new_state);
-            LOG(Debug) << "Found event with new state: " << state_descr;
+        const lldb::StateType new_state = lldb::SBProcess::GetStateFromEvent(event);
+        const char* state_descr = lldb::SBDebugger::StateAsCString(new_state);
+        LOG(Debug) << "Found event with new state: " << state_descr;
 
-            // TODO: make this actually be useful
-            if (new_state == lldb::eStateExited) {
-                lldbg::ExitDialog dialog;
-                dialog.process_name = "asdf";
-                dialog.exit_code = get_process(app).GetExitStatus();
-                app.exit_dialog = dialog;
-                LOG(Debug) << "Set exit dialog";
-            }
-        }
-        else {
-            break;
+        // TODO: make this actually be useful
+        if (new_state == lldb::eStateExited) {
+            lldbg::ExitDialog dialog;
+            dialog.process_name = "asdf";
+            dialog.exit_code = get_process(app).GetExitStatus();
+            app.exit_dialog = dialog;
+            LOG(Debug) << "Set exit dialog";
         }
     }
 
@@ -815,7 +813,6 @@ int initialize_rendering(RenderState& rs)
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
-    // (void)io;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
 
     io.Fonts->AddFontDefault();
@@ -911,11 +908,7 @@ const std::optional<TargetStartError> create_new_target(Application& app,
         app.file_browser = FileBrowserNode::create(fs::current_path());
     }
 
-    std::cout << "file browser node base: " << app.file_browser->full_path() << std::endl;
-    std::cout << "file browser node base: " << app.file_browser->filename() << std::endl;
-
-    // TODO: loop through running processes (if any) and kill them and log information about
-    // it.
+    // TODO: loop through running processes (if any), kill them and log information about it.
     lldb::SBError lldb_error;
     lldb::SBTarget new_target = app.debugger.CreateTarget(full_exe_path.string().c_str(),
                                                           nullptr, nullptr, true, lldb_error);

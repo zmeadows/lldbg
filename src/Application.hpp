@@ -54,6 +54,7 @@ struct Application {
     TextEditor text_editor;
     std::optional<ExitDialog> exit_dialog;
 
+    // TODO: make this a non-member function
     void main_loop(void);
 
     Application();

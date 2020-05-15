@@ -4,7 +4,6 @@
 #include <deque>
 #include <memory>
 #include <mutex>
-#include <optional>
 #include <thread>
 
 #include "lldb/API/LLDB.h"
@@ -35,18 +34,17 @@ class LLDBEventListenerThread {
             m_events.push_back(new_event);
         }
 
-        std::optional<lldb::SBEvent> pop(void)
+        bool pop(lldb::SBEvent& event)
         {
             std::unique_lock<std::mutex> lock(m_mutex);
 
             if (m_events.empty()) {
-                return {};
+                return false;
             }
-            else {
-                lldb::SBEvent oldest_event = m_events.front();
-                m_events.pop_front();
-                return oldest_event;
-            }
+
+            event = m_events.front();
+            m_events.pop_front();
+            return true;
         }
 
         void clear(void)
@@ -63,7 +61,7 @@ class LLDBEventListenerThread {
 public:
     void start(lldb::SBDebugger&);
     void stop(lldb::SBDebugger&);
-    std::optional<lldb::SBEvent> pop_event() { return m_events.pop(); }
+    bool pop_event(lldb::SBEvent& event) { return m_events.pop(event); }
 
     LLDBEventListenerThread();
 

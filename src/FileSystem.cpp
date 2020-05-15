@@ -1,16 +1,16 @@
 #include "FileSystem.hpp"
 
-#include "Log.hpp"
-#include "Prelude.hpp"
-
 #include <algorithm>
 #include <cstring>
 
+#include "Log.hpp"
+#include "Prelude.hpp"
+
 namespace {
 
-std::vector<std::string> read_lines(const std::filesystem::path& filepath)
+std::vector<std::string> read_lines(const fs::path& filepath)
 {
-    assert(std::filesystem::is_regular_file(filepath));
+    assert(fs::is_regular_file(filepath));
 
     std::ifstream infile(filepath.c_str());
 
@@ -26,38 +26,37 @@ std::vector<std::string> read_lines(const std::filesystem::path& filepath)
     return contents;
 }
 
-const std::optional<std::string> validate_path(const std::string& request)
+static int validate_path(const std::string& path_to_validate,
+                         std::string& validated_path_buffer)
 {
-    const std::filesystem::path canonical_path = std::filesystem::canonical(request);
+    const fs::path canonical_path = fs::canonical(path_to_validate);
 
-    if (!std::filesystem::exists(canonical_path)) {
-        return {};
+    if (!fs::exists(canonical_path)) {
+        return -1;
     }
 
-    if (!std::filesystem::is_directory(canonical_path) &&
-        !std::filesystem::is_regular_file(canonical_path)) {
-        return {};
+    if (!(fs::is_directory(canonical_path) || fs::is_regular_file(canonical_path))) {
+        return -2;
     }
 
-    return canonical_path.string();
+    validated_path_buffer = canonical_path.string();
+
+    return 0;
 }
 
-} // namespace
+}  // namespace
 
 namespace lldbg {
 
-std::unique_ptr<FileBrowserNode>
-FileBrowserNode::create(const std::filesystem::path& relative_path)
+std::unique_ptr<FileBrowserNode> FileBrowserNode::create(const fs::path& relative_path)
 {
-
-    if (!std::filesystem::exists(relative_path)) {
+    if (!fs::exists(relative_path)) {
         return nullptr;
     }
 
-    const std::filesystem::path canonical_path = std::filesystem::canonical(relative_path);
+    const fs::path canonical_path = fs::canonical(relative_path);
 
-    if (!std::filesystem::is_directory(canonical_path) &&
-        !std::filesystem::is_regular_file(canonical_path)) {
+    if (!fs::is_directory(canonical_path) && !fs::is_regular_file(canonical_path)) {
         LOG(Error) << "Attemped to load a path (" << canonical_path
                    << ") that wasn't a directory or regular file!";
         return nullptr;
@@ -73,7 +72,7 @@ FileBrowserNode::create(const std::filesystem::path& relative_path)
 
 std::unique_ptr<FileBrowserNode> FileBrowserNode::create(const char* relative_location)
 {
-    return FileBrowserNode::create(std::filesystem::path(relative_location));
+    return FileBrowserNode::create(fs::path(relative_location));
 }
 
 void FileBrowserNode::open_children()
@@ -81,7 +80,7 @@ void FileBrowserNode::open_children()
     if (!m_already_opened) {
         m_already_opened = true;
 
-        for (const std::filesystem::path& p : std::filesystem::directory_iterator(m_path)) {
+        for (const fs::path& p : fs::directory_iterator(m_path)) {
             std::unique_ptr<FileBrowserNode> new_child_node = FileBrowserNode::create(p);
             if (new_child_node) {
                 this->children.emplace_back(std::move(new_child_node));
@@ -104,19 +103,19 @@ void FileBrowserNode::open_children()
     }
 }
 
-const std::variant<FileReadError, FileReference>
-OpenFiles::read_from_disk(const std::filesystem::path& canonical_path)
+const std::variant<FileReadError, FileReference> OpenFiles::read_from_disk(
+    const fs::path& canonical_path)
 {
     const std::string canonical_path_str = canonical_path.string();
 
     const auto old_it = m_cache.find(canonical_path_str);
 
-    if (old_it == m_cache.end()) { // file hasn't been cached already
-        if (!std::filesystem::exists(canonical_path)) {
+    if (old_it == m_cache.end()) {  // file hasn't been cached already
+        if (!fs::exists(canonical_path)) {
             return FileReadError::DoesNotExist;
         }
 
-        if (!std::filesystem::is_regular_file(canonical_path)) {
+        if (!fs::is_regular_file(canonical_path)) {
             return FileReadError::NotRegularFile;
         }
 
@@ -126,21 +125,20 @@ OpenFiles::read_from_disk(const std::filesystem::path& canonical_path)
 
         return FileReference(new_contents, canonical_path);
     }
-    else { // found the file in the cache
+    else {  // found the file in the cache
         return FileReference(std::addressof(old_it->second), canonical_path);
     }
 }
 
 bool OpenFiles::open(const std::string& requested_filepath)
 {
-    const std::filesystem::path canonical_path =
-        std::filesystem::canonical(requested_filepath);
+    const fs::path canonical_path = fs::canonical(requested_filepath);
 
     auto it = std::find_if(m_refs.begin(), m_refs.end(), [&](const FileReference& ref) {
         return ref.canonical_path == canonical_path;
     });
 
-    if (it != m_refs.end()) { // already in set
+    if (it != m_refs.end()) {  // already in set
         m_focus = it - m_refs.begin();
         return true;
     }
@@ -176,16 +174,16 @@ bool OpenFiles::open(const std::string& requested_filepath)
 
 void OpenFiles::close(const std::string& filepath)
 {
-    const std::filesystem::path path_to_close = std::filesystem::canonical(filepath);
-    for_each_open_file(
-        [path_to_close](const FileReference& ref, bool) -> std::optional<Action> {
-            if (ref.canonical_path == path_to_close) {
-                return Action::Close;
-            }
-            else {
-                return {};
-            }
-        });
+    const fs::path path_to_close = fs::canonical(filepath);
+
+    for_each_open_file([path_to_close](const FileReference& ref, bool) -> Action {
+        if (ref.canonical_path == path_to_close) {
+            return Action::Close;
+        }
+        else {
+            return Action::Nothing;
+        }
+    });
 }
 
 void BreakPointSet::Synchronize(lldb::SBTarget target)
@@ -215,7 +213,7 @@ void BreakPointSet::Synchronize(lldb::SBTarget target)
         full_path += "/";
         full_path += build_string(line_entry.GetFileSpec().GetFilename());
 
-        const std::string canonical_path = std::filesystem::canonical(full_path).string();
+        const std::string canonical_path = fs::canonical(full_path).string();
 
         auto it = m_cache.find(canonical_path);
 
@@ -230,19 +228,20 @@ void BreakPointSet::Synchronize(lldb::SBTarget target)
 
 void BreakPointSet::Add(const std::string& file, int line)
 {
-    const std::optional<std::string> canonical_path = validate_path(file);
+    // TODO: implement universal FileHandle type to avoid dealing with paths as much as
+    // possible
+    static std::string canonical_path;
+    const int ret_code = validate_path(file, canonical_path);
 
-    if (!canonical_path) {
+    if (ret_code != 0) {
         LOG(Error) << "Attempted to add breakpoint to invalid file: " << file;
         return;
     }
 
-    const std::string valid_path = *canonical_path;
-
-    auto it = m_cache.find(valid_path);
+    auto it = m_cache.find(canonical_path);
 
     if (it == m_cache.end()) {
-        m_cache[valid_path] = {line};
+        m_cache[canonical_path] = {line};
     }
     else {
         std::unordered_set<int>& breakpoints = it->second;
@@ -252,18 +251,17 @@ void BreakPointSet::Add(const std::string& file, int line)
 
 void BreakPointSet::Remove(const std::string& file, int line)
 {
-    const std::optional<std::string> canonical_path = validate_path(file);
+    static std::string canonical_path;
+    const int ret_code = validate_path(file, canonical_path);
 
-    if (!canonical_path) {
+    if (ret_code != 0) {
         LOG(Error)
             << "BreakPointSet::Remove :: Attempted to remove breakpoint from invalid file: "
             << file;
         return;
     }
 
-    const std::string valid_path = *canonical_path;
-
-    auto it = m_cache.find(valid_path);
+    auto it = m_cache.find(canonical_path);
 
     if (it == m_cache.end()) {
         LOG(Debug) << "Attempted to remove breakpoint from file with no recorded breakpoints: "
@@ -275,19 +273,19 @@ void BreakPointSet::Remove(const std::string& file, int line)
     }
 }
 
+// TODO: re-organize so it's not necessary to return a copy
 const std::unordered_set<int> BreakPointSet::Get(const std::string& file)
 {
-    const std::optional<std::string> canonical_path = validate_path(file);
+    static std::string canonical_path;
+    const int ret_code = validate_path(file, canonical_path);
 
-    if (!canonical_path) {
+    if (ret_code != 0) {
         LOG(Error) << "BreakPointSet::Get :: Attempted to get breakpoints for invalid file: "
                    << file;
         return std::unordered_set<int>();
     }
 
-    const std::string valid_path = *canonical_path;
-
-    auto it = m_cache.find(valid_path);
+    auto it = m_cache.find(canonical_path);
 
     if (it == m_cache.end()) {
         return std::unordered_set<int>();
@@ -297,4 +295,4 @@ const std::unordered_set<int> BreakPointSet::Get(const std::string& file)
     }
 }
 
-} // namespace lldbg
+}  // namespace lldbg

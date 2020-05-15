@@ -1,10 +1,7 @@
 #pragma once
 
-#include "Log.hpp"
-
-#include "lldb/API/LLDB.h"
-
 #include <assert.h>
+
 #include <filesystem>
 #include <fstream>
 #include <memory>
@@ -13,6 +10,9 @@
 #include <unordered_set>
 #include <variant>
 #include <vector>
+
+#include "Log.hpp"
+#include "lldb/API/LLDB.h"
 
 namespace fs = std::filesystem;
 
@@ -28,7 +28,8 @@ struct FileReference {
     std::string short_name;
 
     FileReference(std::vector<std::string>* _contents, std::filesystem::path _canonical_path)
-        : contents(_contents), canonical_path(_canonical_path),
+        : contents(_contents),
+          canonical_path(_canonical_path),
           short_name(canonical_path.filename().string())
     {
     }
@@ -40,8 +41,8 @@ class OpenFiles {
     std::vector<FileReference> m_refs;
     std::optional<size_t> m_focus;
 
-    const std::variant<FileReadError, FileReference>
-    read_from_disk(const std::filesystem::path& canonical_path);
+    const std::variant<FileReadError, FileReference> read_from_disk(
+        const std::filesystem::path& canonical_path);
 
 public:
     bool open(const std::string& filepath);
@@ -58,7 +59,7 @@ public:
         }
     }
 
-    enum class Action { ChangeFocusTo, Close };
+    enum class Action { Nothing, ChangeFocusTo, Close };
 
     template <typename Callable>
     void for_each_open_file(Callable&& f);
@@ -68,14 +69,9 @@ template <typename Callable>
 void OpenFiles::for_each_open_file(Callable&& f)
 {
     for (size_t i = 0; i < m_refs.size(); i++) {
-        const auto& ref = m_refs[i];
-        std::optional<Action> maybe_action = f(ref, i == *m_focus);
-
-        if (!maybe_action) {
-            continue;
-        }
-
-        switch (*maybe_action) {
+        switch (f(m_refs[i], i == *m_focus)) {
+            case Action::Nothing:
+                break;
             case Action::ChangeFocusTo:
                 m_focus = i;
                 break;
@@ -117,7 +113,8 @@ class FileBrowserNode {
     const bool m_is_directory;
 
     FileBrowserNode(const std::filesystem::path& validated_path)
-        : m_already_opened(false), m_path(validated_path),
+        : m_already_opened(false),
+          m_path(validated_path),
           m_filename(validated_path.filename().string()),
           m_is_directory(std::filesystem::is_directory(validated_path))
     {
@@ -143,5 +140,5 @@ public:
     bool is_directory() const { return m_is_directory; }
 };
 
-} // namespace lldbg
+}  // namespace lldbg
 
