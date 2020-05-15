@@ -4,6 +4,7 @@
 #include <chrono>
 #include <filesystem>
 #include <iostream>
+#include <map>
 #include <queue>
 #include <thread>
 
@@ -14,8 +15,86 @@
 
 namespace fs = std::filesystem;
 
-namespace {
-void glfw_error_callback(int error, const char* description)
+using namespace lldbg;
+
+std::map<std::string, std::string> s_debug_stream;
+
+// TODO: use static fmt::buffers instead of reallocating strings every call
+#define DEBUG_STREAM(x)                                \
+    {                                                  \
+        const std::string xkey = std::string(#x);      \
+        auto it = s_debug_stream.find(xkey);           \
+        const std::string xstr = fmt::format("{}", x); \
+        if (it != s_debug_stream.end()) {              \
+            it->second = xstr;                         \
+        }                                              \
+        else {                                         \
+            s_debug_stream[xkey] = xstr;               \
+        }                                              \
+    }
+
+/*
+static void continue_process(Application& app)
+{
+    lldb::SBProcess process = app.debugger.GetSelectedTarget().GetProcess();
+    assert(process.IsValid());
+    process.Continue();
+}
+
+static void pause_process(Application& app)
+{
+    lldb::SBProcess process = app.debugger.GetSelectedTarget().GetProcess();
+    assert(process.IsValid());
+    process.Stop();
+}
+
+static void kill_process(Application& app)
+{
+    lldb::SBProcess process = app.debugger.GetSelectedTarget().GetProcess();
+    assert(process.IsValid());
+    process.Kill();
+}
+
+
+static void add_breakpoint_to_viewed_file(Application& app, int line)
+{
+    std::optional<lldbg::FileReference> ref = app.open_files.focus();
+
+    if (ref) {
+        const std::string focus_filepath = (*ref).canonical_path.string();
+        lldb::SBTarget target = app.debugger.GetSelectedTarget();
+        lldb::SBBreakpoint new_breakpoint =
+            target.BreakpointCreateByLocation(focus_filepath.c_str(), line);
+        if (new_breakpoint.IsValid() && new_breakpoint.GetNumLocations() > 0) {
+            app.breakpoints.Synchronize(app.debugger.GetSelectedTarget());
+            app.text_editor.SetBreakpoints(app.breakpoints.Get(focus_filepath));
+        }
+        else {
+            LOG(Debug) << "Removing invalid break point";
+            target.BreakpointDelete(new_breakpoint.GetID());
+        }
+    }
+
+    // TODO: else log warning if no focused file but this function was called anyway
+}
+
+static void delete_current_targets(Application& app)
+{
+    lldb::SBDebugger& dbg = app.debugger;
+    for (uint32_t i = 0; i < dbg.GetNumTargets(); i++) {
+        lldb::SBTarget target = dbg.GetTargetAtIndex(i);
+        dbg.DeleteTarget(target);
+    }
+}
+*/
+
+static lldb::SBProcess get_process(Application& app)
+{
+    assert(app.debugger.GetNumTargets() <= 1);
+    return app.debugger.GetSelectedTarget().GetProcess();
+}
+
+static void glfw_error_callback(int error, const char* description)
 {
     // TODO: use lldbg Log system here
     fprintf(stderr, "GLFW Error %d: %s\n", error, description);
@@ -47,7 +126,7 @@ struct StackFrameDescription {
 };
 
 // TODO: rename
-bool MyTreeNode(const char* label)
+static bool FileTreeNode(const char* label)
 {
     ImGuiContext& g = *GImGui;
     ImGuiWindow* window = g.CurrentWindow;
@@ -81,8 +160,9 @@ bool MyTreeNode(const char* label)
     return opened;
 }
 
-bool Splitter(const char* name, bool split_vertically, float thickness, float* size1,
-              float* size2, float min_size1, float min_size2, float splitter_long_axis_size)
+static bool Splitter(const char* name, bool split_vertically, float thickness, float* size1,
+                     float* size2, float min_size1, float min_size2,
+                     float splitter_long_axis_size)
 {
     using namespace ImGui;
     ImGuiContext& g = *GImGui;
@@ -99,7 +179,7 @@ bool Splitter(const char* name, bool split_vertically, float thickness, float* s
                             min_size1, min_size2, 0.0f);
 }
 
-void draw_open_files(lldbg::Application& app)
+static void draw_open_files(lldbg::Application& app)
 {
     bool closed_tab = false;
 
@@ -148,14 +228,21 @@ void draw_open_files(lldbg::Application& app)
     }
 }
 
-void draw_file_browser(lldbg::Application& app, lldbg::FileBrowserNode* node_to_draw,
-                       size_t depth)
+static void manually_open_and_or_focus_file(lldbg::Application& app, const char* filepath)
+{
+    if (app.open_files.open(std::string(filepath))) {
+        app.render_state.request_manual_tab_change = true;
+    }
+}
+
+static void draw_file_browser(lldbg::Application& app, lldbg::FileBrowserNode* node_to_draw,
+                              size_t depth)
 {
     if (node_to_draw->is_directory()) {
         const char* tree_node_label =
             depth == 0 ? node_to_draw->full_path() : node_to_draw->filename();
 
-        if (MyTreeNode(tree_node_label)) {
+        if (FileTreeNode(tree_node_label)) {
             node_to_draw->open_children();
             for (auto& child_node : node_to_draw->children) {
                 draw_file_browser(app, child_node.get(), depth + 1);
@@ -170,7 +257,26 @@ void draw_file_browser(lldbg::Application& app, lldbg::FileBrowserNode* node_to_
     }
 }
 
-}  // namespace
+static bool run_lldb_command(Application& app, const char* command)
+{
+    const size_t num_breakpoints_before = app.debugger.GetSelectedTarget().GetNumBreakpoints();
+
+    const bool command_succeeded = app.command_line.run_command(command);
+
+    const size_t num_breakpoints_after = app.debugger.GetSelectedTarget().GetNumBreakpoints();
+
+    if (num_breakpoints_before != num_breakpoints_after) {
+        app.breakpoints.Synchronize(app.debugger.GetSelectedTarget());
+
+        const std::optional<FileReference> maybe_ref = app.open_files.focus();
+        if (maybe_ref) {
+            const std::string filepath = (*maybe_ref).canonical_path.string();
+            app.text_editor.SetBreakpoints(app.breakpoints.Get(filepath));
+        }
+    }
+
+    return command_succeeded;
+}
 
 namespace lldbg {
 
@@ -189,13 +295,16 @@ void draw(Application& app)
     const int old_width = window_width;
     const int old_height = window_height;
     const int new_width = app.render_state.window_width;
-    const int new_height = app.render_state.window_width;
+    const int new_height = app.render_state.window_height;
 
     if (new_width != old_width || new_height != old_height) {
         window_width = new_width;
         window_height = new_height;
         window_resized = true;
     }
+
+    DEBUG_STREAM(window_width);
+    DEBUG_STREAM(window_height);
 
     const auto window_width_f = static_cast<float>(window_width);
     const auto window_height_f = static_cast<float>(window_height);
@@ -271,8 +380,11 @@ void draw(Application& app)
 
     ImGui::BeginGroup();
 
-    static float file_viewer_height = window_height_f / 2;
-    static float console_height = window_height_f / 2;
+    static float file_viewer_height = window_height_f / 2.f;
+    static float console_height = window_height_f / 2.f;
+
+    DEBUG_STREAM(console_height);
+    DEBUG_STREAM(file_viewer_height);
 
     const float old_console_height = console_height;
 
@@ -506,7 +618,7 @@ void draw(Application& app)
             //         std::to_string(i); const std::string label = "Configuration##" +
             //         std::to_string(i);
 
-            //         if (MyTreeNode(label.c_str())) {
+            //         if (FileTreeNode(label.c_str())) {
 
             //             for (uint32_t i = 0; register_set.GetNumChildren(); i++) {
             //                 lldb::SBValue child = register_set.GetChildAtIndex(i);
@@ -602,15 +714,18 @@ void draw(Application& app)
     ImGui::PopFont();
     ImGui::End();
 
-    // if (app.exit_dialog) {
-    //     ImGui::SetNextWindowPos(ImVec2(window_width/2.f, window_height/2.f),
-    //     ImGuiSetCond_Always); ImGui::SetNextWindowSize(ImVec2(200, 200),
-    //     ImGuiSetCond_Always); if (ImGui::Begin("About Dear ImGui", 0,
-    //     ImGuiWindowFlags_NoDecoration)) {
-    //         ImGui::TextUnformatted("asdF");
-    //     }
-    //     ImGui::End();
-    // }
+    if (app.exit_dialog) {
+        ImGui::SetNextWindowPos(ImVec2(window_width / 2.f, window_height / 2.f),
+                                ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(ImVec2(200, 200), ImGuiCond_FirstUseEver);
+        if (ImGui::Begin("About Dear ImGui", 0)) {
+            for (const auto& [xkey, xstr] : s_debug_stream) {
+                const std::string line = fmt::format("{} : {}", xkey, xstr);
+                ImGui::TextUnformatted(line.c_str());
+            }
+        }
+        ImGui::End();
+    }
 }
 
 void tick(lldbg::Application& app)
@@ -854,92 +969,6 @@ const std::optional<TargetStartError> create_new_target(Application& app,
     }
 
     return {};
-}
-
-void continue_process(Application& app)
-{
-    lldb::SBProcess process = app.debugger.GetSelectedTarget().GetProcess();
-    assert(process.IsValid());
-    process.Continue();
-}
-
-void pause_process(Application& app)
-{
-    lldb::SBProcess process = app.debugger.GetSelectedTarget().GetProcess();
-    assert(process.IsValid());
-    process.Stop();
-}
-
-void kill_process(Application& app)
-{
-    lldb::SBProcess process = app.debugger.GetSelectedTarget().GetProcess();
-    assert(process.IsValid());
-    process.Kill();
-}
-
-lldb::SBProcess get_process(Application& app)
-{
-    assert(app.debugger.GetNumTargets() <= 1);
-    return app.debugger.GetSelectedTarget().GetProcess();
-}
-
-void manually_open_and_or_focus_file(Application& app, const char* filepath)
-{
-    if (app.open_files.open(std::string(filepath))) {
-        app.render_state.request_manual_tab_change = true;
-    }
-}
-
-bool run_lldb_command(Application& app, const char* command)
-{
-    const size_t num_breakpoints_before = app.debugger.GetSelectedTarget().GetNumBreakpoints();
-
-    const bool command_succeeded = app.command_line.run_command(command);
-
-    const size_t num_breakpoints_after = app.debugger.GetSelectedTarget().GetNumBreakpoints();
-
-    if (num_breakpoints_before != num_breakpoints_after) {
-        app.breakpoints.Synchronize(app.debugger.GetSelectedTarget());
-
-        const std::optional<FileReference> maybe_ref = app.open_files.focus();
-        if (maybe_ref) {
-            const std::string filepath = (*maybe_ref).canonical_path.string();
-            app.text_editor.SetBreakpoints(app.breakpoints.Get(filepath));
-        }
-    }
-
-    return command_succeeded;
-}
-
-void add_breakpoint_to_viewed_file(Application& app, int line)
-{
-    std::optional<lldbg::FileReference> ref = app.open_files.focus();
-
-    if (ref) {
-        const std::string focus_filepath = (*ref).canonical_path.string();
-        lldb::SBTarget target = app.debugger.GetSelectedTarget();
-        lldb::SBBreakpoint new_breakpoint =
-            target.BreakpointCreateByLocation(focus_filepath.c_str(), line);
-        if (new_breakpoint.IsValid() && new_breakpoint.GetNumLocations() > 0) {
-            app.breakpoints.Synchronize(app.debugger.GetSelectedTarget());
-            app.text_editor.SetBreakpoints(app.breakpoints.Get(focus_filepath));
-        }
-        else {
-            LOG(Debug) << "Removing invalid break point";
-            target.BreakpointDelete(new_breakpoint.GetID());
-        }
-    }
-
-    // TODO: else log warning if no focused file but this function was called anyway
-}
-
-void delete_current_targets(Application& app)
-{
-    lldb::SBDebugger& dbg = app.debugger;
-    for (uint32_t i = 0; i < dbg.GetNumTargets(); i++) {
-        lldb::SBTarget target = dbg.GetTargetAtIndex(i);
-        dbg.DeleteTarget(target);
-    }
 }
 
 }  // namespace lldbg

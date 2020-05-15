@@ -22,6 +22,11 @@
 
 namespace lldbg {
 
+struct ExitDialog {
+    std::string process_name;
+    int exit_code;
+};
+
 // TODO: rename UserInterface and move GLFWwindow/ImFont to Application
 struct RenderState {
     int viewed_thread_index = -1;
@@ -38,11 +43,6 @@ struct RenderState {
     static constexpr float DEFAULT_STACKTRACE_WIDTH_PERCENT = 0.28f;
 };
 
-struct ExitDialog {
-    std::string process_name;
-    int exit_code;
-};
-
 struct Application {
     lldb::SBDebugger debugger;
     LLDBEventListenerThread event_listener;
@@ -52,7 +52,6 @@ struct Application {
     std::unique_ptr<lldbg::FileBrowserNode> file_browser;
     RenderState render_state;
     TextEditor text_editor;
-
     std::optional<ExitDialog> exit_dialog;
 
     void main_loop(void);
@@ -64,15 +63,6 @@ struct Application {
 
     ~Application();
 };
-
-void delete_current_targets(Application& app);
-void kill_process(Application& app);
-void pause_process(Application& app);
-void continue_process(Application& app);
-void handle_event(Application& app, lldb::SBEvent);
-void manually_open_and_or_focus_file(Application& app, const char* filepath);
-bool run_lldb_command(Application& app, const char* command);
-void add_breakpoint_to_viewed_file(Application& app, int line);
 
 struct TargetStartError {
     std::string msg = "Unknown error!";
@@ -90,7 +80,5 @@ struct TargetStartError {
 const std::optional<TargetStartError> create_new_target(
     Application& app, const char* exe_filepath, const char** argv, bool delay_start = true,
     std::optional<std::string> workdir = {});
-
-lldb::SBProcess get_process(Application& app);
 
 }  // namespace lldbg
