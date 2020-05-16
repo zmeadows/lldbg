@@ -28,6 +28,7 @@ struct ExitDialog {
 };
 
 // TODO: rename UserInterface and move GLFWwindow/ImFont to Application
+// TODO: can some of these fields be moved to static variables in the draw function?
 struct RenderState {
     int viewed_thread_index = -1;
     int viewed_frame_index = -1;
@@ -61,25 +62,27 @@ struct Application {
     Application(const Application&) = delete;
     Application& operator=(const Application&) = delete;
     Application& operator=(Application&&) = delete;
-
     ~Application();
 };
 
-struct TargetStartError {
-    std::string msg = "Unknown error!";
-    enum class Type {
-        ExecutableDoesNotExist,
-        TargetCreation,
-        Launch,
-        AttachTimeout,
-        HasTargetAlready,
-        Unknown
-    } type = Type::Unknown;
+enum class TargetAddResult {
+    ExeDoesNotExistError,
+    TargetCreateError,
+    TooManyTargetsError,
+    UnknownError,
+    Success
 };
 
-// TODO: rename switch_to_target?
-const std::optional<TargetStartError> create_new_target(
-    Application& app, const char* exe_filepath, const char** argv, bool delay_start = true,
-    std::optional<std::string> workdir = {});
+TargetAddResult add_target(Application& app, const std::string& exe_path);
+
+enum class TargetStartResult {
+    NoTargetError,
+    LaunchError,
+    AttachTimeoutError,
+    UnknownError,
+    Success
+};
+
+TargetStartResult start_target(Application& app, const char** argv);
 
 }  // namespace lldbg

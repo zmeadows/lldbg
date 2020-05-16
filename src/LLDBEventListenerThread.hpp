@@ -63,11 +63,12 @@ public:
     void stop(lldb::SBDebugger&);
     bool pop_event(lldb::SBEvent& event) { return m_events.pop(event); }
 
-    LLDBEventListenerThread();
+    LLDBEventListenerThread() : m_continue(false) {}
 
     LLDBEventListenerThread(const LLDBEventListenerThread&) = delete;
     LLDBEventListenerThread& operator=(const LLDBEventListenerThread&) = delete;
     LLDBEventListenerThread& operator=(LLDBEventListenerThread&&) = delete;
+    ~LLDBEventListenerThread() = default;
 };
 
 }  // namespace lldbg

@@ -12,20 +12,25 @@
 #include "imgui.h"
 #include "lldb/API/LLDB.h"
 
+const std::string target_path = fmt::format("{}/test", LLDBG_TESTS_DIR);
+
+using namespace lldbg;
+
 int main(int, char* argv[])
 {
-    lldbg::Application app;
+    Application app;
 
-    const std::string target_path = fmt::format("{}/test", LLDBG_TESTS_DIR);
-    auto err = lldbg::create_new_target(app, target_path.c_str(),
-                                        const_cast<const char**>(argv), true, LLDBG_TESTS_DIR);
-
-    if (err) {
-        std::cerr << err->msg << std::endl;
-    }
-    else {
-        app.main_loop();
+    TargetAddResult add_result = add_target(app, target_path);
+    if (add_result != TargetAddResult::Success) {
+        return EXIT_FAILURE;
     }
 
-    return 0;
+    TargetStartResult start_result = start_target(app, const_cast<const char**>(argv));
+    if (start_result != TargetStartResult::Success) {
+        return EXIT_FAILURE;
+    }
+
+    app.main_loop();
+
+    return EXIT_SUCCESS;
 }

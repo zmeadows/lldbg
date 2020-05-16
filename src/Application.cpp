@@ -17,9 +17,10 @@ namespace fs = std::filesystem;
 
 using namespace lldbg;
 
-std::map<std::string, std::string> s_debug_stream;
+static std::map<std::string, std::string> s_debug_stream;
 
-// TODO: use static fmt::buffers instead of reallocating strings every call
+// TODO: convert this to singleton class and use fmt::buffers instead of reallocating
+// strings every call
 #define DEBUG_STREAM(x)                                \
     {                                                  \
         const std::string xkey = std::string(#x);      \
@@ -54,7 +55,6 @@ static void kill_process(Application& app)
     assert(process.IsValid());
     process.Kill();
 }
-
 
 static void add_breakpoint_to_viewed_file(Application& app, int line)
 {
@@ -728,7 +728,6 @@ void draw(Application& app)
     }
 }
 
-// TODO: make this an Application member function
 void tick(lldbg::Application& app)
 {
     // process all queued LLDB events before drawing each frame
@@ -876,92 +875,78 @@ Application::~Application()
     glfwTerminate();
 }
 
-const std::optional<TargetStartError> create_new_target(Application& app,
-                                                        const char* exe_filepath,
-                                                        const char** argv, bool delay_start,
-                                                        std::optional<std::string> workdir)
+TargetAddResult add_target(Application& app, const std::string& exe_path)
 {
     if (app.debugger.GetNumTargets() > 0) {
-        TargetStartError error;
-        error.type = TargetStartError::Type::HasTargetAlready;
-        error.msg = "Multiple targets not yet supported by lldbg.";
-        return error;
+        LOG(Error) << "Attempt add multiple targets, which is not (yet) supported by lldbg.";
+        return TargetAddResult::TooManyTargetsError;
     }
 
-    const fs::path full_exe_path = fs::canonical(exe_filepath);
+    const fs::path full_exe_path = fs::canonical(exe_path);
 
     if (!fs::exists(full_exe_path)) {
-        TargetStartError error;
-        error.type = TargetStartError::Type::ExecutableDoesNotExist;
-        error.msg = "Requested executable does not exist: " + full_exe_path.string();
-        return error;
+        LOG(Error) << "Requested executable does not exist: {}" << full_exe_path;
+        return TargetAddResult::ExeDoesNotExistError;
     }
 
-    // TODO: only set file browser node once we know the process has started successfully
-    if (workdir && fs::exists(*workdir) && fs::is_directory(*workdir)) {
-        app.file_browser = FileBrowserNode::create(*workdir);
-    }
-    else if (full_exe_path.has_parent_path()) {
-        app.file_browser = FileBrowserNode::create(full_exe_path.parent_path());
-    }
-    else {
-        app.file_browser = FileBrowserNode::create(fs::current_path());
-    }
-
-    // TODO: loop through running processes (if any), kill them and log information about it.
     lldb::SBError lldb_error;
-    lldb::SBTarget new_target = app.debugger.CreateTarget(full_exe_path.string().c_str(),
-                                                          nullptr, nullptr, true, lldb_error);
+    lldb::SBTarget new_target =
+        app.debugger.CreateTarget(full_exe_path.c_str(), nullptr, nullptr, true, lldb_error);
 
     if (!lldb_error.Success()) {
-        TargetStartError error;
-        error.type = TargetStartError::Type::TargetCreation;
         const char* lldb_error_cstr = lldb_error.GetCString();
-        error.msg =
-            lldb_error_cstr ? std::string(lldb_error_cstr) : "Unknown target creation error!";
-        return error;
+        LOG(Error) << (lldb_error_cstr ? lldb_error_cstr : "Unknown target creation error!");
+        return TargetAddResult::TargetCreateError;
     }
 
-    LOG(Debug) << "Succesfully created target for executable: " << full_exe_path;
+    LOG(Debug) << "Succesfully added target for executable: " << full_exe_path;
 
+    return TargetAddResult::Success;
+}
+
+TargetStartResult start_target(Application& app, const char** argv)
+{
+    if (app.debugger.GetNumTargets() == 0) {
+        LOG(Warning) << "Failed to start target because no targets have yet been added.";
+        return TargetStartResult::NoTargetError;
+    }
+
+    assert(app.debugger.GetNumTargets() == 1);
+
+    lldb::SBTarget target = app.debugger.GetTargetAtIndex(0);
     lldb::SBLaunchInfo launch_info(argv);
     // launch_info.SetLaunchFlags(lldb::eLaunchFlagDisableASLR | lldb::eLaunchFlagStopAtEntry);
-    lldb::SBProcess process = new_target.Launch(launch_info, lldb_error);
+    lldb::SBError lldb_error;
+    lldb::SBProcess process = target.Launch(launch_info, lldb_error);
 
     if (!lldb_error.Success()) {
-        TargetStartError error;
-        error.type = TargetStartError::Type::Launch;
         const char* lldb_error_cstr = lldb_error.GetCString();
-        error.msg =
-            lldb_error_cstr ? std::string(lldb_error_cstr) : "Unknown target launch error!";
+        LOG(Error) << (lldb_error_cstr ? std::string(lldb_error_cstr)
+                                       : "Unknown target launch error!");
         LOG(Error) << "Failed to launch process, destroying target...";
-        app.debugger.DeleteTarget(new_target);
-        return error;
+        app.debugger.DeleteTarget(target);
+        return TargetStartResult::LaunchError;
     }
 
-    LOG(Debug) << "Succesfully launched process for executable: " << full_exe_path;
+    // TODO: print exe filepath here
+    LOG(Debug) << "Succesfully launched process.";
 
     size_t ms_attaching = 0;
     while (process.GetState() == lldb::eStateAttaching) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         ms_attaching += 100;
         if (ms_attaching / 1000 > 5) {
-            TargetStartError error;
-            error.type = TargetStartError::Type::AttachTimeout;
-            error.msg = "Took more than five seconds to attach to process, gave up!";
-            return error;
+            LOG(Error) << "Attach timeout after launching target process.";
+            return TargetStartResult::AttachTimeoutError;
         }
     }
 
-    LOG(Debug) << "Succesfully attached to process for executable: " << exe_filepath;
+    // TODO: print exe filepath here
+    LOG(Debug) << "Succesfully attached to process.";
 
     app.event_listener.start(app.debugger);
 
-    if (!delay_start) {
-        get_process(app).Continue();
-    }
-
-    return {};
+    return TargetStartResult::Success;
 }
 
 }  // namespace lldbg
