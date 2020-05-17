@@ -48,6 +48,52 @@ static int validate_path(const std::string& path_to_validate,
 
 namespace lldbg {
 
+std::map<size_t, std::string> FileHandle::s_filepath_cache;
+std::map<size_t, std::string> FileHandle::s_filename_cache;
+std::map<size_t, std::vector<std::string>> FileHandle::s_contents_cache;
+
+std::optional<FileHandle> FileHandle::create(const std::string& filepath)
+{
+    const fs::path canonical_path = fs::canonical(filepath);
+
+    if (!fs::exists(canonical_path)) {
+        return {};
+    }
+
+    if (!fs::is_regular_file(canonical_path)) {
+        return {};
+    }
+
+    if (!canonical_path.has_filename()) {
+        return {};
+    }
+
+    const size_t path_hash = fs::hash_value(canonical_path);
+
+    {  // cache full unique filepath
+        auto it = s_filepath_cache.find(path_hash);
+        if (it == s_filepath_cache.end()) {
+            s_filepath_cache[path_hash] = canonical_path.string();
+        }
+    }
+
+    {  // cache filename ("foo.txt" for "/some/long/path/foo.txt")
+        auto it = s_filename_cache.find(path_hash);
+        if (it == s_filename_cache.end()) {
+            s_filename_cache[path_hash] = canonical_path.filename().string();
+        }
+    }
+
+    {
+        auto it = s_contents_cache.find(path_hash);
+        if (it == s_contents_cache.end()) {
+            s_contents_cache[path_hash] = read_lines(canonical_path);
+        }
+    }
+
+    return FileHandle(path_hash);
+}
+
 std::unique_ptr<FileBrowserNode> FileBrowserNode::create(const fs::path& relative_path)
 {
     if (!fs::exists(relative_path)) {

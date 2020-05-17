@@ -5,6 +5,7 @@
 #include <sstream>
 #include <vector>
 
+// TODO: modify to include file/function/line information?
 #define LOG(LEV) lldbg::LogMessageStream(lldbg::LogLevel::LEV)
 
 namespace lldbg {

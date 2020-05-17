@@ -4,6 +4,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <map>
 #include <memory>
 #include <optional>
 #include <unordered_map>
@@ -18,9 +19,43 @@ namespace fs = std::filesystem;
 
 namespace lldbg {
 
-enum class FileType { C, Cpp, Other };
-
 enum class FileReadError { DoesNotExist, NotRegularFile };
+
+class FileHandle {
+    const size_t m_hash;
+
+    FileHandle(size_t h) : m_hash(h) {}
+
+    static std::map<size_t, std::string> s_filepath_cache;
+    static std::map<size_t, std::string> s_filename_cache;
+    static std::map<size_t, std::vector<std::string>> s_contents_cache;
+
+public:
+    FileHandle(void) = delete;
+
+    static std::optional<FileHandle> create(const std::string& filepath);
+
+    inline const std::vector<std::string>& contents(void) const
+    {
+        auto it = s_contents_cache.find(m_hash);
+        assert(it != s_contents_cache.end());
+        return it->second;
+    }
+
+    inline const std::string& filepath(void) const
+    {
+        auto it = s_filepath_cache.find(m_hash);
+        assert(it != s_filepath_cache.end());
+        return it->second;
+    }
+
+    inline const std::string& filename(void) const
+    {
+        auto it = s_filename_cache.find(m_hash);
+        assert(it != s_filename_cache.end());
+        return it->second;
+    }
+};
 
 struct FileReference {
     const std::vector<std::string>* contents;
