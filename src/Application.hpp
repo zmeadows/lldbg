@@ -48,8 +48,8 @@ struct Application {
     lldb::SBDebugger debugger;
     LLDBEventListenerThread event_listener;
     LLDBCommandLine command_line;
-    OpenFiles open_files;
-    BreakPointSet breakpoints;
+    OpenFilesNew open_files;
+    BreakPointSetNew breakpoints;
     std::unique_ptr<lldbg::FileBrowserNode> file_browser;
     RenderState render_state;
     TextEditor text_editor;

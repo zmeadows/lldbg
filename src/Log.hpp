@@ -6,6 +6,7 @@
 #include <vector>
 
 // TODO: modify to include file/function/line information?
+// also include lldb version/commit number?
 #define LOG(LEV) lldbg::LogMessageStream(lldbg::LogLevel::LEV)
 
 namespace lldbg {

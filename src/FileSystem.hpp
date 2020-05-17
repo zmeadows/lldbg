@@ -7,6 +7,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <set>
 #include <unordered_map>
 #include <unordered_set>
 #include <variant>
@@ -22,16 +23,28 @@ namespace lldbg {
 enum class FileReadError { DoesNotExist, NotRegularFile };
 
 class FileHandle {
-    const size_t m_hash;
+    size_t m_hash;
 
-    FileHandle(size_t h) : m_hash(h) {}
-
+    // TODO: record last file read/access time in separate static map
+    // so that file contents can be dynamically reloaded when they change.
     static std::map<size_t, std::string> s_filepath_cache;
     static std::map<size_t, std::string> s_filename_cache;
     static std::map<size_t, std::vector<std::string>> s_contents_cache;
 
+    FileHandle(size_t h) : m_hash(h) {}
+
 public:
     FileHandle(void) = delete;
+
+    inline friend bool operator==(const FileHandle& a, const FileHandle& b)
+    {
+        return a.m_hash == b.m_hash;
+    }
+
+    inline friend bool operator<(const FileHandle& a, const FileHandle& b)
+    {
+        return a.m_hash < b.m_hash;
+    }
 
     static std::optional<FileHandle> create(const std::string& filepath);
 
@@ -67,6 +80,58 @@ struct FileReference {
           canonical_path(_canonical_path),
           short_name(canonical_path.filename().string())
     {
+    }
+};
+
+class OpenFilesNew {
+    std::vector<FileHandle> m_files;
+    std::optional<size_t> m_focus;
+
+    void close(size_t tab_index);
+
+public:
+    bool open(const std::string& filepath);
+
+    inline size_t size() const { return m_files.size(); }
+
+    inline std::optional<FileHandle> focus()
+    {
+        if (m_focus) {
+            return m_files[*m_focus];
+        }
+        else {
+            return {};
+        }
+    }
+
+    enum class Action { Nothing, ChangeFocusTo, Close };
+
+    template <typename Callable>
+    void for_each_open_file(Callable&& f)
+    {
+        if (m_files.empty()) return;
+
+        std::optional<size_t> tab_idx_to_close = {};
+        std::optional<size_t> tab_idx_to_focus = {};
+
+        assert(m_focus);
+        const size_t focused_tab_index = *m_focus;
+
+        for (size_t i = 0; i < m_files.size(); i++) {
+            switch (f(m_files[i], i == focused_tab_index)) {
+                case Action::ChangeFocusTo:
+                    tab_idx_to_focus = i;
+                    break;
+                case Action::Close:
+                    tab_idx_to_close = i;
+                    break;
+                case Action::Nothing:
+                    break;
+            }
+        }
+
+        if (tab_idx_to_close) this->close(*tab_idx_to_close);
+        if (tab_idx_to_focus) m_focus = *tab_idx_to_focus;
     }
 };
 
@@ -123,22 +188,43 @@ void OpenFiles::for_each_open_file(Callable&& f)
     }
 }
 
+class BreakPointSetNew {
+    std::map<FileHandle, std::unordered_set<int>> m_cache;
+
+public:
+    // void add(FileHandle handle, int line);
+    // void remove(FileHandle handle, int line);
+    void synchronize(lldb::SBTarget target);
+
+    const std::unordered_set<int>* Get(FileHandle handle);
+
+    // size_t NumBreakPoints(void)
+    // {
+    //     size_t s = 0;
+    //     for (const auto& [_, bps] : m_cache) {
+    //         s += bps.size();
+    //     }
+    //     return s;
+    // }
+};
+
 class BreakPointSet {
-    std::unordered_map<std::string, std::unordered_set<int>> m_cache;
+    std::map<std::string, std::unordered_set<int>> m_cache;
 
 public:
     void Synchronize(lldb::SBTarget target);
     void Add(const std::string& file, int line);
     void Remove(const std::string& file, int line);
     const std::unordered_set<int> Get(const std::string& file);
-    size_t NumBreakPoints(void)
-    {
-        size_t s = 0;
-        for (auto& it : m_cache) {
-            s += it.second.size();
-        }
-        return s;
-    }
+
+    // size_t NumBreakPoints(void)
+    // {
+    //     size_t s = 0;
+    //     for (auto& it : m_cache) {
+    //         s += it.second.size();
+    //     }
+    //     return s;
+    // }
 };
 
 class FileBrowserNode {
@@ -156,8 +242,9 @@ class FileBrowserNode {
     }
 
 public:
+    // TODO: use std::string argument?
     static std::unique_ptr<FileBrowserNode> create(const std::filesystem::path& relative_path);
-    static std::unique_ptr<FileBrowserNode> create(const char* relative_location);
+    static std::unique_ptr<FileBrowserNode> create(const char* relative_path);
 
     FileBrowserNode()
         : m_already_opened(false),

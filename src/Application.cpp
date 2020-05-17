@@ -21,6 +21,7 @@ static std::map<std::string, std::string> s_debug_stream;
 
 // TODO: convert this to singleton class and use fmt::buffers instead of reallocating
 // strings every call
+// NOTE: remember this is updated once per frame and currently variables are never removed
 #define DEBUG_STREAM(x)                                \
     {                                                  \
         const std::string xkey = std::string(#x);      \
@@ -182,27 +183,26 @@ static void draw_open_files(lldbg::Application& app)
 {
     bool closed_tab = false;
 
-    app.open_files.for_each_open_file([&](const lldbg::FileReference& ref, bool is_focused) {
-        auto action = lldbg::OpenFiles::Action::Nothing;
+    app.open_files.for_each_open_file([&](const FileHandle handle, bool is_focused) {
+        auto action = lldbg::OpenFilesNew::Action::Nothing;
 
         // we programmatically set the focused tab if manual tab change requested
         // for example when the user clicks an entry in the stack trace or file explorer
         auto tab_flags = ImGuiTabItemFlags_None;
         if (app.render_state.request_manual_tab_change && is_focused) {
             tab_flags = ImGuiTabItemFlags_SetSelected;
-            app.text_editor.SetTextLines(*ref.contents);
-            app.text_editor.SetBreakpoints(app.breakpoints.Get(ref.canonical_path.string()));
+            app.text_editor.SetTextLines(handle.contents());
+            app.text_editor.SetBreakpoints(*app.breakpoints.Get(handle));
         }
 
         bool keep_tab_open = true;
-        if (ImGui::BeginTabItem(ref.short_name.c_str(), &keep_tab_open, tab_flags)) {
+        if (ImGui::BeginTabItem(handle.filename().c_str(), &keep_tab_open, tab_flags)) {
             ImGui::BeginChild("FileContents");
             if (!app.render_state.request_manual_tab_change && !is_focused) {
                 // user selected tab directly with mouse
-                action = lldbg::OpenFiles::Action::ChangeFocusTo;
-                app.text_editor.SetTextLines(*ref.contents);
-                app.text_editor.SetBreakpoints(
-                    app.breakpoints.Get(ref.canonical_path.string()));
+                action = lldbg::OpenFilesNew::Action::ChangeFocusTo;
+                app.text_editor.SetTextLines(handle.contents());
+                app.text_editor.SetBreakpoints(*app.breakpoints.Get(handle));
             }
             app.text_editor.Render("TextEditor");
             ImGui::EndChild();
@@ -212,7 +212,7 @@ static void draw_open_files(lldbg::Application& app)
         if (!keep_tab_open) {
             // user closed tab with mouse
             closed_tab = true;
-            action = lldbg::OpenFiles::Action::Close;
+            action = lldbg::OpenFilesNew::Action::Close;
         }
 
         return action;
@@ -221,9 +221,9 @@ static void draw_open_files(lldbg::Application& app)
     app.render_state.request_manual_tab_change = false;
 
     if (closed_tab && app.open_files.size() > 0) {
-        const lldbg::FileReference ref = *app.open_files.focus();
-        app.text_editor.SetTextLines(*ref.contents);
-        app.text_editor.SetBreakpoints(app.breakpoints.Get(ref.canonical_path.string()));
+        FileHandle handle = *app.open_files.focus();
+        app.text_editor.SetTextLines(handle.contents());
+        app.text_editor.SetBreakpoints(*app.breakpoints.Get(handle));
     }
 }
 
@@ -265,12 +265,14 @@ static bool run_lldb_command(Application& app, const char* command)
     const size_t num_breakpoints_after = app.debugger.GetSelectedTarget().GetNumBreakpoints();
 
     if (num_breakpoints_before != num_breakpoints_after) {
-        app.breakpoints.Synchronize(app.debugger.GetSelectedTarget());
+        app.breakpoints.synchronize(app.debugger.GetSelectedTarget());
 
-        const std::optional<FileReference> maybe_ref = app.open_files.focus();
-        if (maybe_ref) {
-            const std::string filepath = (*maybe_ref).canonical_path.string();
-            app.text_editor.SetBreakpoints(app.breakpoints.Get(filepath));
+        const std::optional<FileHandle> maybe_handle = app.open_files.focus();
+
+        if (maybe_handle) {
+            const auto handle = *maybe_handle;
+            app.text_editor.SetTextLines(handle.contents());
+            app.text_editor.SetBreakpoints(*app.breakpoints.Get(handle));
         }
     }
 
