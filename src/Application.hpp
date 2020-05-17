@@ -39,8 +39,8 @@ struct RenderState {
     ImFont* font = nullptr;
     GLFWwindow* window = nullptr;
 
-    static constexpr float DEFAULT_FILEBROWSER_WIDTH_PERCENT = 0.12f;
-    static constexpr float DEFAULT_FILEVIEWER_WIDTH_PERCENT = 0.6f;
+    static constexpr float DEFAULT_FILEBROWSER_WIDTH_PERCENT = 0.2;
+    static constexpr float DEFAULT_FILEVIEWER_WIDTH_PERCENT = 0.52f;
     static constexpr float DEFAULT_STACKTRACE_WIDTH_PERCENT = 0.28f;
 };
 
@@ -64,6 +64,8 @@ struct Application {
     Application& operator=(Application&&) = delete;
     ~Application();
 };
+
+void set_workdir(Application& app, const std::string& workdir);
 
 enum class TargetAddResult {
     ExeDoesNotExistError,

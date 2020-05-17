@@ -125,7 +125,6 @@ struct StackFrameDescription {
     }
 };
 
-// TODO: rename
 static bool FileTreeNode(const char* label)
 {
     ImGuiContext& g = *GImGui;
@@ -380,8 +379,8 @@ void draw(Application& app)
 
     ImGui::BeginGroup();
 
-    static float file_viewer_height = window_height_f / 2.f;
-    static float console_height = window_height_f / 2.f;
+    static float file_viewer_height = 0.6f * window_height_f;
+    static float console_height = 0.4f * window_height_f;
 
     DEBUG_STREAM(console_height);
     DEBUG_STREAM(file_viewer_height);
@@ -875,6 +874,17 @@ Application::~Application()
     glfwTerminate();
 }
 
+void set_workdir(Application& app, const std::string& workdir)
+{
+    if (fs::exists(workdir) && fs::is_directory(workdir)) {
+        app.file_browser = FileBrowserNode::create(workdir);
+    }
+    else {
+        LOG(Error) << "Attempted to set working directory to non-existant path: " << workdir;
+        app.file_browser = FileBrowserNode::create(fs::current_path());
+    }
+}
+
 TargetAddResult add_target(Application& app, const std::string& exe_path)
 {
     if (app.debugger.GetNumTargets() > 0) {
@@ -915,7 +925,7 @@ TargetStartResult start_target(Application& app, const char** argv)
 
     lldb::SBTarget target = app.debugger.GetTargetAtIndex(0);
     lldb::SBLaunchInfo launch_info(argv);
-    // launch_info.SetLaunchFlags(lldb::eLaunchFlagDisableASLR | lldb::eLaunchFlagStopAtEntry);
+    launch_info.SetLaunchFlags(lldb::eLaunchFlagDisableASLR | lldb::eLaunchFlagStopAtEntry);
     lldb::SBError lldb_error;
     lldb::SBProcess process = target.Launch(launch_info, lldb_error);
 

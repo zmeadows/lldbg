@@ -30,6 +30,8 @@ int main(int, char* argv[])
         return EXIT_FAILURE;
     }
 
+    set_workdir(app, LLDBG_TESTS_DIR);
+
     app.main_loop();
 
     return EXIT_SUCCESS;
