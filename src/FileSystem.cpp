@@ -64,7 +64,7 @@ const std::vector<std::string>& FileHandle::contents(void)
     const std::string& filepath = s_filepath_cache[m_hash];
     assert(fs::is_regular_file(filepath));
 
-    std::ifstream infile(filepath.c_str());
+    std::ifstream infile(filepath);
 
     std::vector<std::string> contents;
 
@@ -72,6 +72,7 @@ const std::vector<std::string>& FileHandle::contents(void)
     while (std::getline(infile, line)) {
         contents.emplace_back(std::move(line));
     }
+    contents.shrink_to_fit();
 
     LOG(Verbose) << "Read file from disk: " << filepath;
 
