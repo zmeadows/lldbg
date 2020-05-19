@@ -110,6 +110,7 @@ public:
     }
 };
 
+// TODO: move to TextEditor module
 class BreakPointSet {
     std::map<FileHandle, std::unordered_set<int>> m_cache;
 

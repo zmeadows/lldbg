@@ -6,24 +6,6 @@
 #include "Log.hpp"
 #include "fmt/format.h"
 
-static std::vector<std::string> read_lines(const fs::path& filepath)
-{
-    assert(fs::is_regular_file(filepath));
-
-    std::ifstream infile(filepath.c_str());
-
-    std::vector<std::string> contents;
-
-    std::string line;
-    while (std::getline(infile, line)) {
-        contents.emplace_back(std::move(line));
-    }
-
-    LOG(Verbose) << "Read file from disk: " << filepath;
-
-    return contents;
-}
-
 namespace lldbg {
 
 std::map<size_t, std::string> FileHandle::s_filepath_cache;
@@ -80,7 +62,20 @@ const std::vector<std::string>& FileHandle::contents(void)
     }
 
     const std::string& filepath = s_filepath_cache[m_hash];
-    const auto& [insert_iter, _] = s_contents_cache.emplace(m_hash, read_lines(filepath));
+    assert(fs::is_regular_file(filepath));
+
+    std::ifstream infile(filepath.c_str());
+
+    std::vector<std::string> contents;
+
+    std::string line;
+    while (std::getline(infile, line)) {
+        contents.emplace_back(std::move(line));
+    }
+
+    LOG(Verbose) << "Read file from disk: " << filepath;
+
+    const auto& [insert_iter, _] = s_contents_cache.emplace(m_hash, contents);
     return insert_iter->second;
 }
 
