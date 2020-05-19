@@ -4,7 +4,6 @@
 #include <cstring>
 
 #include "Log.hpp"
-#include "Prelude.hpp"
 #include "fmt/format.h"
 
 static std::vector<std::string> read_lines(const fs::path& filepath)
