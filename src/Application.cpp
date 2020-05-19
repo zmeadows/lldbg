@@ -192,7 +192,14 @@ static void draw_open_files(lldbg::Application& app)
         if (app.render_state.request_manual_tab_change && is_focused) {
             tab_flags = ImGuiTabItemFlags_SetSelected;
             app.text_editor.SetTextLines(handle.contents());
-            app.text_editor.SetBreakpoints(*app.breakpoints.Get(handle));
+
+            auto bps = app.breakpoints.Get(handle);
+            if (bps != nullptr) {
+                app.text_editor.SetBreakpoints(*bps);
+            }
+            else {
+                app.text_editor.SetBreakpoints({});
+            }
         }
 
         bool keep_tab_open = true;
@@ -202,7 +209,14 @@ static void draw_open_files(lldbg::Application& app)
                 // user selected tab directly with mouse
                 action = lldbg::OpenFilesNew::Action::ChangeFocusTo;
                 app.text_editor.SetTextLines(handle.contents());
-                app.text_editor.SetBreakpoints(*app.breakpoints.Get(handle));
+
+                auto bps = app.breakpoints.Get(handle);
+                if (bps != nullptr) {
+                    app.text_editor.SetBreakpoints(*bps);
+                }
+                else {
+                    app.text_editor.SetBreakpoints({});
+                }
             }
             app.text_editor.Render("TextEditor");
             ImGui::EndChild();
@@ -223,7 +237,13 @@ static void draw_open_files(lldbg::Application& app)
     if (closed_tab && app.open_files.size() > 0) {
         FileHandle handle = *app.open_files.focus();
         app.text_editor.SetTextLines(handle.contents());
-        app.text_editor.SetBreakpoints(*app.breakpoints.Get(handle));
+        auto bps = app.breakpoints.Get(handle);
+        if (bps != nullptr) {
+            app.text_editor.SetBreakpoints(*bps);
+        }
+        else {
+            app.text_editor.SetBreakpoints({});
+        }
     }
 }
 
