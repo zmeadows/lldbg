@@ -289,11 +289,10 @@ static void draw_file_browser(lldbg::Application& app, lldbg::FileBrowserNode* n
 {
     if (node_to_draw->is_directory()) {
         const char* tree_node_label =
-            depth == 0 ? node_to_draw->full_path() : node_to_draw->filename();
+            depth == 0 ? node_to_draw->filepath() : node_to_draw->filename();
 
         if (FileTreeNode(tree_node_label)) {
-            node_to_draw->open_children();
-            for (auto& child_node : node_to_draw->children) {
+            for (auto& child_node : node_to_draw->children()) {
                 draw_file_browser(app, child_node.get(), depth + 1);
             }
             ImGui::TreePop();
@@ -301,7 +300,7 @@ static void draw_file_browser(lldbg::Application& app, lldbg::FileBrowserNode* n
     }
     else {
         if (ImGui::Selectable(node_to_draw->filename())) {
-            manually_open_and_or_focus_file(app, node_to_draw->full_path());
+            manually_open_and_or_focus_file(app, node_to_draw->filepath());
         }
     }
 }
@@ -758,10 +757,9 @@ void draw(Application& app)
             }
         }
     }
+
     ImGui::EndChild();
-
     ImGui::EndGroup();
-
     ImGui::PopFont();
     ImGui::End();
 
@@ -843,7 +841,7 @@ int initialize_rendering(RenderState& rs)
         return -1;
     }
 
-    rs.window = glfwCreateWindow(1280, 720, "lldbg", nullptr, nullptr);
+    rs.window = glfwCreateWindow(1920, 1080, "lldbg", nullptr, nullptr);
 
     if (rs.window == nullptr) {
         glfwTerminate();

@@ -122,40 +122,35 @@ public:
     const std::unordered_set<int>* Get(FileHandle handle);
 };
 
-// TODO: use FileHandle and a tagged union for file vs directory
 class FileBrowserNode {
-    bool m_already_opened;
-    const std::filesystem::path m_path;
-    const std::string m_filename;
-    const bool m_is_directory;
+    fs::path m_filepath;
+    fs::path m_filename;
+    bool m_opened;
 
-    FileBrowserNode(const std::filesystem::path& validated_path)
-        : m_already_opened(false),
-          m_path(validated_path),
-          m_filename(validated_path.filename().string()),
-          m_is_directory(std::filesystem::is_directory(validated_path))
+    void open_children();
+    std::vector<std::unique_ptr<FileBrowserNode>> m_children;
+
+    FileBrowserNode() = delete;
+
+    FileBrowserNode(fs::path validated_path)
+        : m_filepath(fs::canonical(validated_path)),
+          m_filename(m_filepath.filename()),
+          m_opened(false)
     {
     }
 
 public:
-    // TODO: use std::string argument?
-    static std::unique_ptr<FileBrowserNode> create(const std::filesystem::path& relative_path);
-    static std::unique_ptr<FileBrowserNode> create(const char* relative_path);
+    static std::unique_ptr<FileBrowserNode> create(const fs::path& relative_path);
 
-    FileBrowserNode()
-        : m_already_opened(false),
-          m_path(std::filesystem::canonical(std::filesystem::current_path())),
-          m_filename(m_path.has_filename() ? m_path.filename().string() : m_path.string()),
-          m_is_directory(std::filesystem::is_directory(m_path))
-    {
-    }
-
-    void open_children();
-
-    std::vector<std::unique_ptr<FileBrowserNode>> children;
-    const char* full_path() const { return m_path.c_str(); }
+    const char* filepath() const { return m_filepath.c_str(); }
     const char* filename() const { return m_filename.c_str(); }
-    bool is_directory() const { return m_is_directory; }
+    bool is_directory() const { return fs::is_directory(m_filepath); }
+
+    inline const std::vector<std::unique_ptr<FileBrowserNode>>& children(void)
+    {
+        this->open_children();
+        return m_children;
+    }
 };
 
 }  // namespace lldbg

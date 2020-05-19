@@ -98,6 +98,7 @@ const std::string& FileHandle::filename(void)
 std::unique_ptr<FileBrowserNode> FileBrowserNode::create(const fs::path& relative_path)
 {
     if (!fs::exists(relative_path)) {
+        LOG(Error) << "FileBrowser attempted to load non-existent file:" << relative_path;
         return nullptr;
     }
 
@@ -117,24 +118,17 @@ std::unique_ptr<FileBrowserNode> FileBrowserNode::create(const fs::path& relativ
     return std::unique_ptr<FileBrowserNode>(new FileBrowserNode(canonical_path));
 }
 
-std::unique_ptr<FileBrowserNode> FileBrowserNode::create(const char* relative_path)
-{
-    return FileBrowserNode::create(fs::path(relative_path));
-}
-
 void FileBrowserNode::open_children()
 {
-    if (!m_already_opened) {
-        m_already_opened = true;
-
-        for (const fs::path& p : fs::directory_iterator(m_path)) {
+    if (fs::is_directory(m_filepath) && !m_opened) {
+        for (const fs::path& p : fs::directory_iterator(m_filepath)) {
             std::unique_ptr<FileBrowserNode> new_child_node = FileBrowserNode::create(p);
             if (new_child_node) {
-                this->children.emplace_back(std::move(new_child_node));
+                m_children.emplace_back(std::move(new_child_node));
             }
         }
 
-        std::sort(this->children.begin(), this->children.end(),
+        std::sort(m_children.begin(), m_children.end(),
                   [](const std::unique_ptr<FileBrowserNode>& a,
                      const std::unique_ptr<FileBrowserNode>& b) {
                       if (a->is_directory() && !b->is_directory()) {
@@ -147,6 +141,8 @@ void FileBrowserNode::open_children()
                           return strcmp(a->filename(), b->filename()) < 0;
                       }
                   });
+
+        m_opened = true;
     }
 }
 
