@@ -55,19 +55,6 @@ public:
     const std::string& filename(void);
 };
 
-struct FileReference {
-    const std::vector<std::string>* contents;
-    std::filesystem::path canonical_path;
-    std::string short_name;
-
-    FileReference(std::vector<std::string>* _contents, std::filesystem::path _canonical_path)
-        : contents(_contents),
-          canonical_path(_canonical_path),
-          short_name(canonical_path.filename().string())
-    {
-    }
-};
-
 class OpenFilesNew {
     std::vector<FileHandle> m_files;
     std::optional<size_t> m_focus;
@@ -105,9 +92,11 @@ public:
         for (size_t i = 0; i < m_files.size(); i++) {
             switch (f(m_files[i], i == focused_tab_index)) {
                 case Action::ChangeFocusTo:
+                    assert(!tab_idx_to_focus);
                     tab_idx_to_focus = i;
                     break;
                 case Action::Close:
+                    assert(!tab_idx_to_close);
                     tab_idx_to_close = i;
                     break;
                 case Action::Nothing:
@@ -116,64 +105,11 @@ public:
         }
 
         if (tab_idx_to_close) this->close(*tab_idx_to_close);
-        if (tab_idx_to_focus) m_focus = *tab_idx_to_focus;
+        if (tab_idx_to_focus) m_focus = tab_idx_to_focus;
     }
 };
 
-class OpenFiles {
-    std::unordered_map<std::string, std::vector<std::string>> m_cache;
-
-    std::vector<FileReference> m_refs;
-    std::optional<size_t> m_focus;
-
-    const std::variant<FileReadError, FileReference> read_from_disk(
-        const std::filesystem::path& canonical_path);
-
-public:
-    bool open(const std::string& filepath);
-    void close(const std::string& filepath);
-    size_t size() const { return m_refs.size(); }
-
-    std::optional<FileReference> focus()
-    {
-        if (m_focus) {
-            return m_refs[*m_focus];
-        }
-        else {
-            return {};
-        }
-    }
-
-    enum class Action { Nothing, ChangeFocusTo, Close };
-
-    template <typename Callable>
-    void for_each_open_file(Callable&& f);
-};
-
-template <typename Callable>
-void OpenFiles::for_each_open_file(Callable&& f)
-{
-    for (size_t i = 0; i < m_refs.size(); i++) {
-        switch (f(m_refs[i], i == *m_focus)) {
-            case Action::Nothing:
-                break;
-            case Action::ChangeFocusTo:
-                m_focus = i;
-                break;
-            case Action::Close:
-                m_refs.erase(m_refs.begin() + i);
-                if (m_refs.empty()) {
-                    m_focus = {};
-                }
-                else {
-                    m_focus = i - 1;
-                }
-                break;
-        }
-    }
-}
-
-class BreakPointSetNew {
+class BreakPointSet {
     std::map<FileHandle, std::unordered_set<int>> m_cache;
 
 public:
@@ -182,34 +118,6 @@ public:
     void synchronize(lldb::SBTarget target);
 
     const std::unordered_set<int>* Get(FileHandle handle);
-
-    // size_t NumBreakPoints(void)
-    // {
-    //     size_t s = 0;
-    //     for (const auto& [_, bps] : m_cache) {
-    //         s += bps.size();
-    //     }
-    //     return s;
-    // }
-};
-
-class BreakPointSet {
-    std::map<std::string, std::unordered_set<int>> m_cache;
-
-public:
-    void Synchronize(lldb::SBTarget target);
-    void Add(const std::string& file, int line);
-    void Remove(const std::string& file, int line);
-    const std::unordered_set<int> Get(const std::string& file);
-
-    // size_t NumBreakPoints(void)
-    // {
-    //     size_t s = 0;
-    //     for (auto& it : m_cache) {
-    //         s += it.second.size();
-    //     }
-    //     return s;
-    // }
 };
 
 class FileBrowserNode {

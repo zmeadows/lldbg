@@ -50,6 +50,8 @@ void LLDBEventListenerThread::poll_events()
     while (m_continue.load()) {
         lldb::SBEvent event;
         // TODO: shorten wait time so that we can exit instantly when the user presses quit
+        // TODO: we can maybe even just move this into the main loop to avoid spawning a
+        // dedicated thread
         if (m_listener.WaitForEvent(1, event)) {
             assert(event.IsValid());
             m_events.push(event);

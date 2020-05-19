@@ -49,7 +49,7 @@ struct Application {
     LLDBEventListenerThread event_listener;
     LLDBCommandLine command_line;
     OpenFilesNew open_files;
-    BreakPointSetNew breakpoints;
+    BreakPointSet breakpoints;
     std::unique_ptr<lldbg::FileBrowserNode> file_browser;
     RenderState render_state;
     TextEditor text_editor;

@@ -25,24 +25,6 @@ static std::vector<std::string> read_lines(const fs::path& filepath)
     return contents;
 }
 
-static int validate_path(const std::string& path_to_validate,
-                         std::string& validated_path_buffer)
-{
-    const fs::path canonical_path = fs::canonical(path_to_validate);
-
-    if (!fs::exists(canonical_path)) {
-        return -1;
-    }
-
-    if (!(fs::is_directory(canonical_path) || fs::is_regular_file(canonical_path))) {
-        return -2;
-    }
-
-    validated_path_buffer = canonical_path.string();
-
-    return 0;
-}
-
 namespace lldbg {
 
 std::map<size_t, std::string> FileHandle::s_filepath_cache;
@@ -174,33 +156,6 @@ void FileBrowserNode::open_children()
     }
 }
 
-const std::variant<FileReadError, FileReference> OpenFiles::read_from_disk(
-    const fs::path& canonical_path)
-{
-    const std::string canonical_path_str = canonical_path.string();
-
-    const auto old_it = m_cache.find(canonical_path_str);
-
-    if (old_it == m_cache.end()) {  // file hasn't been cached already
-        if (!fs::exists(canonical_path)) {
-            return FileReadError::DoesNotExist;
-        }
-
-        if (!fs::is_regular_file(canonical_path)) {
-            return FileReadError::NotRegularFile;
-        }
-
-        auto new_it = m_cache.emplace(canonical_path_str, read_lines(canonical_path));
-
-        std::vector<std::string>* new_contents = &new_it.first->second;
-
-        return FileReference(new_contents, canonical_path);
-    }
-    else {  // found the file in the cache
-        return FileReference(std::addressof(old_it->second), canonical_path);
-    }
-}
-
 bool OpenFilesNew::open(const std::string& requested_filepath)
 {
     const auto handle_attempt = FileHandle::create(requested_filepath);
@@ -228,48 +183,6 @@ bool OpenFilesNew::open(const std::string& requested_filepath)
     return true;
 }
 
-bool OpenFiles::open(const std::string& requested_filepath)
-{
-    const fs::path canonical_path = fs::canonical(requested_filepath);
-
-    auto it = std::find_if(m_refs.begin(), m_refs.end(), [&](const FileReference& ref) {
-        return ref.canonical_path == canonical_path;
-    });
-
-    if (it != m_refs.end()) {  // already in set
-        m_focus = it - m_refs.begin();
-        return true;
-    }
-
-    return MATCH(
-        read_from_disk(canonical_path),
-
-        [&](const FileReadError& error) {
-            switch (error) {
-                case FileReadError::DoesNotExist:
-                    LOG(Warning)
-                        << "Attempted to open non-existent file: " << requested_filepath;
-                    break;
-                case FileReadError::NotRegularFile:
-                    LOG(Warning) << "Attempted to open something other than a regular file "
-                                    "(maybe a directory?): "
-                                 << requested_filepath;
-                    break;
-            };
-
-            return false;
-        },
-
-        [&](const FileReference& ref) {
-            LOG(Verbose) << "Successfully opened file: " << requested_filepath;
-            m_refs.emplace_back(ref);
-            m_focus = m_refs.size() - 1;
-
-            LOG(Debug) << "Number of open files: " << size();
-            return true;
-        });
-}
-
 void OpenFilesNew::close(size_t tab_index)
 {
     m_files.erase(m_files.begin() + tab_index);
@@ -292,21 +205,7 @@ void OpenFilesNew::close(size_t tab_index)
     }
 }
 
-void OpenFiles::close(const std::string& filepath)
-{
-    const fs::path path_to_close = fs::canonical(filepath);
-
-    for_each_open_file([path_to_close](const FileReference& ref, bool) -> Action {
-        if (ref.canonical_path == path_to_close) {
-            return Action::Close;
-        }
-        else {
-            return Action::Nothing;
-        }
-    });
-}
-
-void BreakPointSetNew::synchronize(lldb::SBTarget target)
+void BreakPointSet::synchronize(lldb::SBTarget target)
 {
     for (auto& [_, bps] : m_cache) bps.clear();
 
@@ -349,47 +248,7 @@ void BreakPointSetNew::synchronize(lldb::SBTarget target)
     }
 }
 
-void BreakPointSet::Synchronize(lldb::SBTarget target)
-{
-    m_cache.clear();
-
-    for (uint32_t i = 0; i < target.GetNumBreakpoints(); i++) {
-        lldb::SBBreakpoint bp = target.GetBreakpointAtIndex(i);
-        lldb::SBBreakpointLocation location = bp.GetLocationAtIndex(0);
-
-        if (!location.IsValid()) {
-            LOG(Error)
-                << "BreakPointSet::Synchronize :: Invalid breakpoint location encountered!";
-        }
-
-        lldb::SBAddress address = location.GetAddress();
-
-        if (!address.IsValid()) {
-            LOG(Error)
-                << "BreakPointSet::Synchronize :: Invalid lldb::SBAddress for breakpoint!";
-        }
-
-        lldb::SBLineEntry line_entry = address.GetLineEntry();
-
-        std::string full_path;
-        full_path += build_string(line_entry.GetFileSpec().GetDirectory());
-        full_path += "/";
-        full_path += build_string(line_entry.GetFileSpec().GetFilename());
-
-        const std::string canonical_path = fs::canonical(full_path).string();
-
-        auto it = m_cache.find(canonical_path);
-
-        if (it == m_cache.end()) {
-            m_cache[canonical_path] = {(int)line_entry.GetLine()};
-        }
-        else {
-            it->second.insert(line_entry.GetLine());
-        }
-    }
-}
-
-// void BreakPointSetNew::add(FileHandle handle, int line)
+// void BreakPointSet::add(FileHandle handle, int line)
 // {
 //     auto it = m_cache.find(handle);
 //
@@ -401,30 +260,7 @@ void BreakPointSet::Synchronize(lldb::SBTarget target)
 //     }
 // }
 
-void BreakPointSet::Add(const std::string& file, int line)
-{
-    // TODO: implement universal FileHandle type to avoid dealing with paths as much as
-    // possible
-    static std::string canonical_path;
-    const int ret_code = validate_path(file, canonical_path);
-
-    if (ret_code != 0) {
-        LOG(Error) << "Attempted to add breakpoint to invalid file: " << file;
-        return;
-    }
-
-    auto it = m_cache.find(canonical_path);
-
-    if (it == m_cache.end()) {
-        m_cache[canonical_path] = {line};
-    }
-    else {
-        std::unordered_set<int>& breakpoints = it->second;
-        breakpoints.insert(line);
-    }
-}
-
-// void BreakPointSetNew::remove(FileHandle handle, int line)
+// void BreakPointSet::remove(FileHandle handle, int line)
 // {
 //     auto it = m_cache.find(canonical_path);
 //
@@ -438,52 +274,7 @@ void BreakPointSet::Add(const std::string& file, int line)
 //     }
 // }
 
-void BreakPointSet::Remove(const std::string& file, int line)
-{
-    static std::string canonical_path;
-    const int ret_code = validate_path(file, canonical_path);
-
-    if (ret_code != 0) {
-        LOG(Error)
-            << "BreakPointSet::Remove :: Attempted to remove breakpoint from invalid file: "
-            << file;
-        return;
-    }
-
-    auto it = m_cache.find(canonical_path);
-
-    if (it == m_cache.end()) {
-        LOG(Debug) << "Attempted to remove breakpoint from file with no recorded breakpoints: "
-                   << file;
-    }
-    else {
-        std::unordered_set<int>& breakpoints = it->second;
-        breakpoints.erase(line);
-    }
-}
-
-const std::unordered_set<int> BreakPointSet::Get(const std::string& file)
-{
-    static std::string canonical_path;
-    const int ret_code = validate_path(file, canonical_path);
-
-    if (ret_code != 0) {
-        LOG(Error) << "BreakPointSet::Get :: Attempted to get breakpoints for invalid file: "
-                   << file;
-        return std::unordered_set<int>();
-    }
-
-    auto it = m_cache.find(canonical_path);
-
-    if (it == m_cache.end()) {
-        return std::unordered_set<int>();
-    }
-    else {
-        return it->second;
-    }
-}
-
-const std::unordered_set<int>* BreakPointSetNew::Get(FileHandle handle)
+const std::unordered_set<int>* BreakPointSet::Get(FileHandle handle)
 {
     auto it = m_cache.find(handle);
 
