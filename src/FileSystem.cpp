@@ -19,7 +19,7 @@ static std::vector<std::string> read_lines(const fs::path& filepath)
         contents.emplace_back(std::move(line));
     }
 
-    LOG(Debug) << "Read file from disk: " << filepath;
+    LOG(Verbose) << "Read file from disk: " << filepath;
 
     return contents;
 }
