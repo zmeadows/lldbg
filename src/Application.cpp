@@ -89,6 +89,28 @@ static void delete_current_targets(Application& app)
 }
 */
 
+static std::string build_string(const char* cstr)
+{
+    return cstr ? std::string(cstr) : std::string();
+}
+
+template <typename... Args>
+static void cstr_format(char* buffer, size_t sizeof_buffer, const char* fmt, Args... args)
+{
+    // TODO: handle errors properly here
+#if _WIN32
+    const int ret_code = 1 + sprintf_s(buffer, sizeof_buffer, fmt, args...);
+#else
+    const int ret_code = 1 + snprintf(buffer, sizeof_buffer, fmt, args...);
+#endif
+    if ((size_t)ret_code < 0) {
+        LOG(Warning) << "Encoding error encountered in cstr_format.";
+    }
+    else if ((size_t)ret_code > sizeof_buffer) {
+        LOG(Warning) << "Buffer overflow in cstr_format.";
+    }
+}
+
 static lldb::SBProcess get_process(Application& app)
 {
     assert(app.debugger.GetNumTargets() <= 1);
