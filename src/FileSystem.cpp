@@ -126,6 +126,10 @@ void FileBrowserNode::open_children()
             if (new_child_node) {
                 m_children.emplace_back(std::move(new_child_node));
             }
+            else {
+                LOG(Warning) << "Encountered invalid object while traversing directory: "
+                             << m_filepath;
+            }
         }
 
         std::sort(m_children.begin(), m_children.end(),

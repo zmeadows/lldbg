@@ -131,20 +131,14 @@ struct StackFrameDescription {
     int line = -1;
     int column = -1;
 
-    // TODO: just use constructor
-    static StackFrameDescription build(lldb::SBFrame frame)
+    StackFrameDescription(lldb::SBFrame frame)
+        : function_name(build_string(frame.GetDisplayFunctionName())),
+          file_name(build_string(frame.GetLineEntry().GetFileSpec().GetFilename())),
+          directory(build_string(frame.GetLineEntry().GetFileSpec().GetDirectory())),
+          line((int)frame.GetLineEntry().GetLine()),
+          column((int)frame.GetLineEntry().GetColumn())
     {
-        StackFrameDescription description;
-
-        description.function_name = build_string(frame.GetDisplayFunctionName());
-        description.file_name = build_string(frame.GetLineEntry().GetFileSpec().GetFilename());
-        description.directory =
-            build_string(frame.GetLineEntry().GetFileSpec().GetDirectory());
-        description.directory.append("/");  // FIXME: not cross-platform
-        description.line = (int)frame.GetLineEntry().GetLine();
-        description.column = (int)frame.GetLineEntry().GetColumn();
-
-        return description;
+        directory.append("/");  // FIXME: not cross-platform?
     }
 };
 
@@ -600,8 +594,7 @@ void draw(Application& app)
                     process.GetThreadAtIndex(app.render_state.viewed_thread_index);
                 for (uint32_t i = 0; i < viewed_thread.GetNumFrames(); i++) {
                     // TODO: save description and don't rebuild every frame
-                    const auto desc =
-                        StackFrameDescription::build(viewed_thread.GetFrameAtIndex(i));
+                    const StackFrameDescription desc(viewed_thread.GetFrameAtIndex(i));
 
                     if (ImGui::Selectable(desc.function_name.c_str()
                                               ? desc.function_name.c_str()
