@@ -48,6 +48,7 @@ namespace lldbg {
 std::map<size_t, std::string> FileHandle::s_filepath_cache;
 std::map<size_t, std::string> FileHandle::s_filename_cache;
 std::map<size_t, std::vector<std::string>> FileHandle::s_contents_cache;
+std::mutex FileHandle::s_mutex;
 
 std::optional<FileHandle> FileHandle::create(const std::string& filepath)
 {
@@ -67,6 +68,8 @@ std::optional<FileHandle> FileHandle::create(const std::string& filepath)
 
     const size_t path_hash = fs::hash_value(canonical_path);
 
+    std::unique_lock<std::mutex> lock(s_mutex);
+
     {
         auto it = s_filepath_cache.find(path_hash);
         if (it == s_filepath_cache.end()) {
@@ -81,14 +84,39 @@ std::optional<FileHandle> FileHandle::create(const std::string& filepath)
         }
     }
 
+    return FileHandle(path_hash);
+}
+
+const std::vector<std::string>& FileHandle::contents(void)
+{
+    std::unique_lock<std::mutex> lock(s_mutex);
+
     {
-        auto it = s_contents_cache.find(path_hash);
-        if (it == s_contents_cache.end()) {
-            s_contents_cache[path_hash] = read_lines(canonical_path);
+        auto it = s_contents_cache.find(m_hash);
+        if (it != s_contents_cache.end()) {
+            return it->second;
         }
     }
 
-    return FileHandle(path_hash);
+    const std::string& filepath = s_filepath_cache[m_hash];
+    const auto& [insert_iter, _] = s_contents_cache.emplace(m_hash, read_lines(filepath));
+    return insert_iter->second;
+}
+
+const std::string& FileHandle::filepath(void)
+{
+    std::unique_lock<std::mutex> lock(s_mutex);
+    auto it = s_filepath_cache.find(m_hash);
+    assert(it != s_filepath_cache.end());
+    return it->second;
+}
+
+const std::string& FileHandle::filename(void)
+{
+    std::unique_lock<std::mutex> lock(s_mutex);
+    auto it = s_filename_cache.find(m_hash);
+    assert(it != s_filename_cache.end());
+    return it->second;
 }
 
 std::unique_ptr<FileBrowserNode> FileBrowserNode::create(const fs::path& relative_path)

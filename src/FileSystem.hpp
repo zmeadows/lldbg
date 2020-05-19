@@ -6,6 +6,7 @@
 #include <fstream>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <set>
 #include <unordered_map>
@@ -30,6 +31,7 @@ class FileHandle {
     static std::map<size_t, std::string> s_filepath_cache;
     static std::map<size_t, std::string> s_filename_cache;
     static std::map<size_t, std::vector<std::string>> s_contents_cache;
+    static std::mutex s_mutex;
 
     FileHandle(size_t h) : m_hash(h) {}
 
@@ -48,26 +50,9 @@ public:
 
     static std::optional<FileHandle> create(const std::string& filepath);
 
-    inline const std::vector<std::string>& contents(void) const
-    {
-        auto it = s_contents_cache.find(m_hash);
-        assert(it != s_contents_cache.end());
-        return it->second;
-    }
-
-    inline const std::string& filepath(void) const
-    {
-        auto it = s_filepath_cache.find(m_hash);
-        assert(it != s_filepath_cache.end());
-        return it->second;
-    }
-
-    inline const std::string& filename(void) const
-    {
-        auto it = s_filename_cache.find(m_hash);
-        assert(it != s_filename_cache.end());
-        return it->second;
-    }
+    const std::vector<std::string>& contents(void);
+    const std::string& filepath(void);
+    const std::string& filename(void);
 };
 
 struct FileReference {

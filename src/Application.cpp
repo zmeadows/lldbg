@@ -183,7 +183,7 @@ static void draw_open_files(lldbg::Application& app)
 {
     bool closed_tab = false;
 
-    app.open_files.for_each_open_file([&](const FileHandle handle, bool is_focused) {
+    app.open_files.for_each_open_file([&](FileHandle handle, bool is_focused) {
         auto action = lldbg::OpenFilesNew::Action::Nothing;
 
         // we programmatically set the focused tab if manual tab change requested
@@ -210,6 +210,8 @@ static void draw_open_files(lldbg::Application& app)
                 action = lldbg::OpenFilesNew::Action::ChangeFocusTo;
                 app.text_editor.SetTextLines(handle.contents());
 
+                // TODO: break this out as a stand-alone function,
+                // or fix the TextEditor method
                 auto bps = app.breakpoints.Get(handle);
                 if (bps != nullptr) {
                     app.text_editor.SetBreakpoints(*bps);
@@ -290,7 +292,7 @@ static bool run_lldb_command(Application& app, const char* command)
         const std::optional<FileHandle> maybe_handle = app.open_files.focus();
 
         if (maybe_handle) {
-            const auto handle = *maybe_handle;
+            auto handle = *maybe_handle;
             app.text_editor.SetTextLines(handle.contents());
             app.text_editor.SetBreakpoints(*app.breakpoints.Get(handle));
         }

@@ -21,14 +21,15 @@ struct LogMessage {
 };
 
 class Logger {
-    std::mutex m_mutex;
     std::vector<LogMessage> m_messages;
 
     static std::unique_ptr<Logger> s_instance;
+    static std::mutex s_mutex;
 
 public:
     static Logger* get_instance(void)
     {
+        std::unique_lock<std::mutex> lock(s_mutex);
         if (!s_instance) {
             s_instance = std::make_unique<Logger>();
         }
@@ -37,14 +38,14 @@ public:
 
     void log(LogLevel level, const std::string& message)
     {
-        std::unique_lock<std::mutex> lock(m_mutex);
+        std::unique_lock<std::mutex> lock(s_mutex);
         m_messages.emplace_back(level, message);
     };
 
     template <typename MessageHandlerFunc>
     void for_each_message(MessageHandlerFunc&& f)
     {
-        std::unique_lock<std::mutex> lock(m_mutex);
+        std::unique_lock<std::mutex> lock(s_mutex);
         for (const LogMessage& message : m_messages) {
             f(message);
         }
