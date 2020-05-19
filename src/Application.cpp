@@ -205,7 +205,7 @@ static void draw_open_files(lldbg::Application& app)
     bool closed_tab = false;
 
     app.open_files.for_each_open_file([&](FileHandle handle, bool is_focused) {
-        auto action = lldbg::OpenFilesNew::Action::Nothing;
+        auto action = lldbg::OpenFiles::Action::Nothing;
 
         // we programmatically set the focused tab if manual tab change requested
         // for example when the user clicks an entry in the stack trace or file explorer
@@ -228,7 +228,7 @@ static void draw_open_files(lldbg::Application& app)
             ImGui::BeginChild("FileContents");
             if (!app.render_state.request_manual_tab_change && !is_focused) {
                 // user selected tab directly with mouse
-                action = lldbg::OpenFilesNew::Action::ChangeFocusTo;
+                action = lldbg::OpenFiles::Action::ChangeFocusTo;
                 app.text_editor.SetTextLines(handle.contents());
 
                 // TODO: break this out as a stand-alone function,
@@ -249,7 +249,7 @@ static void draw_open_files(lldbg::Application& app)
         if (!keep_tab_open) {
             // user closed tab with mouse
             closed_tab = true;
-            action = lldbg::OpenFilesNew::Action::Close;
+            action = lldbg::OpenFiles::Action::Close;
         }
 
         return action;

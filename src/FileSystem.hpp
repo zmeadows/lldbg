@@ -56,7 +56,7 @@ public:
     const std::string& filename(void);
 };
 
-class OpenFilesNew {
+class OpenFiles {
     std::vector<FileHandle> m_files;
     std::optional<size_t> m_focus;
 

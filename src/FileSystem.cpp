@@ -155,7 +155,7 @@ void FileBrowserNode::open_children()
     }
 }
 
-bool OpenFilesNew::open(const std::string& requested_filepath)
+bool OpenFiles::open(const std::string& requested_filepath)
 {
     const auto handle_attempt = FileHandle::create(requested_filepath);
 
@@ -182,7 +182,7 @@ bool OpenFilesNew::open(const std::string& requested_filepath)
     return true;
 }
 
-void OpenFilesNew::close(size_t tab_index)
+void OpenFiles::close(size_t tab_index)
 {
     m_files.erase(m_files.begin() + tab_index);
 
