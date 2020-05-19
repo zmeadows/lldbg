@@ -93,6 +93,7 @@ static std::string build_string(const char* cstr)
     return cstr ? std::string(cstr) : std::string();
 }
 
+// TODO: remove this and use fmt
 template <typename... Args>
 static void cstr_format(char* buffer, size_t sizeof_buffer, const char* fmt, Args... args)
 {
@@ -156,10 +157,13 @@ static bool FileTreeNode(const char* label)
     ImVec2 pos = window->DC.CursorPos;
     ImRect bb(pos, ImVec2(pos.x + ImGui::GetContentRegionAvail().x,
                           pos.y + g.FontSize + g.Style.FramePadding.y * 2));
+
     bool opened = ImGui::TreeNodeBehaviorIsOpen(id);
     bool hovered, held;
+
     if (ImGui::ButtonBehavior(bb, id, &hovered, &held, true))
         window->DC.StateStorage->SetInt(id, opened ? 0 : 1);
+
     if (hovered || held)
         window->DrawList->AddRectFilled(
             bb.Min, bb.Max,
@@ -170,14 +174,17 @@ static bool FileTreeNode(const char* label)
     // TODO: set colors from style?
     window->DrawList->AddRectFilled(pos, ImVec2(pos.x + button_sz, pos.y + button_sz),
                                     opened ? ImColor(51, 105, 173) : ImColor(42, 79, 130));
-    ImGui::RenderText(
-        ImVec2(pos.x + button_sz + g.Style.ItemInnerSpacing.x, pos.y + g.Style.FramePadding.y),
-        label);
+
+    const auto label_location =
+        ImVec2(pos.x + button_sz + g.Style.ItemInnerSpacing.x, pos.y + g.Style.FramePadding.y);
+
+    ImGui::RenderText(label_location, label);
 
     ImGui::ItemSize(bb, g.Style.FramePadding.y);
     ImGui::ItemAdd(bb, id);
 
     if (opened) ImGui::TreePush(label);
+
     return opened;
 }
 

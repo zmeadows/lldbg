@@ -33,17 +33,17 @@ std::optional<FileHandle> FileHandle::create(const std::string& filepath)
 
     std::unique_lock<std::mutex> lock(s_mutex);
 
-    {
+    {  // cache the canonical absolute filepath for this file
         auto it = s_filepath_cache.find(path_hash);
         if (it == s_filepath_cache.end()) {
             s_filepath_cache.emplace(path_hash, canonical_path.string());
         }
     }
 
-    {
+    {  // cache the short filename for this file: ex (/some/path/foo.txt -> foo.txt)
         auto it = s_filename_cache.find(path_hash);
         if (it == s_filename_cache.end()) {
-            s_filename_cache[path_hash] = canonical_path.filename().string();
+            s_filename_cache.emplace(path_hash, canonical_path.filename().string());
         }
     }
 
@@ -62,7 +62,6 @@ const std::vector<std::string>& FileHandle::contents(void)
     }
 
     const std::string& filepath = s_filepath_cache[m_hash];
-    assert(fs::is_regular_file(filepath));
 
     std::ifstream infile(filepath);
 

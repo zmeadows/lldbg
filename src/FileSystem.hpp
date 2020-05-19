@@ -39,6 +39,12 @@ class FileHandle {
 public:
     FileHandle(void) = delete;
 
+    static std::optional<FileHandle> create(const std::string& filepath);
+
+    const std::vector<std::string>& contents(void);
+    const std::string& filepath(void);
+    const std::string& filename(void);
+
     inline friend bool operator==(const FileHandle& a, const FileHandle& b)
     {
         return a.m_hash == b.m_hash;
@@ -48,12 +54,6 @@ public:
     {
         return a.m_hash < b.m_hash;
     }
-
-    static std::optional<FileHandle> create(const std::string& filepath);
-
-    const std::vector<std::string>& contents(void);
-    const std::string& filepath(void);
-    const std::string& filename(void);
 };
 
 class OpenFiles {
@@ -110,7 +110,7 @@ public:
     }
 };
 
-// TODO: move to TextEditor module
+// TODO: move BreakPointSet to TextEditor module
 class BreakPointSet {
     std::map<FileHandle, std::unordered_set<int>> m_cache;
 
@@ -122,6 +122,7 @@ public:
     const std::unordered_set<int>* Get(FileHandle handle);
 };
 
+// TODO: use FileHandle and a tagged union for file vs directory
 class FileBrowserNode {
     bool m_already_opened;
     const std::filesystem::path m_path;
