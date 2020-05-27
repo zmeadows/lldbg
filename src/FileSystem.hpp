@@ -28,7 +28,8 @@ class FileHandle {
 
     // TODO: record last file read/access time in separate static map
     // so that file contents can be dynamically reloaded when they change.
-    // This will involve inotify on linux and kqueue on macos
+    // This will involve inotify on linux and kqueue on macos.
+
     static std::map<size_t, std::string> s_filepath_cache;
     static std::map<size_t, std::string> s_filename_cache;
     static std::map<size_t, std::vector<std::string>> s_contents_cache;

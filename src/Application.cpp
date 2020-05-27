@@ -88,6 +88,62 @@ static void delete_current_targets(Application& app)
 }
 */
 
+void StreamBuffer::update(lldb::SBProcess process)
+{
+    while (m_capacity < StreamBuffer::MAX_CAPACITY) {
+        const size_t bytes_written =
+            process.GetSTDOUT(m_data + m_offset, m_capacity - m_offset);
+
+        if (bytes_written == 0) return;
+
+        m_offset += bytes_written;
+        LOG(Verbose) << "read " << bytes_written
+                     << " bytes from stdout for new offset: " << m_offset;
+
+        if (m_offset < m_capacity) {  // success!
+            return;
+        }
+        else {
+            const size_t new_capacity = m_capacity * 2;
+            assert(new_capacity > m_offset);
+
+            LOG(Verbose) << "Reallocating stdout buffer for larger capacity: " << m_capacity
+                         << " bytes -> " << new_capacity << " bytes";
+
+            m_capacity = new_capacity;
+
+            char* new_data = (char*)malloc(sizeof(char) * m_capacity);
+            assert(new_data != nullptr);
+
+            for (size_t i = 0; i < m_offset; i++) {
+                new_data[i] = m_data[i];
+            }
+            for (size_t i = m_offset; i < m_capacity; i++) {
+                new_data[i] = '\0';
+            }
+
+            free(m_data);
+            m_data = new_data;
+        }
+    }
+}
+
+StreamBuffer::StreamBuffer(void)
+    : m_offset(0), m_capacity(2), m_data((char*)malloc(sizeof(char) * m_capacity))
+{
+    for (size_t i = 0; i < m_capacity; i++) {
+        m_data[i] = '\0';
+    }
+}
+
+StreamBuffer::~StreamBuffer(void)
+{
+    assert(m_data != nullptr);
+    free(m_data);
+    m_capacity = 0;
+    m_offset = 0;
+}
+
 static std::string build_string(const char* cstr)
 {
     return cstr ? std::string(cstr) : std::string();
@@ -124,6 +180,8 @@ static void glfw_error_callback(int error, const char* description)
 }
 
 // A convenience struct for extracting pertinent display information from an lldb::SBFrame
+// TODO: convert this to use fs::path under the hood for path validation, and have static
+// create method that returns std::optional<StackFrameDescription>
 struct StackFrameDescription {
     std::string function_name;
     std::string file_name;
@@ -529,6 +587,15 @@ void draw(Application& app)
                 ImGui::EndChild();
                 ImGui::EndTabItem();
             }
+
+            if (ImGui::BeginTabItem("StdOUT")) {
+                ImGui::BeginChild("StdOUTEntries");
+                ImGui::TextUnformatted(app.stdout_buf.get());
+                // ImGui::SetScrollHere(1.0f);
+                ImGui::EndChild();
+                ImGui::EndTabItem();
+            }
+
             ImGui::EndTabBar();
         }
         ImGui::EndChild();
@@ -770,7 +837,7 @@ void draw(Application& app)
     }
 }
 
-void tick(lldbg::Application& app)
+static void tick(lldbg::Application& app)
 {
     // process all queued LLDB events before drawing each frame
     while (true) {
@@ -802,6 +869,8 @@ void tick(lldbg::Application& app)
 
 void Application::main_loop()
 {
+    static size_t frame_number = 0;
+
     while (!glfwWindowShouldClose(render_state.window)) {
         glfwPollEvents();
 
@@ -822,6 +891,15 @@ void Application::main_loop()
         ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
 
         glfwSwapBuffers(render_state.window);
+
+        // TODO: develop bettery strategy for when to read stdout,
+        // possible upon receiving certian types of LLDBEvent?
+        // TODO: define some sort of ProcessContext to keep the stdout per process/target
+        if ((frame_number % 10 == 0) && debugger.GetNumTargets() > 0) {
+            stdout_buf.update(get_process(*this));
+        }
+
+        frame_number++;
     }
 }
 

@@ -44,6 +44,28 @@ struct RenderState {
     static constexpr float DEFAULT_STACKTRACE_WIDTH_PERCENT = 0.28f;
 };
 
+// TODO: optimize this to handle both large amounts of stdout overall
+// as well as very large rate of stdout messages
+class StreamBuffer {
+    size_t m_offset;
+    size_t m_capacity;
+    char* m_data;
+
+    static const size_t MAX_CAPACITY = static_cast<size_t>(2e9);
+
+public:
+    void update(lldb::SBProcess process);
+
+    inline const char* get(void) { return m_data; }
+
+    StreamBuffer(void);
+    ~StreamBuffer(void);
+
+    StreamBuffer(const StreamBuffer&) = delete;
+    StreamBuffer& operator=(const StreamBuffer&) = delete;
+    StreamBuffer& operator=(StreamBuffer&&) = delete;
+};
+
 struct Application {
     lldb::SBDebugger debugger;
     LLDBEventListenerThread event_listener;
@@ -54,15 +76,17 @@ struct Application {
     RenderState render_state;
     TextEditor text_editor;
     std::optional<ExitDialog> exit_dialog;
+    StreamBuffer stdout_buf;
 
     // TODO: make this a non-member function
     void main_loop(void);
 
     Application();
+    ~Application();
+
     Application(const Application&) = delete;
     Application& operator=(const Application&) = delete;
     Application& operator=(Application&&) = delete;
-    ~Application();
 };
 
 void set_workdir(Application& app, const std::string& workdir);
