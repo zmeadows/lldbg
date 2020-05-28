@@ -88,62 +88,6 @@ static void delete_current_targets(Application& app)
 }
 */
 
-void StreamBuffer::update(lldb::SBProcess process)
-{
-    while (m_capacity < StreamBuffer::MAX_CAPACITY) {
-        const size_t bytes_written =
-            process.GetSTDOUT(m_data + m_offset, m_capacity - m_offset);
-
-        if (bytes_written == 0) return;
-
-        m_offset += bytes_written;
-        LOG(Verbose) << "read " << bytes_written
-                     << " bytes from stdout for new offset: " << m_offset;
-
-        if (m_offset < m_capacity) {  // success!
-            return;
-        }
-        else {
-            const size_t new_capacity = m_capacity * 2;
-            assert(new_capacity > m_offset);
-
-            LOG(Verbose) << "Reallocating stdout buffer for larger capacity: " << m_capacity
-                         << " bytes -> " << new_capacity << " bytes";
-
-            m_capacity = new_capacity;
-
-            char* new_data = (char*)malloc(sizeof(char) * m_capacity);
-            assert(new_data != nullptr);
-
-            for (size_t i = 0; i < m_offset; i++) {
-                new_data[i] = m_data[i];
-            }
-            for (size_t i = m_offset; i < m_capacity; i++) {
-                new_data[i] = '\0';
-            }
-
-            free(m_data);
-            m_data = new_data;
-        }
-    }
-}
-
-StreamBuffer::StreamBuffer(void)
-    : m_offset(0), m_capacity(2), m_data((char*)malloc(sizeof(char) * m_capacity))
-{
-    for (size_t i = 0; i < m_capacity; i++) {
-        m_data[i] = '\0';
-    }
-}
-
-StreamBuffer::~StreamBuffer(void)
-{
-    assert(m_data != nullptr);
-    free(m_data);
-    m_capacity = 0;
-    m_offset = 0;
-}
-
 static std::string build_string(const char* cstr)
 {
     return cstr ? std::string(cstr) : std::string();
@@ -408,6 +352,9 @@ void draw(Application& app)
     DEBUG_STREAM(window_width);
     DEBUG_STREAM(window_height);
 
+    const char* process_state = lldb::SBDebugger::StateAsCString(process.GetState());
+    DEBUG_STREAM(process_state);
+
     const auto window_width_f = static_cast<float>(window_width);
     const auto window_height_f = static_cast<float>(window_height);
 
@@ -588,7 +535,7 @@ void draw(Application& app)
                 ImGui::EndTabItem();
             }
 
-            if (ImGui::BeginTabItem("StdOUT")) {
+            if (ImGui::BeginTabItem("stdout")) {
                 ImGui::BeginChild("StdOUTEntries");
                 ImGui::TextUnformatted(app.stdout_buf.get());
                 // ImGui::SetScrollHere(1.0f);
@@ -823,11 +770,11 @@ void draw(Application& app)
     ImGui::PopFont();
     ImGui::End();
 
-    if (app.exit_dialog) {
+    {
         ImGui::SetNextWindowPos(ImVec2(window_width / 2.f, window_height / 2.f),
                                 ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowSize(ImVec2(200, 200), ImGuiCond_FirstUseEver);
-        if (ImGui::Begin("About Dear ImGui", 0)) {
+        if (ImGui::Begin("Debug Stream", 0)) {
             for (const auto& [xkey, xstr] : s_debug_stream) {
                 const std::string line = fmt::format("{} : {}", xkey, xstr);
                 ImGui::TextUnformatted(line.c_str());
@@ -897,6 +844,7 @@ void Application::main_loop()
         // TODO: define some sort of ProcessContext to keep the stdout per process/target
         if ((frame_number % 10 == 0) && debugger.GetNumTargets() > 0) {
             stdout_buf.update(get_process(*this));
+            stderr_buf.update(get_process(*this));
         }
 
         frame_number++;
@@ -963,6 +911,8 @@ int initialize_rendering(RenderState& rs)
 namespace lldbg {
 
 Application::Application()
+    : stdout_buf(StreamBuffer::StreamSource::StdOut),
+      stderr_buf(StreamBuffer::StreamSource::StdErr)
 {
     lldb::SBDebugger::Initialize();
     debugger = lldb::SBDebugger::Create();

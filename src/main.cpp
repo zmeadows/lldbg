@@ -18,6 +18,8 @@ using namespace lldbg;
 
 int main(int, char* argv[])
 {
+    (void)argv;
+
     Application app;
 
     TargetAddResult add_result = add_target(app, target_path);

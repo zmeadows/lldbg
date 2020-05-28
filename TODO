@@ -1,0 +1,36 @@
+### TODO
+- intelligently handle command line arguments with cxxopts
+- use spdlog instead of custom logger class from Log.hpp/Log.cpp
+- show program status: running or stopped (with stop reason)
+- clickable tree view of local variables with children
+- show watchpoint list
+- show registers
+- mouse scroll file contents window
+- adjustable splitters between each main UI element
+- adjustable font family
+- adjustable font size
+- automatically scale based on DPI of display
+- add color themes
+- local config file for specifying font family/size, color theme, etc
+- toggle inline assembly view
+- start/pause/stop buttons
+- button to change working directory
+- button to select different executable to debug
+- keyboard shortcut to focus to console keyboard input
+- colored log output
+- menu option to output log to file
+- menu option to enable/disable logging (disabled by default)
+- don't allow duplicate breakpoints (why does lldb allow this...?)
+
+### Completed
+- file explorer pane
+- cache open files in memory and display in tabs
+- display full stack trace with file name, line, column
+- display file contents
+- show local variables for each stack frame
+- lldb console
+- viewable log messages
+- syntax highlighting
+- show breakpoint list
+- highlight breakpoints in file contents with markers
+- click to add breakpoint at specific line of viewed file

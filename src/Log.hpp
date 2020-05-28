@@ -26,6 +26,9 @@ class Logger {
     static std::unique_ptr<Logger> s_instance;
     static std::mutex s_mutex;
 
+    // TODO: use static methods for 'log' and 'for_each_message' which themselves
+    // access the s_instance variable
+
 public:
     static Logger* get_instance(void)
     {

@@ -7,8 +7,8 @@
 #include "LLDBCommandLine.hpp"
 #include "LLDBEventListenerThread.hpp"
 #include "Log.hpp"
+#include "StreamBuffer.hpp"
 #include "TextEditor.h"
-#include "lldb/API/LLDB.h"
 
 // clang-format off
 #include "imgui.h"
@@ -16,6 +16,8 @@
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl2.h"
 // clang-format on
+
+#include "lldb/API/LLDB.h"
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
@@ -44,28 +46,6 @@ struct RenderState {
     static constexpr float DEFAULT_STACKTRACE_WIDTH_PERCENT = 0.28f;
 };
 
-// TODO: optimize this to handle both large amounts of stdout overall
-// as well as very large rate of stdout messages
-class StreamBuffer {
-    size_t m_offset;
-    size_t m_capacity;
-    char* m_data;
-
-    static const size_t MAX_CAPACITY = static_cast<size_t>(2e9);
-
-public:
-    void update(lldb::SBProcess process);
-
-    inline const char* get(void) { return m_data; }
-
-    StreamBuffer(void);
-    ~StreamBuffer(void);
-
-    StreamBuffer(const StreamBuffer&) = delete;
-    StreamBuffer& operator=(const StreamBuffer&) = delete;
-    StreamBuffer& operator=(StreamBuffer&&) = delete;
-};
-
 struct Application {
     lldb::SBDebugger debugger;
     LLDBEventListenerThread event_listener;
@@ -77,6 +57,7 @@ struct Application {
     TextEditor text_editor;
     std::optional<ExitDialog> exit_dialog;
     StreamBuffer stdout_buf;
+    StreamBuffer stderr_buf;
 
     // TODO: make this a non-member function
     void main_loop(void);
