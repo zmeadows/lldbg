@@ -29,9 +29,9 @@ struct ExitDialog {
     int exit_code;
 };
 
-// TODO: rename UserInterface and move GLFWwindow/ImFont to Application
+// TODO: rename UserInterface
 // TODO: can some of these fields be moved to static variables in the draw function?
-struct RenderState {
+struct UserInterface {
     int viewed_thread_index = -1;
     int viewed_frame_index = -1;
     int window_width = -1;
@@ -53,7 +53,7 @@ struct Application {
     OpenFiles open_files;
     BreakPointSet breakpoints;
     std::unique_ptr<lldbg::FileBrowserNode> file_browser;
-    RenderState render_state;
+    UserInterface ui;
     TextEditor text_editor;
     std::optional<ExitDialog> exit_dialog;
     StreamBuffer stdout_buf;

@@ -213,7 +213,7 @@ static void draw_open_files(lldbg::Application& app)
         // we programmatically set the focused tab if manual tab change requested
         // for example when the user clicks an entry in the stack trace or file explorer
         auto tab_flags = ImGuiTabItemFlags_None;
-        if (app.render_state.request_manual_tab_change && is_focused) {
+        if (app.ui.request_manual_tab_change && is_focused) {
             tab_flags = ImGuiTabItemFlags_SetSelected;
             app.text_editor.SetTextLines(handle.contents());
 
@@ -229,7 +229,7 @@ static void draw_open_files(lldbg::Application& app)
         bool keep_tab_open = true;
         if (ImGui::BeginTabItem(handle.filename().c_str(), &keep_tab_open, tab_flags)) {
             ImGui::BeginChild("FileContents");
-            if (!app.render_state.request_manual_tab_change && !is_focused) {
+            if (!app.ui.request_manual_tab_change && !is_focused) {
                 // user selected tab directly with mouse
                 action = lldbg::OpenFiles::Action::ChangeFocusTo;
                 app.text_editor.SetTextLines(handle.contents());
@@ -258,7 +258,7 @@ static void draw_open_files(lldbg::Application& app)
         return action;
     });
 
-    app.render_state.request_manual_tab_change = false;
+    app.ui.request_manual_tab_change = false;
 
     if (closed_tab && app.open_files.size() > 0) {
         FileHandle handle = *app.open_files.focus();
@@ -276,7 +276,7 @@ static void draw_open_files(lldbg::Application& app)
 static void manually_open_and_or_focus_file(lldbg::Application& app, const char* filepath)
 {
     if (app.open_files.open(std::string(filepath))) {
-        app.render_state.request_manual_tab_change = true;
+        app.ui.request_manual_tab_change = true;
     }
 }
 
@@ -334,14 +334,14 @@ void draw(Application& app)
     // ImGuiIO& io = ImGui::GetIO();
     // io.FontGlobalScale = 1.1;
 
-    static int window_width = app.render_state.window_width;
-    static int window_height = app.render_state.window_height;
+    static int window_width = app.ui.window_width;
+    static int window_height = app.ui.window_height;
 
     bool window_resized = false;
     const int old_width = window_width;
     const int old_height = window_height;
-    const int new_width = app.render_state.window_width;
-    const int new_height = app.render_state.window_height;
+    const int new_width = app.ui.window_width;
+    const int new_height = app.ui.window_height;
 
     if (new_width != old_width || new_height != old_height) {
         window_width = new_width;
@@ -366,7 +366,7 @@ void draw(Application& app)
                      ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
                      ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings |
                      ImGuiWindowFlags_NoTitleBar);
-    ImGui::PushFont(app.render_state.font);
+    ImGui::PushFont(app.ui.font);
 
     if (ImGui::BeginMenuBar()) {
         Defer(ImGui::EndMenuBar());
@@ -399,9 +399,8 @@ void draw(Application& app)
     }
 
     static float file_browser_width =
-        window_width_f * app.render_state.DEFAULT_FILEBROWSER_WIDTH_PERCENT;
-    static float file_viewer_width =
-        window_width_f * app.render_state.DEFAULT_FILEVIEWER_WIDTH_PERCENT;
+        window_width_f * app.ui.DEFAULT_FILEBROWSER_WIDTH_PERCENT;
+    static float file_viewer_width = window_width_f * app.ui.DEFAULT_FILEVIEWER_WIDTH_PERCENT;
     Splitter("##S1", true, 3.0f, &file_browser_width, &file_viewer_width, 100, 100,
              window_height_f);
 
@@ -412,6 +411,17 @@ void draw(Application& app)
 
     ImGui::BeginChild("FileBrowserPane", ImVec2(file_browser_width, 0));
 
+    {
+        // TODO: handle case where no target has been specified
+        // TODO: show rightmost chunk of path in case it is too long to fit on screen
+        // TODO: add button to select new target using
+        // https://github.com/aiekick/ImGuiFileDialog
+        lldb::SBFileSpec fs = app.debugger.GetSelectedTarget().GetExecutable();
+        const std::string target_line =
+            fmt::format("Target: {}/{}", fs.GetDirectory(), fs.GetFilename());
+        ImGui::TextUnformatted(target_line.c_str());
+    }
+
     if (ImGui::Button("Resume")) {
         get_process(app).Continue();
     }
@@ -420,6 +430,7 @@ void draw(Application& app)
     if (ImGui::Button("Stop")) {
         get_process(app).Stop();
     }
+
     ImGui::Separator();
 
     draw_file_browser(app, app.file_browser.get(), 0);
@@ -488,8 +499,7 @@ void draw(Application& app)
 
                 // always scroll to the bottom of the command history after running a command
                 const bool should_auto_scroll_command_window =
-                    app.render_state.ran_command_last_frame ||
-                    old_console_height != console_height;
+                    app.ui.ran_command_last_frame || old_console_height != console_height;
 
                 auto command_input_callback = [](ImGuiTextEditCallbackData*) -> int {
                     return 0;
@@ -504,7 +514,7 @@ void draw(Application& app)
                     run_lldb_command(app, input_buf);
                     memset(input_buf, 0, sizeof(input_buf));
                     input_buf[0] = '\0';
-                    app.render_state.ran_command_last_frame = true;
+                    app.ui.ran_command_last_frame = true;
                 }
 
                 // Keep auto focus on the input box
@@ -515,7 +525,7 @@ void draw(Application& app)
 
                 if (should_auto_scroll_command_window) {
                     ImGui::SetScrollHere(1.0f);
-                    app.render_state.ran_command_last_frame = false;
+                    app.ui.ran_command_last_frame = false;
                 }
 
                 ImGui::EndChild();
@@ -538,7 +548,15 @@ void draw(Application& app)
             if (ImGui::BeginTabItem("stdout")) {
                 ImGui::BeginChild("StdOUTEntries");
                 ImGui::TextUnformatted(app.stdout_buf.get());
-                // ImGui::SetScrollHere(1.0f);
+                // ImGui::SetScrollHere(1.0f); // TODO: handle smart auto scrolling
+                ImGui::EndChild();
+                ImGui::EndTabItem();
+            }
+
+            if (ImGui::BeginTabItem("stderr")) {
+                ImGui::BeginChild("StdERREntries");
+                ImGui::TextUnformatted(app.stderr_buf.get());
+                // ImGui::SetScrollHere(1.0f); // TODO: handle smart auto scrolling
                 ImGui::EndChild();
                 ImGui::EndTabItem();
             }
@@ -570,15 +588,17 @@ void draw(Application& app)
             if (stopped) {
                 static char thread_label[128];
                 for (uint32_t i = 0; i < process.GetNumThreads(); i++) {
-                    cstr_format(thread_label, sizeof(thread_label), "Thread %u", i);
+                    lldb::SBThread th = process.GetThreadAtIndex(i);
+                    cstr_format(thread_label, sizeof(thread_label), "Thread %u: %s", i,
+                                th.GetName());
                     if (ImGui::Selectable(thread_label,
-                                          (int)i == app.render_state.viewed_thread_index)) {
-                        app.render_state.viewed_thread_index = i;
+                                          (int)i == app.ui.viewed_thread_index)) {
+                        app.ui.viewed_thread_index = i;
                     }
                 }
 
-                if (process.GetNumThreads() > 0 && app.render_state.viewed_thread_index < 0) {
-                    app.render_state.viewed_thread_index = 0;
+                if (process.GetNumThreads() > 0 && app.ui.viewed_thread_index < 0) {
+                    app.ui.viewed_thread_index = 0;
                 }
             }
             ImGui::EndTabItem();
@@ -593,7 +613,7 @@ void draw(Application& app)
         if (ImGui::BeginTabItem("Stack Trace")) {
             static int selected_row = -1;
 
-            if (stopped && app.render_state.viewed_thread_index >= 0) {
+            if (stopped && app.ui.viewed_thread_index >= 0) {
                 ImGui::Columns(3);
                 ImGui::Separator();
                 ImGui::Text("FUNCTION");
@@ -605,11 +625,13 @@ void draw(Application& app)
                 ImGui::Separator();
 
                 lldb::SBThread viewed_thread =
-                    process.GetThreadAtIndex(app.render_state.viewed_thread_index);
+                    process.GetThreadAtIndex(app.ui.viewed_thread_index);
                 for (uint32_t i = 0; i < viewed_thread.GetNumFrames(); i++) {
                     // TODO: save description and don't rebuild every frame
                     const StackFrameDescription desc(viewed_thread.GetFrameAtIndex(i));
 
+                    // TODO: use ImGuiSelectableFlags_SpanAllColumns as described here:
+                    // https://github.com/ocornut/imgui/issues/769
                     if (ImGui::Selectable(desc.function_name.c_str()
                                               ? desc.function_name.c_str()
                                               : "unknown",
@@ -632,7 +654,7 @@ void draw(Application& app)
                     ImGui::NextColumn();
                 }
 
-                app.render_state.viewed_frame_index = selected_row;
+                app.ui.viewed_frame_index = selected_row;
                 ImGui::Columns(1);
             }
 
@@ -646,11 +668,10 @@ void draw(Application& app)
     if (ImGui::BeginTabBar("##LocalsTabs", ImGuiTabBarFlags_None)) {
         if (ImGui::BeginTabItem("Locals")) {
             // TODO: turn this into a recursive tree that displays children of structs/arrays
-            if (stopped && app.render_state.viewed_frame_index >= 0) {
+            if (stopped && app.ui.viewed_frame_index >= 0) {
                 lldb::SBThread viewed_thread =
-                    process.GetThreadAtIndex(app.render_state.viewed_thread_index);
-                lldb::SBFrame frame =
-                    viewed_thread.GetFrameAtIndex(app.render_state.viewed_frame_index);
+                    process.GetThreadAtIndex(app.ui.viewed_thread_index);
+                lldb::SBFrame frame = viewed_thread.GetFrameAtIndex(app.ui.viewed_frame_index);
                 lldb::SBValueList locals = frame.GetVariables(true, true, true, true);
                 for (uint32_t i = 0; i < locals.GetSize(); i++) {
                     lldb::SBValue value = locals.GetValueAtIndex(i);
@@ -662,11 +683,11 @@ void draw(Application& app)
         if (ImGui::BeginTabItem("Registers")) {
             ImGui::BeginChild("RegisterContents");
             // FIXME: why does this stall the program?
-            // if (stopped && app.render_state.viewed_frame_index >= 0) {
+            // if (stopped && app.ui.viewed_frame_index >= 0) {
             //     lldb::SBThread viewed_thread =
-            //     process.GetThreadAtIndex(app.render_state.viewed_thread_index);
+            //     process.GetThreadAtIndex(app.ui.viewed_thread_index);
             //     lldb::SBFrame frame =
-            //     viewed_thread.GetFrameAtIndex(app.render_state.viewed_frame_index);
+            //     viewed_thread.GetFrameAtIndex(app.ui.viewed_frame_index);
             //     lldb::SBValueList register_collections = frame.GetRegisters();
 
             //     for (uint32_t i = 0; i < register_collections.GetSize(); i++) {
@@ -714,7 +735,7 @@ void draw(Application& app)
         if (ImGui::BeginTabItem("Breakpoints")) {
             Defer(ImGui::EndTabItem());
 
-            if (stopped && app.render_state.viewed_thread_index >= 0) {
+            if (stopped && app.ui.viewed_thread_index >= 0) {
                 static int selected_row = -1;
 
                 ImGui::Columns(2);
@@ -818,7 +839,7 @@ void Application::main_loop()
 {
     static size_t frame_number = 0;
 
-    while (!glfwWindowShouldClose(render_state.window)) {
+    while (!glfwWindowShouldClose(ui.window)) {
         glfwPollEvents();
 
         // Start the Dear ImGui frame
@@ -829,15 +850,14 @@ void Application::main_loop()
         tick(*this);
 
         ImGui::Render();
-        glfwGetFramebufferSize(render_state.window, &render_state.window_width,
-                               &render_state.window_height);
-        glViewport(0, 0, render_state.window_width, render_state.window_height);
+        glfwGetFramebufferSize(ui.window, &ui.window_width, &ui.window_height);
+        glViewport(0, 0, ui.window_width, ui.window_height);
         static const ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
         glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
         glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
 
-        glfwSwapBuffers(render_state.window);
+        glfwSwapBuffers(ui.window);
 
         // TODO: develop bettery strategy for when to read stdout,
         // possible upon receiving certian types of LLDBEvent?
@@ -852,7 +872,7 @@ void Application::main_loop()
 }
 
 // TODO: add return code and rename init_graphics
-int initialize_rendering(RenderState& rs)
+int initialize_rendering(UserInterface& ui)
 {
     glfwSetErrorCallback(glfw_error_callback);
 
@@ -860,14 +880,14 @@ int initialize_rendering(RenderState& rs)
         return -1;
     }
 
-    rs.window = glfwCreateWindow(1920, 1080, "lldbg", nullptr, nullptr);
+    ui.window = glfwCreateWindow(1920, 1080, "lldbg", nullptr, nullptr);
 
-    if (rs.window == nullptr) {
+    if (ui.window == nullptr) {
         glfwTerminate();
         return -1;
     }
 
-    glfwMakeContextCurrent(rs.window);
+    glfwMakeContextCurrent(ui.window);
     glfwSwapInterval(1);  // Enable vsync
 
     const GLenum err = glewInit();
@@ -884,7 +904,7 @@ int initialize_rendering(RenderState& rs)
 
     io.Fonts->AddFontDefault();
     const std::string font_path = fmt::format("{}/ttf/Hack-Regular.ttf", LLDBG_ASSETS_DIR);
-    rs.font = io.Fonts->AddFontFromFileTTF(font_path.c_str(), 15.0f);
+    ui.font = io.Fonts->AddFontFromFileTTF(font_path.c_str(), 15.0f);
 
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
@@ -900,7 +920,7 @@ int initialize_rendering(RenderState& rs)
     ImGui::GetStyle().TabRounding = 0.0f;
 
     // Setup Platform/Renderer bindings
-    ImGui_ImplGlfw_InitForOpenGL(rs.window, true);
+    ImGui_ImplGlfw_InitForOpenGL(ui.window, true);
     ImGui_ImplOpenGL2_Init();
 
     return 0;
@@ -923,7 +943,7 @@ Application::Application()
     // TODO: let use choose disassembly flavor in drop down menu
     command_line.run_command("settings set target.x86-disassembly-flavor intel", true);
 
-    initialize_rendering(this->render_state);
+    initialize_rendering(this->ui);
 
     text_editor.SetLanguageDefinition(TextEditor::LanguageDefinition::CPlusPlus());
     TextEditor::Palette pal = text_editor.GetPalette();
@@ -941,7 +961,7 @@ Application::~Application()
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
 
-    glfwDestroyWindow(this->render_state.window);
+    glfwDestroyWindow(this->ui.window);
     glfwTerminate();
 }
 
