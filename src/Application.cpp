@@ -102,24 +102,6 @@ static std::string build_string(const char* cstr)
     return cstr ? std::string(cstr) : std::string();
 }
 
-// TODO: remove this and use fmt
-template <typename... Args>
-static void cstr_format(char* buffer, size_t sizeof_buffer, const char* fmt, Args... args)
-{
-    // TODO: handle errors properly here
-#if _WIN32
-    const int ret_code = 1 + sprintf_s(buffer, sizeof_buffer, fmt, args...);
-#else
-    const int ret_code = 1 + snprintf(buffer, sizeof_buffer, fmt, args...);
-#endif
-    if ((size_t)ret_code < 0) {
-        LOG(Warning) << "Encoding error encountered in cstr_format.";
-    }
-    else if ((size_t)ret_code > sizeof_buffer) {
-        LOG(Warning) << "Buffer overflow in cstr_format.";
-    }
-}
-
 static inline bool has_target(Application& app)
 {
     const auto target_count = app.debugger.GetNumTargets() > 0;
@@ -512,6 +494,8 @@ void draw(Application& app)
             if (ImGui::BeginTabItem("Console")) {
                 ImGui::BeginChild("ConsoleEntries");
 
+                // TODO: keep console input focused until user moves mouse
+
                 for (const lldbg::CommandLineEntry& entry : app.command_line.get_history()) {
                     ImGui::TextColored(ImVec4(255, 0, 0, 255), "> %s", entry.input.c_str());
                     if (entry.succeeded) {
@@ -680,9 +664,8 @@ void draw(Application& app)
                                       (int)i == selected_row);
                     ImGui::NextColumn();
 
-                    static char line_buf[256];
-                    cstr_format(line_buf, sizeof(line_buf), "%d", frame->line);
-                    ImGui::Selectable(line_buf, (int)i == selected_row);
+                    const std::string line_buf = fmt::format("{}", frame->line);
+                    ImGui::Selectable(line_buf.data(), (int)i == selected_row);
                     ImGui::NextColumn();
                 }
 
@@ -713,7 +696,7 @@ void draw(Application& app)
                     const char* var_value = var.GetValue();
 
                     if (!var_type || !var_name || !var_value) {
-                        LOG(Warning) << "Bad SBValue encountered in frame locals";
+                        // LOG(Verbose) << "Bad SBValue encountered in frame locals";
                         continue;
                     }
 
@@ -809,9 +792,8 @@ void draw(Application& app)
                     }
                     ImGui::NextColumn();
 
-                    static char line_buf[256];
-                    cstr_format(line_buf, sizeof(line_buf), "%d", line_entry.GetLine());
-                    ImGui::Selectable(line_buf, (int)i == selected_row);
+                    const std::string line_buf = fmt::format("{}", line_entry.GetLine());
+                    ImGui::Selectable(line_buf.c_str(), (int)i == selected_row);
                     ImGui::NextColumn();
                 }
             }
@@ -821,9 +803,8 @@ void draw(Application& app)
             Defer(ImGui::EndTabItem());
 
             for (int i = 0; i < 4; i++) {
-                char label[128];
-                cstr_format(label, sizeof(label), "Watch %d", i);
-                if (ImGui::Selectable(label, i == 0)) {
+                const std::string label = fmt::format("Watch {}", i);
+                if (ImGui::Selectable(label.c_str(), i == 0)) {
                     // blah
                 }
             }
