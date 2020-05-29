@@ -68,34 +68,35 @@ static void delete_current_targets(Application& app)
 
 static void add_breakpoint_to_viewed_file(Application& app, int line)
 {
-    if (app.open_files.focus()) {
-        FileHandle focus = *app.open_files.focus();
+    if (!app.open_files.focus()) {
+        LOG(Warning) << "add_breakpoint_to_viewed_file called while no file was focused";
+        return;
+    }
 
-        if (const std::unordered_set<int>* bps = app.breakpoints.Get(focus); bps != nullptr) {
-            if (bps->find(line) != bps->end()) {
-                LOG(Verbose) << "Ignoring duplicate breakpoint request";
-                return;
-            }
-        }
+    FileHandle focus = *app.open_files.focus();
 
-        const std::string& filepath = focus.filepath();
-        lldb::SBTarget target = app.debugger.GetSelectedTarget();
-
-        lldb::SBBreakpoint new_breakpoint =
-            target.BreakpointCreateByLocation(filepath.c_str(), line);
-
-        if (new_breakpoint.IsValid() && new_breakpoint.GetNumLocations() > 0) {
-            app.breakpoints.synchronize(app.debugger.GetSelectedTarget());
-            app.text_editor.SetBreakpoints(app.breakpoints.Get(focus));
-            LOG(Verbose) << "adding breakpoint in file " << filepath << " at line: " << line;
-        }
-        else {
-            LOG(Debug) << "Removing invalid break point";
-            target.BreakpointDelete(new_breakpoint.GetID());
+    if (const std::unordered_set<int>* bps = app.breakpoints.Get(focus); bps != nullptr) {
+        if (bps->find(line) != bps->end()) {
+            LOG(Verbose) << "Ignoring duplicate breakpoint request";
+            return;
         }
     }
 
-    // TODO: else log warning if no focused file but this function was called anyway
+    const std::string& filepath = focus.filepath();
+    lldb::SBTarget target = app.debugger.GetSelectedTarget();
+
+    lldb::SBBreakpoint new_breakpoint =
+        target.BreakpointCreateByLocation(filepath.c_str(), line);
+
+    if (new_breakpoint.IsValid() && new_breakpoint.GetNumLocations() > 0) {
+        app.breakpoints.synchronize(app.debugger.GetSelectedTarget());
+        app.text_editor.SetBreakpoints(app.breakpoints.Get(focus));
+        LOG(Verbose) << "adding breakpoint in file " << filepath << " at line: " << line;
+    }
+    else {
+        LOG(Warning) << "Removing invalid break point";
+        target.BreakpointDelete(new_breakpoint.GetID());
+    }
 }
 
 static std::string build_string(const char* cstr)
