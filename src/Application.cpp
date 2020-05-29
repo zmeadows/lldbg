@@ -368,7 +368,7 @@ void draw(Application& app)
     ImGui::SetNextWindowSize(ImVec2(window_width_f, window_height_f), ImGuiCond_Always);
 
     ImGui::Begin("lldbg", 0,
-                 ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_MenuBar |
+                 ImGuiWindowFlags_NoBringToFrontOnFocus |  // ImGuiWindowFlags_MenuBar |
                      ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
                      ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings |
                      ImGuiWindowFlags_NoTitleBar);
