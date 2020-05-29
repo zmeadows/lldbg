@@ -11,6 +11,7 @@
 
 #include "Defer.hpp"
 #include "Log.hpp"
+#include "StringBuffer.hpp"
 #include "fmt/format.h"
 
 namespace fs = std::filesystem;
@@ -309,6 +310,8 @@ static bool run_lldb_command(Application& app, const char* command)
     const size_t num_breakpoints_after = app.debugger.GetSelectedTarget().GetNumBreakpoints();
 
     if (num_breakpoints_before != num_breakpoints_after) {
+        // TODO: just always synchronize, since it is cheap and user commands won't be run very
+        // often?
         app.breakpoints.synchronize(app.debugger.GetSelectedTarget());
 
         const std::optional<FileHandle> maybe_handle = app.open_files.focus();
@@ -334,6 +337,8 @@ void draw(Application& app)
     // io.FontGlobalScale = 1.1;
 
     // TODO: this window height/width tracking is unnecessarily complicated
+    // TODO: detect if window has been made very small, and just display a warning message
+    // instead of trying to draw the layout
     static int window_width = app.ui.window_width;
     static int window_height = app.ui.window_height;
 
@@ -413,14 +418,24 @@ void draw(Application& app)
     ImGui::BeginChild("FileBrowserPane", ImVec2(file_browser_width, 0));
 
     if (has_target(app)) {
-        // TODO: handle case where no target has been specified
         // TODO: show rightmost chunk of path in case it is too long to fit on screen
         // TODO: add button to select new target using
         // https://github.com/aiekick/ImGuiFileDialog
         lldb::SBFileSpec fs = app.debugger.GetSelectedTarget().GetExecutable();
-        const std::string target_line = fmt::format(
-            "Target: {}/{}\nState: {}", fs.GetDirectory(), fs.GetFilename(), process_state);
-        ImGui::TextUnformatted(target_line.c_str());
+
+        StringBuffer target_description;
+
+        const char* target_directory = fs.GetDirectory();
+        const char* target_filename = fs.GetFilename();
+
+        if (target_directory != nullptr && target_filename != nullptr) {
+            target_description.format("Target: {}/{}\nState: {}", fs.GetDirectory(),
+                                      fs.GetFilename(), process_state);
+        }
+        else {
+            target_description.format("Target: Unknown/Invalid (?)\nState: {}", process_state);
+        }
+        ImGui::TextUnformatted(target_description.data());
     }
 
     if (stopped) {
@@ -606,8 +621,8 @@ void draw(Application& app)
                         continue;
                     }
 
-                    fmt::memory_buffer thread_label;
-                    format_to(thread_label, "Thread {}: {}", i, th.GetName());
+                    StringBuffer thread_label;
+                    thread_label.format("Thread {}: {}", i, th.GetName());
 
                     if (ImGui::Selectable(thread_label.data(),
                                           (int)i == app.ui.viewed_thread_index)) {
@@ -657,15 +672,15 @@ void draw(Application& app)
                         manually_open_and_or_focus_file(app, frame->file_handle);
                         selected_row = (int)i;
                     }
-
                     ImGui::NextColumn();
 
                     ImGui::Selectable(frame->file_handle.filename().c_str(),
                                       (int)i == selected_row);
                     ImGui::NextColumn();
 
-                    const std::string line_buf = fmt::format("{}", frame->line);
-                    ImGui::Selectable(line_buf.data(), (int)i == selected_row);
+                    StringBuffer linebuf;
+                    linebuf.format("{}", (int)frame->line);
+                    ImGui::Selectable(linebuf.data(), (int)i == selected_row);
                     ImGui::NextColumn();
                 }
 
@@ -700,8 +715,8 @@ void draw(Application& app)
                         continue;
                     }
 
-                    fmt::memory_buffer valbuf;
-                    format_to(valbuf, "{} {} = {}", var_type, var_name, var_value);
+                    StringBuffer valbuf;
+                    valbuf.format("{} {} = {}", var_type, var_name, var_value);
                     ImGui::TextUnformatted(valbuf.data());
                 }
             }
@@ -792,8 +807,9 @@ void draw(Application& app)
                     }
                     ImGui::NextColumn();
 
-                    const std::string line_buf = fmt::format("{}", line_entry.GetLine());
-                    ImGui::Selectable(line_buf.c_str(), (int)i == selected_row);
+                    StringBuffer line_buf;
+                    line_buf.format("{}", line_entry.GetLine());
+                    ImGui::Selectable(line_buf.data(), (int)i == selected_row);
                     ImGui::NextColumn();
                 }
             }
@@ -803,8 +819,9 @@ void draw(Application& app)
             Defer(ImGui::EndTabItem());
 
             for (int i = 0; i < 4; i++) {
-                const std::string label = fmt::format("Watch {}", i);
-                if (ImGui::Selectable(label.c_str(), i == 0)) {
+                StringBuffer label;
+                label.format("Watch {}", i);
+                if (ImGui::Selectable(label.data(), i == 0)) {
                     // blah
                 }
             }
@@ -822,8 +839,9 @@ void draw(Application& app)
         ImGui::SetNextWindowSize(ImVec2(200, 200), ImGuiCond_FirstUseEver);
         if (ImGui::Begin("Debug Stream", 0)) {
             for (const auto& [xkey, xstr] : s_debug_stream) {
-                const std::string line = fmt::format("{} : {}", xkey, xstr);
-                ImGui::TextUnformatted(line.c_str());
+                StringBuffer debug_line;
+                debug_line.format("{} : {}", xkey, xstr);
+                ImGui::TextUnformatted(debug_line.data());
             }
         }
         ImGui::End();
@@ -1007,7 +1025,7 @@ void set_workdir(Application& app, const std::string& workdir)
 TargetAddResult add_target(Application& app, const std::string& exe_path)
 {
     if (has_target(app)) {
-        LOG(Error) << "Attempt add multiple targets, which is not (yet) supported by lldbg.";
+        LOG(Error) << "Attempted add multiple targets, which is not (yet) supported by lldbg.";
         return TargetAddResult::TooManyTargetsError;
     }
 
@@ -1024,7 +1042,7 @@ TargetAddResult add_target(Application& app, const std::string& exe_path)
 
     if (!lldb_error.Success()) {
         const char* lldb_error_cstr = lldb_error.GetCString();
-        LOG(Error) << (lldb_error_cstr ? lldb_error_cstr : "Unknown target creation error!");
+        LOG(Error) << (lldb_error_cstr ? lldb_error_cstr : "Unknown target creation error.");
         return TargetAddResult::TargetCreateError;
     }
 
@@ -1036,7 +1054,7 @@ TargetAddResult add_target(Application& app, const std::string& exe_path)
 TargetStartResult start_target(Application& app)
 {
     if (!has_target(app)) {
-        LOG(Warning) << "Failed to start target because no targets have yet been added.";
+        LOG(Warning) << "Failed to start target because no target is currently specified.";
         return TargetStartResult::NoTargetError;
     }
 
