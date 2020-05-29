@@ -11,8 +11,14 @@ namespace lldbg {
 
 void LLDBEventListenerThread::start(lldb::SBDebugger& debugger)
 {
+    if (m_thread) {
+        LOG(Warning) << "Attempted to double-start the LLDBEventListenerThread";
+        this->stop(debugger);
+    }
+
     // TODO: if no targets exist, simply log and return
-    m_listener = debugger.GetListener();
+    m_listener.Clear();
+    m_listener = lldb::SBListener("lldbg_listener");
 
     const uint32_t listen_flags = lldb::SBProcess::eBroadcastBitStateChanged |
                                   lldb::SBProcess::eBroadcastBitSTDOUT |
@@ -33,6 +39,11 @@ void LLDBEventListenerThread::start(lldb::SBDebugger& debugger)
 
 void LLDBEventListenerThread::stop(lldb::SBDebugger& debugger)
 {
+    if (!m_thread) {
+        LOG(Warning) << "Attempted to double-stop the LLDBEventListenerThread";
+        return;
+    }
+
     // TODO: check if already started and if not: log error and return
     m_continue.store(false);
     m_thread->join();
@@ -41,6 +52,7 @@ void LLDBEventListenerThread::stop(lldb::SBDebugger& debugger)
     debugger.GetSelectedTarget().GetProcess().GetBroadcaster().RemoveListener(m_listener);
 
     m_listener.Clear();
+    m_events.clear();
 
     LOG(Debug) << "Successfully stopped LLDBEventListenerThread.";
 }
@@ -54,7 +66,15 @@ void LLDBEventListenerThread::poll_events()
         // dedicated thread
         if (m_listener.WaitForEvent(1, event)) {
             assert(event.IsValid());
+
             m_events.push(event);
+
+            const lldb::StateType state = lldb::SBProcess::GetStateFromEvent(event);
+            if (state == lldb::eStateCrashed || state == lldb::eStateDetached ||
+                state == lldb::eStateExited) {
+                m_continue.store(false);
+                return;
+            }
         }
     }
 }

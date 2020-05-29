@@ -29,8 +29,10 @@ struct ExitDialog {
     int exit_code;
 };
 
-// TODO: rename UserInterface
-// TODO: can some of these fields be moved to static variables in the draw function?
+// TODO: move some of the static variables from draw(Application) to this struct
+// TODO: create sane Constructor and initialize UserInterface and Application *before* adding
+// targets in main
+// TODO: use std::optional<int> instead of -1
 struct UserInterface {
     int viewed_thread_index = -1;
     int viewed_frame_index = -1;
@@ -51,7 +53,7 @@ struct Application {
     LLDBEventListenerThread event_listener;
     LLDBCommandLine command_line;
     OpenFiles open_files;
-    BreakPointSet breakpoints;
+    BreakPointSet breakpoints;  // TODO: move to TextEditor
     std::unique_ptr<lldbg::FileBrowserNode> file_browser;
     UserInterface ui;
     TextEditor text_editor;

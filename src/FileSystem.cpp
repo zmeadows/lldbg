@@ -154,27 +154,30 @@ bool OpenFiles::open(const std::string& requested_filepath)
 {
     const auto handle_attempt = FileHandle::create(requested_filepath);
 
-    if (!handle_attempt) return false;
+    if (handle_attempt) {
+        open(*handle_attempt);
+        return true;
+    }
+    else {
+        return false;
+    }
+}
 
-    const FileHandle handle = *handle_attempt;
-
-    {
-        auto it = std::find(m_files.begin(), m_files.end(), handle);
-        if (it != m_files.end()) {
-            m_focus = it - m_files.begin();
-            LOG(Verbose) << "Successfully switched focus to already-opened file: "
-                         << requested_filepath;
-            return true;
-        }
+void OpenFiles::open(FileHandle handle)
+{
+    auto it = std::find(m_files.begin(), m_files.end(), handle);
+    if (it != m_files.end()) {
+        m_focus = it - m_files.begin();
+        LOG(Verbose) << "Successfully switched focus to already-opened file: "
+                     << handle.filepath();
+        return;
     }
 
     m_files.push_back(handle);
     m_focus = m_files.size() - 1;
 
-    LOG(Verbose) << "Successfully opened new file: " << requested_filepath;
+    LOG(Verbose) << "Successfully opened new file: " << handle.filepath();
     LOG(Debug) << "Number of currently open files: " << m_files.size();
-
-    return true;
 }
 
 void OpenFiles::close(size_t tab_index)

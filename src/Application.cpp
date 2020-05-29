@@ -7,6 +7,7 @@
 #include <map>
 #include <queue>
 #include <thread>
+#include <unordered_set>
 
 #include "Defer.hpp"
 #include "Log.hpp"
@@ -56,18 +57,39 @@ static void kill_process(Application& app)
     process.Kill();
 }
 
+static void delete_current_targets(Application& app)
+{
+    lldb::SBDebugger& dbg = app.debugger;
+    for (uint32_t i = 0; i < dbg.GetNumTargets(); i++) {
+        lldb::SBTarget target = dbg.GetTargetAtIndex(i);
+        dbg.DeleteTarget(target);
+    }
+}
+
+*/
+
 static void add_breakpoint_to_viewed_file(Application& app, int line)
 {
-    std::optional<lldbg::FileReference> ref = app.open_files.focus();
+    if (app.open_files.focus()) {
+        FileHandle focus = *app.open_files.focus();
 
-    if (ref) {
-        const std::string focus_filepath = (*ref).canonical_path.string();
+        if (const std::unordered_set<int>* bps = app.breakpoints.Get(focus); bps != nullptr) {
+            if (bps->find(line) != bps->end()) {
+                LOG(Verbose) << "Ignoring duplicate breakpoint request";
+                return;
+            }
+        }
+
+        const std::string& filepath = focus.filepath();
         lldb::SBTarget target = app.debugger.GetSelectedTarget();
+
         lldb::SBBreakpoint new_breakpoint =
-            target.BreakpointCreateByLocation(focus_filepath.c_str(), line);
+            target.BreakpointCreateByLocation(filepath.c_str(), line);
+
         if (new_breakpoint.IsValid() && new_breakpoint.GetNumLocations() > 0) {
-            app.breakpoints.Synchronize(app.debugger.GetSelectedTarget());
-            app.text_editor.SetBreakpoints(app.breakpoints.Get(focus_filepath));
+            app.breakpoints.synchronize(app.debugger.GetSelectedTarget());
+            app.text_editor.SetBreakpoints(app.breakpoints.Get(focus));
+            LOG(Verbose) << "adding breakpoint in file " << filepath << " at line: " << line;
         }
         else {
             LOG(Debug) << "Removing invalid break point";
@@ -77,16 +99,6 @@ static void add_breakpoint_to_viewed_file(Application& app, int line)
 
     // TODO: else log warning if no focused file but this function was called anyway
 }
-
-static void delete_current_targets(Application& app)
-{
-    lldb::SBDebugger& dbg = app.debugger;
-    for (uint32_t i = 0; i < dbg.GetNumTargets(); i++) {
-        lldb::SBTarget target = dbg.GetTargetAtIndex(i);
-        dbg.DeleteTarget(target);
-    }
-}
-*/
 
 static std::string build_string(const char* cstr)
 {
@@ -124,23 +136,38 @@ static void glfw_error_callback(int error, const char* description)
 }
 
 // A convenience struct for extracting pertinent display information from an lldb::SBFrame
-// TODO: convert this to use fs::path under the hood for path validation, and have static
-// create method that returns std::optional<StackFrameDescription>
-struct StackFrameDescription {
+struct StackFrame {
+    FileHandle file_handle;
     std::string function_name;
-    std::string file_name;
-    std::string directory;
-    int line = -1;
-    int column = -1;
+    int line;
+    int column;
 
-    StackFrameDescription(lldb::SBFrame frame)
-        : function_name(build_string(frame.GetDisplayFunctionName())),
-          file_name(build_string(frame.GetLineEntry().GetFileSpec().GetFilename())),
-          directory(build_string(frame.GetLineEntry().GetFileSpec().GetDirectory())),
-          line((int)frame.GetLineEntry().GetLine()),
-          column((int)frame.GetLineEntry().GetColumn())
+private:
+    StackFrame(FileHandle _file_handle, int _line, int _column, std::string&& _function_name)
+        : file_handle(_file_handle),
+          function_name(_function_name),
+          line(_line),
+          column(_column)
     {
-        directory.append("/");  // FIXME: not cross-platform?
+    }
+
+public:
+    static std::optional<StackFrame> create(lldb::SBFrame frame)
+    {
+        lldb::SBFileSpec spec = frame.GetLineEntry().GetFileSpec();
+        fs::path filename = fs::path(build_string(spec.GetFilename()));
+        fs::path directory = fs::path(build_string(spec.GetDirectory()));
+
+        if (!fs::exists(directory)) return {};
+
+        if (auto handle = FileHandle::create(directory / filename); handle.has_value()) {
+            return StackFrame(*handle, (int)frame.GetLineEntry().GetLine(),
+                              (int)frame.GetLineEntry().GetColumn(),
+                              build_string(frame.GetDisplayFunctionName()));
+        }
+        else {
+            return {};
+        }
     }
 };
 
@@ -217,13 +244,7 @@ static void draw_open_files(lldbg::Application& app)
             tab_flags = ImGuiTabItemFlags_SetSelected;
             app.text_editor.SetTextLines(handle.contents());
 
-            auto bps = app.breakpoints.Get(handle);
-            if (bps != nullptr) {
-                app.text_editor.SetBreakpoints(*bps);
-            }
-            else {
-                app.text_editor.SetBreakpoints({});
-            }
+            app.text_editor.SetBreakpoints(app.breakpoints.Get(handle));
         }
 
         bool keep_tab_open = true;
@@ -234,15 +255,7 @@ static void draw_open_files(lldbg::Application& app)
                 action = lldbg::OpenFiles::Action::ChangeFocusTo;
                 app.text_editor.SetTextLines(handle.contents());
 
-                // TODO: break this out as a stand-alone function,
-                // or fix the TextEditor method
-                auto bps = app.breakpoints.Get(handle);
-                if (bps != nullptr) {
-                    app.text_editor.SetBreakpoints(*bps);
-                }
-                else {
-                    app.text_editor.SetBreakpoints({});
-                }
+                app.text_editor.SetBreakpoints(app.breakpoints.Get(handle));
             }
             app.text_editor.Render("TextEditor");
             ImGui::EndChild();
@@ -263,13 +276,7 @@ static void draw_open_files(lldbg::Application& app)
     if (closed_tab && app.open_files.size() > 0) {
         FileHandle handle = *app.open_files.focus();
         app.text_editor.SetTextLines(handle.contents());
-        auto bps = app.breakpoints.Get(handle);
-        if (bps != nullptr) {
-            app.text_editor.SetBreakpoints(*bps);
-        }
-        else {
-            app.text_editor.SetBreakpoints({});
-        }
+        app.text_editor.SetBreakpoints(app.breakpoints.Get(handle));
     }
 }
 
@@ -278,6 +285,12 @@ static void manually_open_and_or_focus_file(lldbg::Application& app, const char*
     if (app.open_files.open(std::string(filepath))) {
         app.ui.request_manual_tab_change = true;
     }
+}
+
+static void manually_open_and_or_focus_file(lldbg::Application& app, FileHandle handle)
+{
+    app.open_files.open(handle);
+    app.ui.request_manual_tab_change = true;
 }
 
 static void draw_file_browser(lldbg::Application& app, lldbg::FileBrowserNode* node_to_draw,
@@ -317,7 +330,7 @@ static bool run_lldb_command(Application& app, const char* command)
         if (maybe_handle) {
             auto handle = *maybe_handle;
             app.text_editor.SetTextLines(handle.contents());
-            app.text_editor.SetBreakpoints(*app.breakpoints.Get(handle));
+            app.text_editor.SetBreakpoints(app.breakpoints.Get(handle));
         }
     }
 
@@ -334,6 +347,7 @@ void draw(Application& app)
     // ImGuiIO& io = ImGui::GetIO();
     // io.FontGlobalScale = 1.1;
 
+    // TODO: this window height/width tracking is unnecessarily complicated
     static int window_width = app.ui.window_width;
     static int window_height = app.ui.window_height;
 
@@ -624,32 +638,30 @@ void draw(Application& app)
                 ImGui::NextColumn();
                 ImGui::Separator();
 
+                // TODO: use ImGuiSelectableFlags_SpanAllColumns as described here:
+                // https://github.com/ocornut/imgui/issues/769
                 lldb::SBThread viewed_thread =
                     process.GetThreadAtIndex(app.ui.viewed_thread_index);
-                for (uint32_t i = 0; i < viewed_thread.GetNumFrames(); i++) {
-                    // TODO: save description and don't rebuild every frame
-                    const StackFrameDescription desc(viewed_thread.GetFrameAtIndex(i));
 
-                    // TODO: use ImGuiSelectableFlags_SpanAllColumns as described here:
-                    // https://github.com/ocornut/imgui/issues/769
-                    if (ImGui::Selectable(desc.function_name.c_str()
-                                              ? desc.function_name.c_str()
-                                              : "unknown",
+                for (uint32_t i = 0; i < viewed_thread.GetNumFrames(); i++) {
+                    auto frame = StackFrame::create(viewed_thread.GetFrameAtIndex(i));
+
+                    if (!frame) continue;
+
+                    if (ImGui::Selectable(frame->function_name.c_str(),
                                           (int)i == selected_row)) {
-                        // TODO: factor out
-                        const std::string full_path = desc.directory + desc.file_name;
-                        manually_open_and_or_focus_file(app, full_path.c_str());
+                        manually_open_and_or_focus_file(app, frame->file_handle);
                         selected_row = (int)i;
                     }
+
                     ImGui::NextColumn();
 
-                    ImGui::Selectable(
-                        desc.file_name.c_str() ? desc.file_name.c_str() : "unknown",
-                        (int)i == selected_row);
+                    ImGui::Selectable(frame->file_handle.filename().c_str(),
+                                      (int)i == selected_row);
                     ImGui::NextColumn();
 
                     static char line_buf[256];
-                    cstr_format(line_buf, sizeof(line_buf), "%d", desc.line);
+                    cstr_format(line_buf, sizeof(line_buf), "%d", frame->line);
                     ImGui::Selectable(line_buf, (int)i == selected_row);
                     ImGui::NextColumn();
                 }
@@ -820,7 +832,7 @@ static void tick(lldbg::Application& app)
         // TODO: make this actually be useful
         if (new_state == lldb::eStateExited) {
             lldbg::ExitDialog dialog;
-            dialog.process_name = "asdf";
+            dialog.process_name = "blah";
             dialog.exit_code = get_process(app).GetExitStatus();
             app.exit_dialog = dialog;
             LOG(Debug) << "Set exit dialog";
@@ -829,10 +841,10 @@ static void tick(lldbg::Application& app)
 
     lldbg::draw(app);
 
-    // std::optional<int> line_clicked = app.text_editor.LineClicked();
-    // if (line_clicked) {
-    //     add_breakpoint_to_viewed_file(app, *line_clicked);
-    // }
+    std::optional<int> line_clicked = app.text_editor.line_clicked_this_frame;
+    if (line_clicked) {
+        add_breakpoint_to_viewed_file(app, *line_clicked);
+    }
 }
 
 void Application::main_loop()
@@ -869,6 +881,8 @@ void Application::main_loop()
 
         frame_number++;
     }
+
+    debugger.GetSelectedTarget().GetProcess().Kill();
 }
 
 // TODO: add return code and rename init_graphics
@@ -903,7 +917,8 @@ int initialize_rendering(UserInterface& ui)
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
 
     io.Fonts->AddFontDefault();
-    const std::string font_path = fmt::format("{}/ttf/Hack-Regular.ttf", LLDBG_ASSETS_DIR);
+    static const std::string font_path =
+        fmt::format("{}/ttf/Hack-Regular.ttf", LLDBG_ASSETS_DIR);
     ui.font = io.Fonts->AddFontFromFileTTF(font_path.c_str(), 15.0f);
 
     // Setup Dear ImGui style

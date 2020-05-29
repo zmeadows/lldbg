@@ -65,6 +65,7 @@ class OpenFiles {
 
 public:
     bool open(const std::string& filepath);
+    void open(FileHandle handle);
 
     inline size_t size() const { return m_files.size(); }
 

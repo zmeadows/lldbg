@@ -1,6 +1,5 @@
 #pragma once
 
-#include "imgui.h"
 #include <array>
 #include <map>
 #include <memory>
@@ -9,6 +8,8 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+
+#include "imgui.h"
 
 class TextEditor {
 public:
@@ -36,6 +37,8 @@ public:
         CurrentLineEdge,
         Max
     };
+
+    std::optional<int> line_clicked_this_frame;
 
     enum class SelectionMode { Normal, Word, Line };
 
@@ -117,8 +120,11 @@ public:
         bool mPreprocessor : 1;
 
         Glyph(Char aChar, PaletteIndex aColorIndex)
-            : mChar(aChar), mColorIndex(aColorIndex), mComment(false),
-              mMultiLineComment(false), mPreprocessor(false)
+            : mChar(aChar),
+              mColorIndex(aColorIndex),
+              mComment(false),
+              mMultiLineComment(false),
+              mPreprocessor(false)
         {
         }
     };
@@ -148,7 +154,9 @@ public:
         bool mCaseSensitive;
 
         LanguageDefinition()
-            : mPreprocChar('#'), mAutoIndentation(true), mTokenize(nullptr),
+            : mPreprocChar('#'),
+              mAutoIndentation(true),
+              mTokenize(nullptr),
               mCaseSensitive(true)
         {
         }
@@ -172,7 +180,10 @@ public:
     void SetPalette(const Palette& aValue);
 
     void SetErrorMarkers(const ErrorMarkers& aMarkers) { mErrorMarkers = aMarkers; }
-    void SetBreakpoints(const Breakpoints& aMarkers) { mBreakpoints = aMarkers; }
+    void SetBreakpoints(const Breakpoints* aMarkers)
+    {
+        if (aMarkers) mBreakpoints = *aMarkers;
+    }
 
     void Render(const char* aTitle, const ImVec2& aSize = ImVec2(), bool aBorder = false);
     void SetText(const std::string& aText);
@@ -312,8 +323,8 @@ private:
     bool mScrollToCursor;
     bool mScrollToTop;
     bool mTextChanged;
-    float mTextStart; // position (in pixels) where a code line starts relative to the left of
-                      // the TextEditor.
+    float mTextStart;  // position (in pixels) where a code line starts relative to the left of
+                       // the TextEditor.
     int mLeftMargin;
     bool mCursorPositionChanged;
     int mColorRangeMin, mColorRangeMax;

@@ -1,16 +1,18 @@
+#include "TextEditor.h"
+
 #include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <regex>
 #include <string>
 
-#include "TextEditor.h"
+#include "Log.hpp"
 
 #ifndef IMGUI_DEFINE_MATH_OPERATORS
 #define IMGUI_DEFINE_MATH_OPERATORS 1
 #endif
 
-#include "imgui.h" // for imGui::GetCurrentWindow()
+#include "imgui.h"  // for imGui::GetCurrentWindow()
 
 // TODO
 // - multiline comments vs single-line: latter is blocking start of a ML
@@ -28,10 +30,22 @@ bool equals(InputIt1 first1, InputIt1 last1, InputIt2 first2, InputIt2 last2,
 }
 
 TextEditor::TextEditor()
-    : mLineSpacing(1.0f), mUndoIndex(0), mTabSize(4), mOverwrite(false), mReadOnly(false),
-      mWithinRender(false), mScrollToCursor(false), mScrollToTop(false), mTextChanged(false),
-      mTextStart(20.0f), mLeftMargin(10), mColorRangeMin(0), mColorRangeMax(0),
-      mSelectionMode(SelectionMode::Normal), mCheckComments(true), mLastClick(-1.0f)
+    : mLineSpacing(1.0f),
+      mUndoIndex(0),
+      mTabSize(4),
+      mOverwrite(false),
+      mReadOnly(false),
+      mWithinRender(false),
+      mScrollToCursor(false),
+      mScrollToTop(false),
+      mTextChanged(false),
+      mTextStart(20.0f),
+      mLeftMargin(10),
+      mColorRangeMin(0),
+      mColorRangeMax(0),
+      mSelectionMode(SelectionMode::Normal),
+      mCheckComments(true),
+      mLastClick(-1.0f)
 {
     SetPalette(GetDarkPalette());
     SetLanguageDefinition(LanguageDefinition::HLSL());
@@ -219,8 +233,8 @@ TextEditor::Coordinates TextEditor::ScreenPosToCoordinates(const ImVec2& aPositi
     float columnWidth = 0.0f;
     std::string cumulatedString = "";
     float cumulatedStringWidth[2] = {
-        0.0f, 0.0f}; //( [0] is the lastest, [1] is the previous. I use that trick to check
-                     // where cursor is exactly (important for tabs)
+        0.0f, 0.0f};  //( [0] is the lastest, [1] is the previous. I use that trick to check
+                      // where cursor is exactly (important for tabs)
 
     if (lineNo >= 0 && lineNo < (int)mLines.size()) {
         auto& line = mLines.at(lineNo);
@@ -354,8 +368,7 @@ TextEditor::Line& TextEditor::InsertLine(int aIndex)
     mErrorMarkers = std::move(etmp);
 
     Breakpoints btmp;
-    for (auto i : mBreakpoints)
-        btmp.insert(i >= aIndex ? i + 1 : i);
+    for (auto i : mBreakpoints) btmp.insert(i >= aIndex ? i + 1 : i);
     mBreakpoints = std::move(btmp);
 
     return result;
@@ -542,6 +555,9 @@ void TextEditor::HandleMouseInputs()
             else if (click) {
                 mState.mCursorPosition = mInteractiveStart = mInteractiveEnd =
                     SanitizeCoordinates(ScreenPosToCoordinates(ImGui::GetMousePos()));
+
+                line_clicked_this_frame = mState.mCursorPosition.mLine + 1;
+
                 if (ctrl)
                     mSelectionMode = SelectionMode::Word;
                 else
@@ -786,6 +802,7 @@ void TextEditor::Render(const char* aTitle, const ImVec2& aSize, bool aBorder)
     mWithinRender = true;
     mTextChanged = false;
     mCursorPositionChanged = false;
+    line_clicked_this_frame = {};
 
     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImGui::ColorConvertU32ToFloat4(
                                                 mPalette[(int)PaletteIndex::Background]));
@@ -1409,8 +1426,7 @@ void TextEditor::Copy()
         if (!mLines.empty()) {
             std::string str;
             auto& line = mLines[GetActualCursorCoordinates().mLine];
-            for (auto& g : line)
-                str.push_back(g.mChar);
+            for (auto& g : line) str.push_back(g.mChar);
             ImGui::SetClipboardText(str.c_str());
         }
     }
@@ -1469,40 +1485,38 @@ bool TextEditor::CanRedo() const { return mUndoIndex < (int)mUndoBuffer.size(); 
 
 void TextEditor::Undo(int aSteps)
 {
-    while (CanUndo() && aSteps-- > 0)
-        mUndoBuffer[--mUndoIndex].Undo(this);
+    while (CanUndo() && aSteps-- > 0) mUndoBuffer[--mUndoIndex].Undo(this);
 }
 
 void TextEditor::Redo(int aSteps)
 {
-    while (CanRedo() && aSteps-- > 0)
-        mUndoBuffer[mUndoIndex++].Redo(this);
+    while (CanRedo() && aSteps-- > 0) mUndoBuffer[mUndoIndex++].Redo(this);
 }
 
 const TextEditor::Palette& TextEditor::GetDarkPalette()
 {
     const static Palette p = {{
-        0xff7f7f7f, // Default
-        0xffd69c56, // Keyword
-        0xff00ff00, // Number
-        0xff7070e0, // String
-        0xff70a0e0, // Char literal
-        0xffffffff, // Punctuation
-        0xff408080, // Preprocessor
-        0xffaaaaaa, // Identifier
-        0xff9bc64d, // Known identifier
-        0xffc040a0, // Preproc identifier
-        0xff206020, // Comment (single line)
-        0xff406020, // Comment (multi line)
-        0xff101010, // Background
-        0xffe0e0e0, // Cursor
-        0x80a06020, // Selection
-        0x800020ff, // ErrorMarker
-        0x40f08000, // Breakpoint
-        0xff707000, // Line number
-        0x40000000, // Current line fill
-        0x40808080, // Current line fill (inactive)
-        0x40a0a0a0, // Current line edge
+        0xff7f7f7f,  // Default
+        0xffd69c56,  // Keyword
+        0xff00ff00,  // Number
+        0xff7070e0,  // String
+        0xff70a0e0,  // Char literal
+        0xffffffff,  // Punctuation
+        0xff408080,  // Preprocessor
+        0xffaaaaaa,  // Identifier
+        0xff9bc64d,  // Known identifier
+        0xffc040a0,  // Preproc identifier
+        0xff206020,  // Comment (single line)
+        0xff406020,  // Comment (multi line)
+        0xff101010,  // Background
+        0xffe0e0e0,  // Cursor
+        0x80a06020,  // Selection
+        0x800020ff,  // ErrorMarker
+        0x40f08000,  // Breakpoint
+        0xff707000,  // Line number
+        0x40000000,  // Current line fill
+        0x40808080,  // Current line fill (inactive)
+        0x40a0a0a0,  // Current line edge
     }};
     return p;
 }
@@ -1510,27 +1524,27 @@ const TextEditor::Palette& TextEditor::GetDarkPalette()
 const TextEditor::Palette& TextEditor::GetLightPalette()
 {
     const static Palette p = {{
-        0xff7f7f7f, // None
-        0xffff0c06, // Keyword
-        0xff008000, // Number
-        0xff2020a0, // String
-        0xff304070, // Char literal
-        0xff000000, // Punctuation
-        0xff406060, // Preprocessor
-        0xff404040, // Identifier
-        0xff606010, // Known identifier
-        0xffc040a0, // Preproc identifier
-        0xff205020, // Comment (single line)
-        0xff405020, // Comment (multi line)
-        0xffffffff, // Background
-        0xff000000, // Cursor
-        0x80600000, // Selection
-        0xa00010ff, // ErrorMarker
-        0x80f08000, // Breakpoint
-        0xff505000, // Line number
-        0x40000000, // Current line fill
-        0x40808080, // Current line fill (inactive)
-        0x40000000, // Current line edge
+        0xff7f7f7f,  // None
+        0xffff0c06,  // Keyword
+        0xff008000,  // Number
+        0xff2020a0,  // String
+        0xff304070,  // Char literal
+        0xff000000,  // Punctuation
+        0xff406060,  // Preprocessor
+        0xff404040,  // Identifier
+        0xff606010,  // Known identifier
+        0xffc040a0,  // Preproc identifier
+        0xff205020,  // Comment (single line)
+        0xff405020,  // Comment (multi line)
+        0xffffffff,  // Background
+        0xff000000,  // Cursor
+        0x80600000,  // Selection
+        0xa00010ff,  // ErrorMarker
+        0x80f08000,  // Breakpoint
+        0xff505000,  // Line number
+        0x40000000,  // Current line fill
+        0x40808080,  // Current line fill (inactive)
+        0x40000000,  // Current line edge
     }};
     return p;
 }
@@ -1538,27 +1552,27 @@ const TextEditor::Palette& TextEditor::GetLightPalette()
 const TextEditor::Palette& TextEditor::GetRetroBluePalette()
 {
     const static Palette p = {{
-        0xff00ffff, // None
-        0xffffff00, // Keyword
-        0xff00ff00, // Number
-        0xff808000, // String
-        0xff808000, // Char literal
-        0xffffffff, // Punctuation
-        0xff008000, // Preprocessor
-        0xff00ffff, // Identifier
-        0xffffffff, // Known identifier
-        0xffff00ff, // Preproc identifier
-        0xff808080, // Comment (single line)
-        0xff404040, // Comment (multi line)
-        0xff800000, // Background
-        0xff0080ff, // Cursor
-        0x80ffff00, // Selection
-        0xa00000ff, // ErrorMarker
-        0x80ff8000, // Breakpoint
-        0xff808000, // Line number
-        0x40000000, // Current line fill
-        0x40808080, // Current line fill (inactive)
-        0x40000000, // Current line edge
+        0xff00ffff,  // None
+        0xffffff00,  // Keyword
+        0xff00ff00,  // Number
+        0xff808000,  // String
+        0xff808000,  // Char literal
+        0xffffffff,  // Punctuation
+        0xff008000,  // Preprocessor
+        0xff00ffff,  // Identifier
+        0xffffffff,  // Known identifier
+        0xffff00ff,  // Preproc identifier
+        0xff808080,  // Comment (single line)
+        0xff404040,  // Comment (multi line)
+        0xff800000,  // Background
+        0xff0080ff,  // Cursor
+        0x80ffff00,  // Selection
+        0xa00000ff,  // ErrorMarker
+        0x80ff8000,  // Breakpoint
+        0xff808000,  // Line number
+        0x40000000,  // Current line fill
+        0x40808080,  // Current line fill (inactive)
+        0x40000000,  // Current line edge
     }};
     return p;
 }
@@ -1579,8 +1593,7 @@ std::vector<std::string> TextEditor::GetTextLines() const
 
         text.resize(line.size());
 
-        for (size_t i = 0; i < line.size(); ++i)
-            text[i] = line[i].mChar;
+        for (size_t i = 0; i < line.size(); ++i) text[i] = line[i].mChar;
 
         result.emplace_back(std::move(text));
     }
@@ -1721,8 +1734,8 @@ void TextEditor::ColorizeInternal()
         auto withinSingleLineComment = false;
         auto withinPreproc = false;
         auto firstChar =
-            true; // there is no other non-whitespace characters in the line before
-        auto concatenate = false; // '\' on the very end of the line
+            true;  // there is no other non-whitespace characters in the line before
+        auto concatenate = false;  // '\' on the very end of the line
 
         for (auto currentCoord = Coordinates(0, 0); currentCoord < end;
              Advance(currentCoord)) {
@@ -1888,8 +1901,14 @@ TextEditor::UndoRecord::UndoRecord(
     const TextEditor::Coordinates aAddedEnd, const std::string& aRemoved,
     const TextEditor::Coordinates aRemovedStart, const TextEditor::Coordinates aRemovedEnd,
     TextEditor::EditorState& aBefore, TextEditor::EditorState& aAfter)
-    : mAdded(aAdded), mAddedStart(aAddedStart), mAddedEnd(aAddedEnd), mRemoved(aRemoved),
-      mRemovedStart(aRemovedStart), mRemovedEnd(aRemovedEnd), mBefore(aBefore), mAfter(aAfter)
+    : mAdded(aAdded),
+      mAddedStart(aAddedStart),
+      mAddedEnd(aAddedEnd),
+      mRemoved(aRemoved),
+      mRemovedStart(aRemovedStart),
+      mRemovedEnd(aRemovedEnd),
+      mBefore(aBefore),
+      mAfter(aAfter)
 {
     assert(mAddedStart <= mAddedEnd);
     assert(mRemovedStart <= mRemovedEnd);
@@ -2032,8 +2051,7 @@ static bool TokenizeCStyleNumber(const char* in_begin, const char* in_end,
 
             p++;
 
-            while (p < in_end && (*p >= '0' && *p <= '9'))
-                p++;
+            while (p < in_end && (*p >= '0' && *p <= '9')) p++;
         }
         else if (*p == 'x' || *p == 'X') {
             // hex formatted integer of the type 0xef80
@@ -2053,8 +2071,7 @@ static bool TokenizeCStyleNumber(const char* in_begin, const char* in_end,
 
             p++;
 
-            while (p < in_end && (*p >= '0' && *p <= '1'))
-                p++;
+            while (p < in_end && (*p >= '0' && *p <= '1')) p++;
         }
     }
 
@@ -2084,8 +2101,7 @@ static bool TokenizeCStyleNumber(const char* in_begin, const char* in_end,
 
     if (isFloat == false) {
         // integer size type
-        while (p < in_end && (*p == 'u' || *p == 'U' || *p == 'l' || *p == 'L'))
-            p++;
+        while (p < in_end && (*p == 'u' || *p == 'U' || *p == 'l' || *p == 'L')) p++;
     }
 
     out_begin = in_begin;
@@ -2228,8 +2244,7 @@ const TextEditor::LanguageDefinition& TextEditor::LanguageDefinition::CPlusPlus(
                                                   "while",
                                                   "xor",
                                                   "xor_eq"};
-        for (auto& k : cppKeywords)
-            langDef.mKeywords.insert(k);
+        for (auto& k : cppKeywords) langDef.mKeywords.insert(k);
 
         static const char* const identifiers[] = {
             "abort",    "abs",     "acos",          "asin",    "atan",          "atexit",
@@ -2254,8 +2269,7 @@ const TextEditor::LanguageDefinition& TextEditor::LanguageDefinition::CPlusPlus(
                                PaletteIndex& paletteIndex) -> bool {
             paletteIndex = PaletteIndex::Max;
 
-            while (in_begin < in_end && isblank(*in_begin))
-                in_begin++;
+            while (in_begin < in_end && isblank(*in_begin)) in_begin++;
 
             if (in_begin == in_end) {
                 out_begin = in_end;
@@ -2484,8 +2498,7 @@ const TextEditor::LanguageDefinition& TextEditor::LanguageDefinition::HLSL()
             "half3x4",
             "half4x4",
         };
-        for (auto& k : keywords)
-            langDef.mKeywords.insert(k);
+        for (auto& k : keywords) langDef.mKeywords.insert(k);
 
         static const char* const identifiers[] = {"abort",
                                                   "abs",
@@ -2686,8 +2699,7 @@ const TextEditor::LanguageDefinition& TextEditor::LanguageDefinition::GLSL()
             "volatile",   "while",     "_Alignas",       "_Alignof",
             "_Atomic",    "_Bool",     "_Complex",       "_Generic",
             "_Imaginary", "_Noreturn", "_Static_assert", "_Thread_local"};
-        for (auto& k : keywords)
-            langDef.mKeywords.insert(k);
+        for (auto& k : keywords) langDef.mKeywords.insert(k);
 
         static const char* const identifiers[] = {
             "abort",   "abs",     "acos",    "asin",     "atan",    "atexit",  "atof",
@@ -2755,8 +2767,7 @@ const TextEditor::LanguageDefinition& TextEditor::LanguageDefinition::C()
             "volatile",   "while",     "_Alignas",       "_Alignof",
             "_Atomic",    "_Bool",     "_Complex",       "_Generic",
             "_Imaginary", "_Noreturn", "_Static_assert", "_Thread_local"};
-        for (auto& k : keywords)
-            langDef.mKeywords.insert(k);
+        for (auto& k : keywords) langDef.mKeywords.insert(k);
 
         static const char* const identifiers[] = {
             "abort",   "abs",     "acos",    "asin",     "atan",    "atexit",  "atof",
@@ -2777,8 +2788,7 @@ const TextEditor::LanguageDefinition& TextEditor::LanguageDefinition::C()
                                PaletteIndex& paletteIndex) -> bool {
             paletteIndex = PaletteIndex::Max;
 
-            while (in_begin < in_end && isblank(*in_begin))
-                in_begin++;
+            while (in_begin < in_end && isblank(*in_begin)) in_begin++;
 
             if (in_begin == in_end) {
                 out_begin = in_end;
@@ -2993,8 +3003,7 @@ const TextEditor::LanguageDefinition& TextEditor::LanguageDefinition::SQL()
                                                "OVER",
                                                "WRITETEXT"};
 
-        for (auto& k : keywords)
-            langDef.mKeywords.insert(k);
+        for (auto& k : keywords) langDef.mKeywords.insert(k);
 
         static const char* const identifiers[] = {"ABS",
                                                   "ACOS",
@@ -3187,8 +3196,7 @@ const TextEditor::LanguageDefinition& TextEditor::LanguageDefinition::AngelScrip
             "true",      "typedef",  "uint",     "uint8",   "uint16", "uint32",   "uint64",
             "void",      "while",    "xor"};
 
-        for (auto& k : keywords)
-            langDef.mKeywords.insert(k);
+        for (auto& k : keywords) langDef.mKeywords.insert(k);
 
         static const char* const identifiers[] = {
             "cos",         "sin",         "tab",         "acos",    "asin",     "atan",
@@ -3246,8 +3254,7 @@ const TextEditor::LanguageDefinition& TextEditor::LanguageDefinition::Lua()
             "for", "function", "if",     "in",   "",     "local",  "nil",  "not",
             "or",  "repeat",   "return", "then", "true", "until",  "while"};
 
-        for (auto& k : keywords)
-            langDef.mKeywords.insert(k);
+        for (auto& k : keywords) langDef.mKeywords.insert(k);
 
         static const char* const identifiers[] = {"assert",       "collectgarbage",
                                                   "dofile",       "error",
