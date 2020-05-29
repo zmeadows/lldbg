@@ -1,6 +1,7 @@
 #include <chrono>
 #include <iostream>
 #include <thread>
+#include <vector>
 
 int bar(int y)
 {
@@ -16,11 +17,14 @@ int foo(int x)
 
 int main(void)
 {
+    const std::vector<int> v = {1, 2, 3};
+
     const int x = foo(1);
     const int y = foo(-1);
 
     std::cout << "x = " << x << std::endl;
     std::cout << "y = " << y << std::endl;
+    std::cout << "v[0] = " << v[0] << std::endl;
 
     return x + y;
 };

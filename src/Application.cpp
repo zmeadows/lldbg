@@ -697,31 +697,58 @@ void draw(Application& app)
     ImGui::BeginChild("#LocalsChild", ImVec2(0, locals_height));
     if (ImGui::BeginTabBar("##LocalsTabs", ImGuiTabBarFlags_None)) {
         if (ImGui::BeginTabItem("Locals")) {
-            // TODO: turn this into a recursive tree that displays children of structs/arrays
             if (stopped && app.ui.viewed_frame_index >= 0) {
+                ImGui::Columns(3, "##LocalsColumns");
+                ImGui::Separator();
+                ImGui::Text("NAME");
+                ImGui::NextColumn();
+                ImGui::Text("TYPE");
+                ImGui::NextColumn();
+                ImGui::Text("VALUE");
+                ImGui::NextColumn();
+                ImGui::Separator();
+
                 lldb::SBThread viewed_thread =
                     process.GetThreadAtIndex(app.ui.viewed_thread_index);
                 lldb::SBFrame frame = viewed_thread.GetFrameAtIndex(app.ui.viewed_frame_index);
                 lldb::SBValueList locals = frame.GetVariables(true, true, true, true);
+
                 for (uint32_t i = 0; i < locals.GetSize(); i++) {
-                    lldb::SBValue var = locals.GetValueAtIndex(i);
+                    lldb::SBValue local = locals.GetValueAtIndex(i);
 
-                    const char* var_type = var.GetTypeName();
-                    const char* var_name = var.GetName();
-                    const char* var_value = var.GetValue();
+                    const char* local_type = local.GetTypeName();
+                    const char* local_name = local.GetName();
+                    const char* local_value = local.GetValue();
 
-                    if (!var_type || !var_name || !var_value) {
-                        // LOG(Verbose) << "Bad SBValue encountered in frame locals";
+                    if (!local_type || !local_name) {
                         continue;
                     }
 
-                    StringBuffer valbuf;
-                    valbuf.format("{} {} = {}", var_type, var_name, var_value);
-                    ImGui::TextUnformatted(valbuf.data());
+                    ImGui::TextUnformatted(local_name);
+                    ImGui::NextColumn();
+
+                    ImGui::TextUnformatted(local_type);
+                    ImGui::NextColumn();
+
+                    if (local.MightHaveChildren()) {
+                        StringBuffer children_node_label;
+                        children_node_label.format("...##{}_Children", local_name);
+                        if (ImGui::TreeNode(children_node_label.data())) {
+                            ImGui::TextUnformatted("0\n1\n2\n\0");
+                            ImGui::TreePop();
+                        }
+                    }
+                    else {
+                        ImGui::TextUnformatted(local_value);
+                    }
+                    ImGui::NextColumn();
                 }
+
+                ImGui::Columns(1);
             }
             ImGui::EndTabItem();
         }
+
         if (ImGui::BeginTabItem("Registers")) {
             ImGui::BeginChild("RegisterContents");
             // FIXME: why does this stall the program?
