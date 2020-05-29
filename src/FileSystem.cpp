@@ -168,7 +168,7 @@ void OpenFiles::open(FileHandle handle)
     auto it = std::find(m_files.begin(), m_files.end(), handle);
     if (it != m_files.end()) {
         m_focus = it - m_files.begin();
-        LOG(Verbose) << "Successfully switched focus to already-opened file: "
+        LOG(Verbose) << "Successfully switched focus to previously-opened file: "
                      << handle.filepath();
         return;
     }
@@ -177,7 +177,7 @@ void OpenFiles::open(FileHandle handle)
     m_focus = m_files.size() - 1;
 
     LOG(Verbose) << "Successfully opened new file: " << handle.filepath();
-    LOG(Debug) << "Number of currently open files: " << m_files.size();
+    LOG(Verbose) << "Number of currently open files: " << m_files.size();
 }
 
 void OpenFiles::close(size_t tab_index)

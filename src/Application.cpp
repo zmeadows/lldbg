@@ -123,9 +123,16 @@ static void cstr_format(char* buffer, size_t sizeof_buffer, const char* fmt, Arg
     }
 }
 
+static inline bool has_target(Application& app)
+{
+    const auto target_count = app.debugger.GetNumTargets() > 0;
+    assert(target_count == 0 || target_count == 1);
+    return target_count > 0;
+}
+
 static lldb::SBProcess get_process(Application& app)
 {
-    assert(app.debugger.GetNumTargets() <= 1);
+    assert(has_target(app));
     return app.debugger.GetSelectedTarget().GetProcess();
 }
 
@@ -425,7 +432,7 @@ void draw(Application& app)
 
     ImGui::BeginChild("FileBrowserPane", ImVec2(file_browser_width, 0));
 
-    {
+    if (has_target(app)) {
         // TODO: handle case where no target has been specified
         // TODO: show rightmost chunk of path in case it is too long to fit on screen
         // TODO: add button to select new target using
@@ -732,18 +739,6 @@ void draw(Application& app)
     if (ImGui::BeginTabBar("##BreakWatchPointTabs", ImGuiTabBarFlags_None)) {
         Defer(ImGui::EndTabBar());
 
-        if (ImGui::BeginTabItem("Watchpoints")) {
-            Defer(ImGui::EndTabItem());
-
-            for (int i = 0; i < 4; i++) {
-                char label[128];
-                cstr_format(label, sizeof(label), "Watch %d", i);
-                if (ImGui::Selectable(label, i == 0)) {
-                    // blah
-                }
-            }
-        }
-
         if (ImGui::BeginTabItem("Breakpoints")) {
             Defer(ImGui::EndTabItem());
 
@@ -793,6 +788,18 @@ void draw(Application& app)
                     cstr_format(line_buf, sizeof(line_buf), "%d", line_entry.GetLine());
                     ImGui::Selectable(line_buf, (int)i == selected_row);
                     ImGui::NextColumn();
+                }
+            }
+        }
+
+        if (ImGui::BeginTabItem("Watchpoints")) {
+            Defer(ImGui::EndTabItem());
+
+            for (int i = 0; i < 4; i++) {
+                char label[128];
+                cstr_format(label, sizeof(label), "Watch %d", i);
+                if (ImGui::Selectable(label, i == 0)) {
+                    // blah
                 }
             }
         }
@@ -874,7 +881,7 @@ void Application::main_loop()
         // TODO: develop bettery strategy for when to read stdout,
         // possible upon receiving certian types of LLDBEvent?
         // TODO: define some sort of ProcessContext to keep the stdout per process/target
-        if ((frame_number % 10 == 0) && debugger.GetNumTargets() > 0) {
+        if ((frame_number % 10 == 0) && has_target(*this)) {
             stdout_buf.update(get_process(*this));
             stderr_buf.update(get_process(*this));
         }
@@ -993,7 +1000,7 @@ void set_workdir(Application& app, const std::string& workdir)
 
 TargetAddResult add_target(Application& app, const std::string& exe_path)
 {
-    if (app.debugger.GetNumTargets() > 0) {
+    if (has_target(app)) {
         LOG(Error) << "Attempt add multiple targets, which is not (yet) supported by lldbg.";
         return TargetAddResult::TooManyTargetsError;
     }
@@ -1022,12 +1029,10 @@ TargetAddResult add_target(Application& app, const std::string& exe_path)
 
 TargetStartResult start_target(Application& app, const char** argv)
 {
-    if (app.debugger.GetNumTargets() == 0) {
+    if (!has_target(app)) {
         LOG(Warning) << "Failed to start target because no targets have yet been added.";
         return TargetStartResult::NoTargetError;
     }
-
-    assert(app.debugger.GetNumTargets() == 1);
 
     lldb::SBTarget target = app.debugger.GetTargetAtIndex(0);
     lldb::SBLaunchInfo launch_info(argv);
