@@ -648,7 +648,7 @@ void draw(Application& app)
             static int selected_row = -1;
 
             if (stopped && app.ui.viewed_thread_index >= 0) {
-                ImGui::Columns(3);
+                ImGui::Columns(3, "##StackTraceColumns");
                 ImGui::Separator();
                 ImGui::Text("FUNCTION");
                 ImGui::NextColumn();
@@ -668,20 +668,19 @@ void draw(Application& app)
 
                     if (!frame) continue;
 
-                    if (ImGui::Selectable(frame->function_name.c_str(),
-                                          (int)i == selected_row)) {
+                    if (ImGui::Selectable(frame->function_name.c_str(), (int)i == selected_row,
+                                          ImGuiSelectableFlags_SpanAllColumns)) {
                         manually_open_and_or_focus_file(app, frame->file_handle);
                         selected_row = (int)i;
                     }
                     ImGui::NextColumn();
 
-                    ImGui::Selectable(frame->file_handle.filename().c_str(),
-                                      (int)i == selected_row);
+                    ImGui::TextUnformatted(frame->file_handle.filename().c_str());
                     ImGui::NextColumn();
 
                     StringBuffer linebuf;
                     linebuf.format("{}", (int)frame->line);
-                    ImGui::Selectable(linebuf.data(), (int)i == selected_row);
+                    ImGui::TextUnformatted(linebuf.data());
                     ImGui::NextColumn();
                 }
 
