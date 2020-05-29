@@ -21,13 +21,14 @@ int main(int, char* argv[])
     (void)argv;
 
     Application app;
+    app.argv = argv;
 
     TargetAddResult add_result = add_target(app, target_path);
     if (add_result != TargetAddResult::Success) {
         return EXIT_FAILURE;
     }
 
-    TargetStartResult start_result = start_target(app, const_cast<const char**>(argv));
+    TargetStartResult start_result = start_target(app);
     if (start_result != TargetStartResult::Success) {
         return EXIT_FAILURE;
     }

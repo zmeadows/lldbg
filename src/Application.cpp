@@ -19,8 +19,6 @@ using namespace lldbg;
 
 static std::map<std::string, std::string> s_debug_stream;
 
-// TODO: convert this to singleton class and use fmt::buffers instead of reallocating
-// strings every call
 // NOTE: remember this is updated once per frame and currently variables are never removed
 #define DEBUG_STREAM(x)                                \
     {                                                  \
@@ -65,7 +63,6 @@ static void delete_current_targets(Application& app)
         dbg.DeleteTarget(target);
     }
 }
-
 */
 
 static void add_breakpoint_to_viewed_file(Application& app, int line)
@@ -250,7 +247,6 @@ static void draw_open_files(lldbg::Application& app)
         if (app.ui.request_manual_tab_change && is_focused) {
             tab_flags = ImGuiTabItemFlags_SetSelected;
             app.text_editor.SetTextLines(handle.contents());
-
             app.text_editor.SetBreakpoints(app.breakpoints.Get(handle));
         }
 
@@ -261,7 +257,6 @@ static void draw_open_files(lldbg::Application& app)
                 // user selected tab directly with mouse
                 action = lldbg::OpenFiles::Action::ChangeFocusTo;
                 app.text_editor.SetTextLines(handle.contents());
-
                 app.text_editor.SetBreakpoints(app.breakpoints.Get(handle));
             }
             app.text_editor.Render("TextEditor");
@@ -269,8 +264,7 @@ static void draw_open_files(lldbg::Application& app)
             ImGui::EndTabItem();
         }
 
-        if (!keep_tab_open) {
-            // user closed tab with mouse
+        if (!keep_tab_open) {  // user closed tab with mouse
             closed_tab = true;
             action = lldbg::OpenFiles::Action::Close;
         }
@@ -289,6 +283,9 @@ static void draw_open_files(lldbg::Application& app)
 
 static void manually_open_and_or_focus_file(lldbg::Application& app, const char* filepath)
 {
+    // TODO: check if attempting to open currently focused file and do nothing if so
+    // to avoid unnecessarily re-loading/drawing lines in text editor
+    // TODO: call manually_open_and_or_focus_file with handle arg here instead
     if (app.open_files.open(std::string(filepath))) {
         app.ui.request_manual_tab_change = true;
     }
@@ -374,6 +371,7 @@ void draw(Application& app)
     DEBUG_STREAM(window_height);
 
     const char* process_state = lldb::SBDebugger::StateAsCString(process.GetState());
+    assert(process_state);
     DEBUG_STREAM(process_state);
 
     const auto window_width_f = static_cast<float>(window_width);
@@ -389,35 +387,35 @@ void draw(Application& app)
                      ImGuiWindowFlags_NoTitleBar);
     ImGui::PushFont(app.ui.font);
 
-    if (ImGui::BeginMenuBar()) {
-        Defer(ImGui::EndMenuBar());
+    // if (ImGui::BeginMenuBar()) {
+    //     Defer(ImGui::EndMenuBar());
 
-        if (ImGui::BeginMenu("File")) {
-            Defer(ImGui::EndMenu());
-            if (ImGui::MenuItem("Open..", "Ctrl+O")) { /* Do stuff */
-            }
-            if (ImGui::MenuItem("Save", "Ctrl+S")) { /* Do stuff */
-            }
-            if (ImGui::MenuItem("Close", "Ctrl+W")) { /* Do stuff */
-            }
-        }
+    //     if (ImGui::BeginMenu("File")) {
+    //         Defer(ImGui::EndMenu());
+    //         if (ImGui::MenuItem("Open..", "Ctrl+O")) { /* Do stuff */
+    //         }
+    //         if (ImGui::MenuItem("Save", "Ctrl+S")) { /* Do stuff */
+    //         }
+    //         if (ImGui::MenuItem("Close", "Ctrl+W")) { /* Do stuff */
+    //         }
+    //     }
 
-        if (ImGui::BeginMenu("View")) {
-            Defer(ImGui::EndMenu());
-            if (ImGui::MenuItem("Layout", NULL)) { /* Do stuff */
-            }
-            if (ImGui::MenuItem("Zoom In", "+")) { /* Do stuff */
-            }
-            if (ImGui::MenuItem("Zoom Out", "-")) { /* Do stuff */
-            }
-        }
+    //     if (ImGui::BeginMenu("View")) {
+    //         Defer(ImGui::EndMenu());
+    //         if (ImGui::MenuItem("Layout", NULL)) { /* Do stuff */
+    //         }
+    //         if (ImGui::MenuItem("Zoom In", "+")) { /* Do stuff */
+    //         }
+    //         if (ImGui::MenuItem("Zoom Out", "-")) { /* Do stuff */
+    //         }
+    //     }
 
-        if (ImGui::BeginMenu("Help")) {
-            Defer(ImGui::EndMenu());
-            if (ImGui::MenuItem("About", "F12")) { /* Do stuff */
-            }
-        }
-    }
+    //     if (ImGui::BeginMenu("Help")) {
+    //         Defer(ImGui::EndMenu());
+    //         if (ImGui::MenuItem("About", "F12")) { /* Do stuff */
+    //         }
+    //     }
+    // }
 
     static float file_browser_width =
         window_width_f * app.ui.DEFAULT_FILEBROWSER_WIDTH_PERCENT;
@@ -438,14 +436,22 @@ void draw(Application& app)
         // TODO: add button to select new target using
         // https://github.com/aiekick/ImGuiFileDialog
         lldb::SBFileSpec fs = app.debugger.GetSelectedTarget().GetExecutable();
-        const std::string target_line =
-            fmt::format("Target: {}/{}", fs.GetDirectory(), fs.GetFilename());
+        const std::string target_line = fmt::format(
+            "Target: {}/{}\nState: {}", fs.GetDirectory(), fs.GetFilename(), process_state);
         ImGui::TextUnformatted(target_line.c_str());
     }
 
-    if (ImGui::Button("Resume")) {
-        get_process(app).Continue();
+    if (stopped) {
+        if (ImGui::Button("Resume")) {
+            get_process(app).Continue();
+        }
     }
+    else {
+        if (ImGui::Button("Start")) {
+            start_target(app);
+        }
+    }
+
     ImGui::SameLine();
 
     if (ImGui::Button("Stop")) {
@@ -607,12 +613,19 @@ void draw(Application& app)
     if (ImGui::BeginTabBar("#ThreadsTabs", ImGuiTabBarFlags_None)) {
         if (ImGui::BeginTabItem("Threads")) {
             if (stopped) {
-                static char thread_label[128];
                 for (uint32_t i = 0; i < process.GetNumThreads(); i++) {
                     lldb::SBThread th = process.GetThreadAtIndex(i);
-                    cstr_format(thread_label, sizeof(thread_label), "Thread %u: %s", i,
-                                th.GetName());
-                    if (ImGui::Selectable(thread_label,
+
+                    const char* thread_name = th.GetName();
+                    if (!thread_name) {
+                        LOG(Warning) << "Skipping thread with null name";
+                        continue;
+                    }
+
+                    fmt::memory_buffer thread_label;
+                    format_to(thread_label, "Thread {}: {}", i, th.GetName());
+
+                    if (ImGui::Selectable(thread_label.data(),
                                           (int)i == app.ui.viewed_thread_index)) {
                         app.ui.viewed_thread_index = i;
                     }
@@ -693,8 +706,20 @@ void draw(Application& app)
                 lldb::SBFrame frame = viewed_thread.GetFrameAtIndex(app.ui.viewed_frame_index);
                 lldb::SBValueList locals = frame.GetVariables(true, true, true, true);
                 for (uint32_t i = 0; i < locals.GetSize(); i++) {
-                    lldb::SBValue value = locals.GetValueAtIndex(i);
-                    ImGui::TextUnformatted(value.GetName());
+                    lldb::SBValue var = locals.GetValueAtIndex(i);
+
+                    const char* var_type = var.GetTypeName();
+                    const char* var_name = var.GetName();
+                    const char* var_value = var.GetValue();
+
+                    if (!var_type || !var_name || !var_value) {
+                        LOG(Warning) << "Bad SBValue encountered in frame locals";
+                        continue;
+                    }
+
+                    fmt::memory_buffer valbuf;
+                    format_to(valbuf, "{} {} = {}", var_type, var_name, var_value);
+                    ImGui::TextUnformatted(valbuf.data());
                 }
             }
             ImGui::EndTabItem();
@@ -1027,15 +1052,18 @@ TargetAddResult add_target(Application& app, const std::string& exe_path)
     return TargetAddResult::Success;
 }
 
-TargetStartResult start_target(Application& app, const char** argv)
+TargetStartResult start_target(Application& app)
 {
     if (!has_target(app)) {
         LOG(Warning) << "Failed to start target because no targets have yet been added.";
         return TargetStartResult::NoTargetError;
     }
 
+    app.stdout_buf.clear();
+    app.stderr_buf.clear();
+
     lldb::SBTarget target = app.debugger.GetTargetAtIndex(0);
-    lldb::SBLaunchInfo launch_info(argv);
+    lldb::SBLaunchInfo launch_info(const_cast<const char**>(app.argv));
     launch_info.SetLaunchFlags(lldb::eLaunchFlagDisableASLR | lldb::eLaunchFlagStopAtEntry);
     lldb::SBError lldb_error;
     lldb::SBProcess process = target.Launch(launch_info, lldb_error);

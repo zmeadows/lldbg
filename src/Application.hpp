@@ -60,6 +60,7 @@ struct Application {
     std::optional<ExitDialog> exit_dialog;
     StreamBuffer stdout_buf;
     StreamBuffer stderr_buf;
+    char** argv;
 
     // TODO: make this a non-member function
     void main_loop(void);
@@ -92,6 +93,6 @@ enum class TargetStartResult {
     Success
 };
 
-TargetStartResult start_target(Application& app, const char** argv);
+TargetStartResult start_target(Application& app);
 
 }  // namespace lldbg

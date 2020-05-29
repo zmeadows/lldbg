@@ -56,15 +56,21 @@ void StreamBuffer::update(lldb::SBProcess process)
     LOG(Warning) << "Exceeded maximum stream buffer capacity.";
 }
 
+void StreamBuffer::clear(void)
+{
+    for (size_t i = 0; i < m_capacity; i++) {
+        m_data[i] = '\0';
+    }
+    m_offset = 0;
+}
+
 StreamBuffer::StreamBuffer(StreamSource source)
     : m_offset(0),
       m_capacity(2),
       m_data((char*)malloc(sizeof(char) * m_capacity)),
       m_source(source)
 {
-    for (size_t i = 0; i < m_capacity; i++) {
-        m_data[i] = '\0';
-    }
+    this->clear();
 }
 
 StreamBuffer::~StreamBuffer(void)
