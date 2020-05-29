@@ -106,7 +106,7 @@ static std::string build_string(const char* cstr)
 
 static inline bool has_target(Application& app)
 {
-    const auto target_count = app.debugger.GetNumTargets() > 0;
+    const uint32_t target_count = app.debugger.GetNumTargets();
     assert(target_count == 0 || target_count == 1);
     return target_count > 0;
 }
