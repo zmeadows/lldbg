@@ -446,19 +446,19 @@ void draw(Application& app)
     }
 
     if (stopped) {
-        if (ImGui::Button("Resume")) {
+        if (ImGui::Button("resume")) {
             get_process(app).Continue();
         }
     }
     else {
-        if (ImGui::Button("Start")) {
+        if (ImGui::Button("start")) {
             start_target(app);
         }
     }
 
     ImGui::SameLine();
 
-    if (ImGui::Button("Stop")) {
+    if (ImGui::Button("stop")) {
         get_process(app).Stop();
     }
 
@@ -513,7 +513,7 @@ void draw(Application& app)
             "LogConsole",
             ImVec2(file_viewer_width, console_height - 2 * ImGui::GetFrameHeightWithSpacing()));
         if (ImGui::BeginTabBar("##ConsoleLogTabs", ImGuiTabBarFlags_None)) {
-            if (ImGui::BeginTabItem("Console")) {
+            if (ImGui::BeginTabItem("console")) {
                 ImGui::BeginChild("ConsoleEntries");
 
                 // TODO: keep console input focused until user moves mouse
@@ -573,7 +573,7 @@ void draw(Application& app)
                 ImGui::EndTabItem();
             }
 
-            if (ImGui::BeginTabItem("Log")) {
+            if (ImGui::BeginTabItem("log")) {
                 ImGui::BeginChild("LogEntries");
                 lldbg::Logger::get_instance()->for_each_message(
                     [](const lldbg::LogMessage& entry) -> void {
@@ -664,7 +664,7 @@ void draw(Application& app)
 
     // TODO: be consistent about whether or not to use Defer
     if (ImGui::BeginTabBar("#ThreadsTabs", ImGuiTabBarFlags_None)) {
-        if (ImGui::BeginTabItem("Threads")) {
+        if (ImGui::BeginTabItem("threads")) {
             if (stopped) {  // TODO: better handle this 'stopped' condition
                 if (process.GetNumThreads() > 0 && app.ui.viewed_thread_index < 0) {
                     app.ui.viewed_thread_index = 0;
@@ -697,7 +697,7 @@ void draw(Application& app)
 
     ImGui::BeginChild("#StackTraceChild", ImVec2(0, stack_height));
     if (ImGui::BeginTabBar("##StackTraceTabs", ImGuiTabBarFlags_None)) {
-        if (ImGui::BeginTabItem("Stack Trace")) {
+        if (ImGui::BeginTabItem("stack trace")) {
             static int selected_row = -1;
 
             if (stopped && app.ui.viewed_thread_index >= 0) {
@@ -748,9 +748,10 @@ void draw(Application& app)
     }
     ImGui::EndChild();
 
+    static bool use_hex_locals = true;
     ImGui::BeginChild("#LocalsChild", ImVec2(0, locals_height));
     if (ImGui::BeginTabBar("##LocalsTabs", ImGuiTabBarFlags_None)) {
-        if (ImGui::BeginTabItem("Locals")) {
+        if (ImGui::BeginTabItem("locals")) {
             if (stopped && app.ui.viewed_frame_index >= 0) {
                 ImGui::Columns(3, "##LocalsColumns");
                 ImGui::Separator();
@@ -829,8 +830,7 @@ void draw(Application& app)
             ImGui::EndTabItem();
         }
 
-        if (ImGui::BeginTabItem("Registers")) {
-            ImGui::BeginChild("RegisterContents");
+        if (ImGui::BeginTabItem("registers")) {
             // FIXME: why does this stall the program?
             // if (stopped && app.ui.viewed_frame_index >= 0) {
             //     lldb::SBThread viewed_thread =
@@ -858,10 +858,12 @@ void draw(Application& app)
             //         }
             //     }
             // }
-            ImGui::EndChild();
             ImGui::EndTabItem();
         }
+
         ImGui::EndTabBar();
+        ImGui::SameLine(ImGui::GetWindowWidth() - 150);
+        ImGui::Checkbox("use hexadecimal", &use_hex_locals);
     }
     ImGui::EndChild();
 
@@ -869,7 +871,7 @@ void draw(Application& app)
     if (ImGui::BeginTabBar("##BreakWatchPointTabs", ImGuiTabBarFlags_None)) {
         Defer(ImGui::EndTabBar());
 
-        if (ImGui::BeginTabItem("Breakpoints")) {
+        if (ImGui::BeginTabItem("breakpoints")) {
             Defer(ImGui::EndTabItem());
 
             if (stopped && app.ui.viewed_thread_index >= 0) {
@@ -923,7 +925,7 @@ void draw(Application& app)
             }
         }
 
-        if (ImGui::BeginTabItem("Watchpoints")) {
+        if (ImGui::BeginTabItem("watchpoints")) {
             Defer(ImGui::EndTabItem());
 
             for (int i = 0; i < 4; i++) {
@@ -968,13 +970,9 @@ static void tick(lldbg::Application& app)
         const char* state_descr = lldb::SBDebugger::StateAsCString(new_state);
         LOG(Debug) << "Found event with new state: " << state_descr;
 
-        // TODO: make this actually be useful
-        if (new_state == lldb::eStateExited) {
-            lldbg::ExitDialog dialog;
-            dialog.process_name = "blah";
-            dialog.exit_code = get_process(app).GetExitStatus();
-            app.exit_dialog = dialog;
-            LOG(Debug) << "Set exit dialog";
+        if (new_state == lldb::eStateCrashed || new_state == lldb::eStateDetached ||
+            new_state == lldb::eStateExited) {
+            app.event_listener.stop(app.debugger);
         }
     }
 
