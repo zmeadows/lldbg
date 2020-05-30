@@ -199,7 +199,6 @@ static bool FileTreeNode(const char* label)
 
     // Icon, text
     float button_sz = g.FontSize + g.Style.FramePadding.y * 2;
-    // TODO: set colors from style?
     window->DrawList->AddRectFilled(pos, ImVec2(pos.x + button_sz, pos.y + button_sz),
                                     opened ? ImColor(51, 105, 173) : ImColor(42, 79, 130));
 
@@ -282,20 +281,26 @@ static void draw_open_files(lldbg::Application& app)
     }
 }
 
-static void manually_open_and_or_focus_file(lldbg::Application& app, const char* filepath)
-{
-    // TODO: check if attempting to open currently focused file and do nothing if so
-    // to avoid unnecessarily re-loading/drawing lines in text editor
-    // TODO: call manually_open_and_or_focus_file with handle arg here instead
-    if (app.open_files.open(std::string(filepath))) {
-        app.ui.request_manual_tab_change = true;
-    }
-}
-
 static void manually_open_and_or_focus_file(lldbg::Application& app, FileHandle handle)
 {
+    if (auto focus = app.open_files.focus(); focus.has_value()) {
+        if (*focus == handle) {
+            return;  // already focused
+        }
+    }
     app.open_files.open(handle);
     app.ui.request_manual_tab_change = true;
+}
+
+static void manually_open_and_or_focus_file(lldbg::Application& app, const char* filepath)
+{
+    if (auto handle = FileHandle::create(filepath); handle.has_value()) {
+        manually_open_and_or_focus_file(app, *handle);
+    }
+    else {
+        LOG(Warning) << "Failed to switch focus to file because it could not be located: "
+                     << filepath;
+    }
 }
 
 static void draw_file_browser(lldbg::Application& app, lldbg::FileBrowserNode* node_to_draw,
@@ -629,7 +634,7 @@ void draw(Application& app)
     // TODO: be consistent about whether or not to use Defer
     if (ImGui::BeginTabBar("#ThreadsTabs", ImGuiTabBarFlags_None)) {
         if (ImGui::BeginTabItem("Threads")) {
-            if (stopped) {
+            if (stopped) {  // TODO: better handle this 'stopped' condition
                 for (uint32_t i = 0; i < process.GetNumThreads(); i++) {
                     lldb::SBThread th = process.GetThreadAtIndex(i);
 
