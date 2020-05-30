@@ -8,12 +8,12 @@ class StringBuffer {
 
 public:
     template <typename... Args>
-    void format(const char* fmt_str, Args&&... args)
+    inline void format(const char* fmt_str, Args&&... args)
     {
         fmt::format_to(m_buffer, fmt_str, args...);
         m_buffer.push_back('\0');
     }
 
-    const char* data(void) { return m_buffer.data(); }
+    inline const char* data(void) { return m_buffer.data(); }
     // std::string to_string(void) { return fmt::to_string(m_buffer); }
 };

@@ -75,32 +75,44 @@ static void add_breakpoint_to_viewed_file(Application& app, int line)
 
     FileHandle focus = *app.open_files.focus();
 
-    if (const std::unordered_set<int>* bps = app.breakpoints.Get(focus); bps != nullptr) {
-        if (bps->find(line) != bps->end()) {
-            LOG(Verbose) << "Ignoring duplicate breakpoint request";
-            return;
-        }
-    }
-
     const std::string& filepath = focus.filepath();
     lldb::SBTarget target = app.debugger.GetSelectedTarget();
 
     lldb::SBBreakpoint new_breakpoint =
         target.BreakpointCreateByLocation(filepath.c_str(), line);
 
-    // TODO: re-check for duplicate breakpoints here, as lldb will move the breakpoint to a
-    // different line than you have specificied, for example if the line specified is only an
-    // open/close bracket
-
-    if (new_breakpoint.IsValid() && new_breakpoint.GetNumLocations() > 0) {
-        app.breakpoints.synchronize(app.debugger.GetSelectedTarget());
-        app.text_editor.SetBreakpoints(app.breakpoints.Get(focus));
-        LOG(Verbose) << "adding breakpoint in file " << filepath << " at line: " << line;
-    }
-    else {
-        LOG(Warning) << "Removing invalid break point";
+    auto undo_breakpoint = [&](const char* msg) -> void {
+        LOG(Warning) << "Failed to add breakpoint. Reason: " << msg;
         target.BreakpointDelete(new_breakpoint.GetID());
+    };
+
+    if (!new_breakpoint.IsValid() || new_breakpoint.GetNumLocations() == 0) {
+        undo_breakpoint("no locations found for specified breakpoint");
+        return;
     }
+
+    lldb::SBBreakpointLocation location = new_breakpoint.GetLocationAtIndex(0);
+    if (!location.IsValid() || !location.IsEnabled()) {
+        undo_breakpoint("breakpoint locations found, but they are invalid");
+        return;
+    }
+
+    lldb::SBAddress address = location.GetAddress();
+    if (!address.IsValid()) {
+        undo_breakpoint("Invalid breakpoint address");
+        return;
+    }
+
+    const std::unordered_set<int>* bps = app.breakpoints.Get(focus);
+    if (bps != nullptr && bps->find(address.GetLineEntry().GetLine()) != bps->end()) {
+        undo_breakpoint("duplicate");
+        return;
+    }
+
+    app.breakpoints.synchronize(app.debugger.GetSelectedTarget());
+    app.text_editor.SetBreakpoints(app.breakpoints.Get(focus));
+    LOG(Verbose) << "Successfully added breakpoint in file " << filepath
+                 << " at line: " << line;
 }
 
 static std::string build_string(const char* cstr)

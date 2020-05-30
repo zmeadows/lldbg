@@ -16,7 +16,12 @@ void LLDBEventListenerThread::start(lldb::SBDebugger& debugger)
         this->stop(debugger);
     }
 
-    // TODO: if no targets exist, simply log and return
+    if (debugger.GetNumTargets() == 0) {
+        LOG(Warning)
+            << "Attempted to start the LLDBEventListenerThread with no targets specified";
+        return;
+    }
+
     m_listener.Clear();
     m_listener = lldb::SBListener("lldbg_listener");
 
@@ -29,7 +34,6 @@ void LLDBEventListenerThread::start(lldb::SBDebugger& debugger)
 
     m_continue.store(true);
 
-    // TODO: check earlier if thread is already running, if so log error and return
     if (!m_thread) {
         m_thread.reset(new std::thread(&LLDBEventListenerThread::poll_events, this));
     }
@@ -44,7 +48,6 @@ void LLDBEventListenerThread::stop(lldb::SBDebugger& debugger)
         return;
     }
 
-    // TODO: check if already started and if not: log error and return
     m_continue.store(false);
     m_thread->join();
     m_thread.reset(nullptr);
@@ -61,11 +64,11 @@ void LLDBEventListenerThread::poll_events()
 {
     while (m_continue.load()) {
         lldb::SBEvent event;
-        // TODO: shorten wait time so that we can exit instantly when the user presses quit
-        // TODO: we can maybe even just move this into the main loop to avoid spawning a
-        // dedicated thread
         if (m_listener.WaitForEvent(1, event)) {
-            assert(event.IsValid());
+            if (!event.IsValid()) {
+                // TODO: print event description using event.GetDescription(stream)
+                LOG(Warning) << "Invalid LLDB event encountered, skipping...";
+            }
 
             m_events.push(event);
 
