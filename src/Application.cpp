@@ -135,8 +135,9 @@ static lldb::SBProcess get_process(Application& app)
 
 static void glfw_error_callback(int error, const char* description)
 {
-    // TODO: use lldbg Log system here
-    fprintf(stderr, "GLFW Error %d: %s\n", error, description);
+    StringBuffer buffer;
+    buffer.format("GLFW Error {}: {}\n", error, description);
+    LOG(Error) << buffer.data();
 }
 
 // A convenience struct for extracting pertinent display information from an lldb::SBFrame
