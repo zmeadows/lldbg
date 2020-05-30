@@ -320,22 +320,14 @@ static void draw_file_browser(lldbg::Application& app, lldbg::FileBrowserNode* n
 static bool run_lldb_command(Application& app, const char* command)
 {
     const size_t num_breakpoints_before = app.debugger.GetSelectedTarget().GetNumBreakpoints();
-
     const bool command_succeeded = app.command_line.run_command(command);
-
     const size_t num_breakpoints_after = app.debugger.GetSelectedTarget().GetNumBreakpoints();
 
     if (num_breakpoints_before != num_breakpoints_after) {
-        // TODO: just always synchronize, since it is cheap and user commands won't be run very
-        // often?
         app.breakpoints.synchronize(app.debugger.GetSelectedTarget());
 
-        const std::optional<FileHandle> maybe_handle = app.open_files.focus();
-
-        if (maybe_handle) {
-            auto handle = *maybe_handle;
-            app.text_editor.SetTextLines(handle.contents());
-            app.text_editor.SetBreakpoints(app.breakpoints.Get(handle));
+        if (auto handle = app.open_files.focus(); handle.has_value()) {
+            app.text_editor.SetBreakpoints(app.breakpoints.Get(*handle));
         }
     }
 
@@ -549,6 +541,12 @@ void draw(Application& app)
                 const ImGuiInputTextFlags command_input_flags =
                     ImGuiInputTextFlags_EnterReturnsTrue;
 
+                // keep console input focused unless user is doing something else
+                if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
+                    !ImGui::IsAnyItemActive() && !ImGui::IsMouseClicked(0)) {
+                    ImGui::SetKeyboardFocusHere(0);
+                }
+
                 static char input_buf[2048];
                 if (ImGui::InputText("lldb console", input_buf, 2048, command_input_flags,
                                      command_input_callback)) {
@@ -712,8 +710,6 @@ void draw(Application& app)
                 ImGui::NextColumn();
                 ImGui::Separator();
 
-                // TODO: use ImGuiSelectableFlags_SpanAllColumns as described here:
-                // https://github.com/ocornut/imgui/issues/769
                 lldb::SBThread viewed_thread = process.GetThreadAtIndex(app.ui.viewed_thread_index);
 
                 for (uint32_t i = 0; i < viewed_thread.GetNumFrames(); i++) {
@@ -901,10 +897,11 @@ void draw(Application& app)
                     lldb::SBLineEntry line_entry = address.GetLineEntry();
 
                     // TODO: save description and don't rebuild every frame
+
                     const std::string filename =
                         build_string(line_entry.GetFileSpec().GetFilename());
                     if (ImGui::Selectable(filename.c_str(), (int)i == selected_row)) {
-                        // TODO: factor out
+                        // TODO: factor out function to combine directory and filename
                         const std::string directory =
                             build_string(line_entry.GetFileSpec().GetDirectory()) + "/";
                         const std::string full_path = directory + filename;

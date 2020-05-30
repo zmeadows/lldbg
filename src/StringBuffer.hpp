@@ -10,6 +10,8 @@ public:
     template <typename... Args>
     inline void format(const char* fmt_str, Args&&... args)
     {
+        // TODO: loop over args parameters, check if they are pointers and if they are null, don't
+        // call fmt::format_to
         fmt::format_to(m_buffer, fmt_str, args...);
         m_buffer.push_back('\0');
     }
