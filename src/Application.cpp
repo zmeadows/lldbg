@@ -78,8 +78,7 @@ static void add_breakpoint_to_viewed_file(Application& app, int line)
     const std::string& filepath = focus.filepath();
     lldb::SBTarget target = app.debugger.GetSelectedTarget();
 
-    lldb::SBBreakpoint new_breakpoint =
-        target.BreakpointCreateByLocation(filepath.c_str(), line);
+    lldb::SBBreakpoint new_breakpoint = target.BreakpointCreateByLocation(filepath.c_str(), line);
 
     auto undo_breakpoint = [&](const char* msg) -> void {
         LOG(Warning) << "Failed to add breakpoint. Reason: " << msg;
@@ -111,8 +110,7 @@ static void add_breakpoint_to_viewed_file(Application& app, int line)
 
     app.breakpoints.synchronize(app.debugger.GetSelectedTarget());
     app.text_editor.SetBreakpoints(app.breakpoints.Get(focus));
-    LOG(Verbose) << "Successfully added breakpoint in file " << filepath
-                 << " at line: " << line;
+    LOG(Verbose) << "Successfully added breakpoint in file " << filepath << " at line: " << line;
 }
 
 static std::string build_string(const char* cstr)
@@ -149,10 +147,7 @@ struct StackFrame {
 
 private:
     StackFrame(FileHandle _file_handle, int _line, int _column, std::string&& _function_name)
-        : file_handle(_file_handle),
-          function_name(_function_name),
-          line(_line),
-          column(_column)
+        : file_handle(_file_handle), function_name(_function_name), line(_line), column(_column)
     {
     }
 
@@ -216,20 +211,18 @@ static bool FileTreeNode(const char* label)
 }
 
 static bool Splitter(const char* name, bool split_vertically, float thickness, float* size1,
-                     float* size2, float min_size1, float min_size2,
-                     float splitter_long_axis_size)
+                     float* size2, float min_size1, float min_size2, float splitter_long_axis_size)
 {
     using namespace ImGui;
     ImGuiContext& g = *GImGui;
     ImGuiWindow* window = g.CurrentWindow;
     ImGuiID id = window->GetID(name);
     ImRect bb;
-    bb.Min = window->DC.CursorPos +
-             (split_vertically ? ImVec2(*size1, 0.0f) : ImVec2(0.0f, *size1));
-    bb.Max =
-        bb.Min + CalcItemSize(split_vertically ? ImVec2(thickness, splitter_long_axis_size)
-                                               : ImVec2(splitter_long_axis_size, thickness),
-                              0.0f, 0.0f);
+    bb.Min =
+        window->DC.CursorPos + (split_vertically ? ImVec2(*size1, 0.0f) : ImVec2(0.0f, *size1));
+    bb.Max = bb.Min + CalcItemSize(split_vertically ? ImVec2(thickness, splitter_long_axis_size)
+                                                    : ImVec2(splitter_long_axis_size, thickness),
+                                   0.0f, 0.0f);
     return SplitterBehavior(bb, id, split_vertically ? ImGuiAxis_X : ImGuiAxis_Y, size1, size2,
                             min_size1, min_size2, 0.0f);
 }
@@ -427,8 +420,7 @@ void draw(Application& app)
     //     }
     // }
 
-    static float file_browser_width =
-        window_width_f * app.ui.DEFAULT_FILEBROWSER_WIDTH_PERCENT;
+    static float file_browser_width = window_width_f * app.ui.DEFAULT_FILEBROWSER_WIDTH_PERCENT;
     static float file_viewer_width = window_width_f * app.ui.DEFAULT_FILEVIEWER_WIDTH_PERCENT;
     Splitter("##S1", true, 3.0f, &file_browser_width, &file_viewer_width, 100, 100,
              window_height_f);
@@ -505,8 +497,8 @@ void draw(Application& app)
 
     {  // start file viewer
         ImGui::BeginChild("FileViewer", ImVec2(file_viewer_width, file_viewer_height));
-        if (ImGui::BeginTabBar("##FileViewerTabs", ImGuiTabBarFlags_AutoSelectNewTabs |
-                                                       ImGuiTabBarFlags_NoTooltip)) {
+        if (ImGui::BeginTabBar("##FileViewerTabs",
+                               ImGuiTabBarFlags_AutoSelectNewTabs | ImGuiTabBarFlags_NoTooltip)) {
             Defer(ImGui::EndTabBar());
 
             if (app.open_files.size() == 0) {
@@ -525,9 +517,9 @@ void draw(Application& app)
     ImGui::Spacing();
 
     {  // start console/log
-        ImGui::BeginChild("LogConsole",
-                          ImVec2(file_viewer_width,
-                                 console_height - 2 * ImGui::GetFrameHeightWithSpacing()));
+        ImGui::BeginChild(
+            "LogConsole",
+            ImVec2(file_viewer_width, console_height - 2 * ImGui::GetFrameHeightWithSpacing()));
         if (ImGui::BeginTabBar("##ConsoleLogTabs", ImGuiTabBarFlags_None)) {
             if (ImGui::BeginTabItem("Console")) {
                 ImGui::BeginChild("ConsoleEntries");
@@ -551,7 +543,7 @@ void draw(Application& app)
                     app.ui.ran_command_last_frame || old_console_height != console_height;
 
                 auto command_input_callback = [](ImGuiTextEditCallbackData*) -> int {
-                    return 0;
+                    return 0;  // TODO: command line history
                 };
 
                 const ImGuiInputTextFlags command_input_flags =
@@ -585,9 +577,42 @@ void draw(Application& app)
             if (ImGui::BeginTabItem("Log")) {
                 ImGui::BeginChild("LogEntries");
                 lldbg::Logger::get_instance()->for_each_message(
-                    [](const lldbg::LogMessage& message) -> void {
-                        // TODO: colorize based on log level
-                        ImGui::TextUnformatted(message.message.c_str());
+                    [](const lldbg::LogMessage& entry) -> void {
+                        const char* msg = entry.message.c_str();
+                        switch (entry.level) {
+                            case LogLevel::Verbose: {
+                                ImGui::TextColored(
+                                    ImVec4(78.f / 255.f, 78.f / 255.f, 78.f / 255.f, 255.f),
+                                    "[VERBOSE]");
+                                break;
+                            }
+                            case LogLevel::Debug: {
+                                ImGui::TextColored(ImVec4(52.f / 255.f, 56.f / 255.f, 176.f / 255.f,
+                                                          255.f / 255.f),
+                                                   "[DEBUG]");
+                                break;
+                            }
+                            case LogLevel::Info: {
+                                ImGui::TextColored(ImVec4(225.f / 255.f, 225.f / 255.f,
+                                                          225.f / 255.f, 255.f / 255.f),
+                                                   "[INFO]");
+                                break;
+                            }
+                            case LogLevel::Warning: {
+                                ImGui::TextColored(ImVec4(216.f / 255.f, 129.f / 255.f,
+                                                          42.f / 255.f, 255.f / 255.f),
+                                                   "[WARNING]");
+                                break;
+                            }
+                            case LogLevel::Error: {
+                                ImGui::TextColored(ImVec4(212.f / 255.f, 67.f / 255.f, 67.f / 255.f,
+                                                          255.f / 255.f),
+                                                   "[ERROR]");
+                                break;
+                            }
+                        }
+                        ImGui::SameLine();
+                        ImGui::TextUnformatted(msg);
                     });
                 ImGui::SetScrollHere(1.0f);
                 ImGui::EndChild();
@@ -624,12 +649,10 @@ void draw(Application& app)
     const float threads_height = (window_height - 2 * ImGui::GetFrameHeightWithSpacing()) / 4;
     const float stack_height = (window_height - 2 * ImGui::GetFrameHeightWithSpacing()) / 4;
     const float locals_height = (window_height - 2 * ImGui::GetFrameHeightWithSpacing()) / 4;
-    const float breakpoint_height =
-        (window_height - 2 * ImGui::GetFrameHeightWithSpacing()) / 4;
+    const float breakpoint_height = (window_height - 2 * ImGui::GetFrameHeightWithSpacing()) / 4;
 
-    ImGui::BeginChild(
-        "#ThreadsChild",
-        ImVec2(window_width - file_browser_width - file_viewer_width, threads_height));
+    ImGui::BeginChild("#ThreadsChild", ImVec2(window_width - file_browser_width - file_viewer_width,
+                                              threads_height));
 
     // TODO: be consistent about whether or not to use Defer
     if (ImGui::BeginTabBar("#ThreadsTabs", ImGuiTabBarFlags_None)) {
@@ -682,8 +705,7 @@ void draw(Application& app)
 
                 // TODO: use ImGuiSelectableFlags_SpanAllColumns as described here:
                 // https://github.com/ocornut/imgui/issues/769
-                lldb::SBThread viewed_thread =
-                    process.GetThreadAtIndex(app.ui.viewed_thread_index);
+                lldb::SBThread viewed_thread = process.GetThreadAtIndex(app.ui.viewed_thread_index);
 
                 for (uint32_t i = 0; i < viewed_thread.GetNumFrames(); i++) {
                     auto frame = StackFrame::create(viewed_thread.GetFrameAtIndex(i));
@@ -730,8 +752,7 @@ void draw(Application& app)
                 ImGui::NextColumn();
                 ImGui::Separator();
 
-                lldb::SBThread viewed_thread =
-                    process.GetThreadAtIndex(app.ui.viewed_thread_index);
+                lldb::SBThread viewed_thread = process.GetThreadAtIndex(app.ui.viewed_thread_index);
                 lldb::SBFrame frame = viewed_thread.GetFrameAtIndex(app.ui.viewed_frame_index);
                 lldb::SBValueList locals = frame.GetVariables(true, true, true, true);
 
@@ -922,7 +943,7 @@ void draw(Application& app)
         }
         ImGui::End();
     }
-}
+}  // namespace lldbg
 
 static void tick(lldbg::Application& app)
 {
@@ -1024,8 +1045,7 @@ int initialize_rendering(UserInterface& ui)
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
 
     io.Fonts->AddFontDefault();
-    static const std::string font_path =
-        fmt::format("{}/ttf/Hack-Regular.ttf", LLDBG_ASSETS_DIR);
+    static const std::string font_path = fmt::format("{}/ttf/Hack-Regular.ttf", LLDBG_ASSETS_DIR);
     ui.font = io.Fonts->AddFontFromFileTTF(font_path.c_str(), 15.0f);
 
     // Setup Dear ImGui style
@@ -1053,8 +1073,7 @@ int initialize_rendering(UserInterface& ui)
 namespace lldbg {
 
 Application::Application()
-    : stdout_buf(StreamBuffer::StreamSource::StdOut),
-      stderr_buf(StreamBuffer::StreamSource::StdErr)
+    : stdout_buf(StreamBuffer::StreamSource::StdOut), stderr_buf(StreamBuffer::StreamSource::StdErr)
 {
     lldb::SBDebugger::Initialize();
     debugger = lldb::SBDebugger::Create();
@@ -1069,8 +1088,7 @@ Application::Application()
 
     text_editor.SetLanguageDefinition(TextEditor::LanguageDefinition::CPlusPlus());
     TextEditor::Palette pal = text_editor.GetPalette();
-    pal[(int)TextEditor::PaletteIndex::Breakpoint] =
-        ImGui::GetColorU32(ImVec4(255, 0, 0, 255));
+    pal[(int)TextEditor::PaletteIndex::Breakpoint] = ImGui::GetColorU32(ImVec4(255, 0, 0, 255));
     text_editor.SetPalette(pal);
 }
 
