@@ -9,6 +9,7 @@ public:
     void update(lldb::SBProcess process);
     inline const char* get(void) { return m_data; }
     void clear(void);
+    inline size_t size(void) { return m_offset; }
 
     StreamBuffer(StreamSource source);
     ~StreamBuffer(void);

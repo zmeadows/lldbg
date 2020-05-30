@@ -619,10 +619,16 @@ void draw(Application& app)
                 ImGui::EndTabItem();
             }
 
+            static size_t last_stdout_size = 0;
+            static size_t last_stderr_size = 0;
+
             if (ImGui::BeginTabItem("stdout")) {
                 ImGui::BeginChild("StdOUTEntries");
                 ImGui::TextUnformatted(app.stdout_buf.get());
-                // ImGui::SetScrollHere(1.0f); // TODO: handle smart auto scrolling
+                if (app.stdout_buf.size() > last_stdout_size) {
+                    ImGui::SetScrollHere(1.0f);
+                }
+                last_stdout_size = app.stdout_buf.size();
                 ImGui::EndChild();
                 ImGui::EndTabItem();
             }
@@ -630,7 +636,10 @@ void draw(Application& app)
             if (ImGui::BeginTabItem("stderr")) {
                 ImGui::BeginChild("StdERREntries");
                 ImGui::TextUnformatted(app.stderr_buf.get());
-                // ImGui::SetScrollHere(1.0f); // TODO: handle smart auto scrolling
+                if (app.stderr_buf.size() > last_stderr_size) {
+                    ImGui::SetScrollHere(1.0f);
+                }
+                last_stderr_size = app.stderr_buf.size();
                 ImGui::EndChild();
                 ImGui::EndTabItem();
             }
