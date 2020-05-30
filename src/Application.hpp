@@ -36,16 +36,21 @@ struct ExitDialog {
 struct UserInterface {
     int viewed_thread_index = -1;
     int viewed_frame_index = -1;
-    int window_width = -1;
-    int window_height = -1;
+
+    float window_width = -1.f;   // in pixels
+    float window_height = -1.f;  // in pixels
+
+    float file_browser_width;
+    float file_viewer_width;
+    float file_viewer_height;
+    float console_height;
+
     bool request_manual_tab_change = false;
     bool ran_command_last_frame = false;
+    bool window_resized_last_frame = false;
+
     ImFont* font = nullptr;
     GLFWwindow* window = nullptr;
-
-    static constexpr float DEFAULT_FILEBROWSER_WIDTH_PERCENT = 0.2;
-    static constexpr float DEFAULT_FILEVIEWER_WIDTH_PERCENT = 0.52f;
-    static constexpr float DEFAULT_STACKTRACE_WIDTH_PERCENT = 0.28f;
 };
 
 struct Application {

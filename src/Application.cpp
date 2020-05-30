@@ -339,43 +339,26 @@ namespace lldbg {
 void draw(Application& app)
 {
     lldb::SBProcess process = get_process(app);
-    const bool stopped = process.GetState() != lldb::eStateRunning;
+
     // TODO: count a few milliseconds after resuming before displaying thread/stack/etc information
     // to avoid reading in invalid/suspended LLDB state
+    const bool stopped = process.GetState() != lldb::eStateRunning;
 
-    // ImGuiIO& io = ImGui::GetIO();
-    // io.FontGlobalScale = 1.1;
+    UserInterface& ui = app.ui;
 
-    // TODO: this window height/width tracking is unnecessarily complicated
-    // TODO: detect if window has been made very small, and just display a warning message
-    // instead of trying to draw the layout
-    static int window_width = app.ui.window_width;
-    static int window_height = app.ui.window_height;
-
-    bool window_resized = false;
-    const int old_width = window_width;
-    const int old_height = window_height;
-    const int new_width = app.ui.window_width;
-    const int new_height = app.ui.window_height;
-
-    if (new_width != old_width || new_height != old_height) {
-        window_width = new_width;
-        window_height = new_height;
-        window_resized = true;
-    }
-
-    DEBUG_STREAM(window_width);
-    DEBUG_STREAM(window_height);
+    DEBUG_STREAM(ui.window_width);
+    DEBUG_STREAM(ui.window_height);
+    DEBUG_STREAM(ui.file_browser_width);
+    DEBUG_STREAM(ui.file_viewer_width);
+    DEBUG_STREAM(ui.file_viewer_height);
+    DEBUG_STREAM(ui.console_height);
 
     const char* process_state = lldb::SBDebugger::StateAsCString(process.GetState());
     assert(process_state);
     DEBUG_STREAM(process_state);
 
-    const auto window_width_f = static_cast<float>(window_width);
-    const auto window_height_f = static_cast<float>(window_height);
-
     ImGui::SetNextWindowPos(ImVec2(0.f, 0.f), ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(window_width_f, window_height_f), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(ui.window_width, ui.window_height), ImGuiCond_Always);
 
     ImGui::Begin("lldbg", 0,
                  ImGuiWindowFlags_NoBringToFrontOnFocus |  // ImGuiWindowFlags_MenuBar |
@@ -384,47 +367,10 @@ void draw(Application& app)
                      ImGuiWindowFlags_NoTitleBar);
     ImGui::PushFont(app.ui.font);
 
-    // if (ImGui::BeginMenuBar()) {
-    //     Defer(ImGui::EndMenuBar());
+    Splitter("##S1", true, 3.0f, &ui.file_browser_width, &ui.file_viewer_width,
+             0.1 * ui.window_width, 0.1 * ui.window_width, ui.window_height);
 
-    //     if (ImGui::BeginMenu("File")) {
-    //         Defer(ImGui::EndMenu());
-    //         if (ImGui::MenuItem("Open..", "Ctrl+O")) { /* Do stuff */
-    //         }
-    //         if (ImGui::MenuItem("Save", "Ctrl+S")) { /* Do stuff */
-    //         }
-    //         if (ImGui::MenuItem("Close", "Ctrl+W")) { /* Do stuff */
-    //         }
-    //     }
-
-    //     if (ImGui::BeginMenu("View")) {
-    //         Defer(ImGui::EndMenu());
-    //         if (ImGui::MenuItem("Layout", NULL)) { /* Do stuff */
-    //         }
-    //         if (ImGui::MenuItem("Zoom In", "+")) { /* Do stuff */
-    //         }
-    //         if (ImGui::MenuItem("Zoom Out", "-")) { /* Do stuff */
-    //         }
-    //     }
-
-    //     if (ImGui::BeginMenu("Help")) {
-    //         Defer(ImGui::EndMenu());
-    //         if (ImGui::MenuItem("About", "F12")) { /* Do stuff */
-    //         }
-    //     }
-    // }
-
-    static float file_browser_width = window_width_f * app.ui.DEFAULT_FILEBROWSER_WIDTH_PERCENT;
-    static float file_viewer_width = window_width_f * app.ui.DEFAULT_FILEVIEWER_WIDTH_PERCENT;
-    Splitter("##S1", true, 3.0f, &file_browser_width, &file_viewer_width, 100, 100,
-             window_height_f);
-
-    if (window_resized) {
-        file_browser_width = file_browser_width * (float)new_width / (float)old_width;
-        file_viewer_width = file_viewer_width * (float)new_width / (float)old_width;
-    }
-
-    ImGui::BeginChild("FileBrowserPane", ImVec2(file_browser_width, 0));
+    ImGui::BeginChild("FileBrowserPane", ImVec2(ui.file_browser_width, 0));
 
     if (has_target(app)) {
         // TODO: show rightmost chunk of path in case it is too long to fit on screen
@@ -473,24 +419,11 @@ void draw(Application& app)
 
     ImGui::BeginGroup();
 
-    static float file_viewer_height = 0.6f * window_height_f;
-    static float console_height = 0.4f * window_height_f;
-
-    DEBUG_STREAM(console_height);
-    DEBUG_STREAM(file_viewer_height);
-
-    const float old_console_height = console_height;
-
-    Splitter("##S2", false, 3.0f, &file_viewer_height, &console_height, 100, 100,
-             file_viewer_width);
-
-    if (window_resized) {
-        file_viewer_height = file_viewer_height * (float)new_height / (float)old_height;
-        console_height = console_height * (float)new_height / (float)old_height;
-    }
+    Splitter("##S2", false, 3.0f, &ui.file_viewer_height, &ui.console_height,
+             0.1 * ui.window_height, 0.1 * ui.window_height, ui.file_viewer_width);
 
     {  // start file viewer
-        ImGui::BeginChild("FileViewer", ImVec2(file_viewer_width, file_viewer_height));
+        ImGui::BeginChild("FileViewer", ImVec2(ui.file_viewer_width, ui.file_viewer_height));
         if (ImGui::BeginTabBar("##FileViewerTabs",
                                ImGuiTabBarFlags_AutoSelectNewTabs | ImGuiTabBarFlags_NoTooltip)) {
             Defer(ImGui::EndTabBar());
@@ -511,9 +444,9 @@ void draw(Application& app)
     ImGui::Spacing();
 
     {  // start console/log
-        ImGui::BeginChild(
-            "LogConsole",
-            ImVec2(file_viewer_width, console_height - 2 * ImGui::GetFrameHeightWithSpacing()));
+        ImGui::BeginChild("LogConsole",
+                          ImVec2(ui.file_viewer_width,
+                                 ui.console_height - 2 * ImGui::GetFrameHeightWithSpacing()));
         if (ImGui::BeginTabBar("##ConsoleLogTabs", ImGuiTabBarFlags_None)) {
             if (ImGui::BeginTabItem("console")) {
                 ImGui::BeginChild("ConsoleEntries");
@@ -532,7 +465,7 @@ void draw(Application& app)
 
                 // always scroll to the bottom of the command history after running a command
                 const bool should_auto_scroll_command_window =
-                    app.ui.ran_command_last_frame || old_console_height != console_height;
+                    app.ui.ran_command_last_frame || ui.window_resized_last_frame;
 
                 auto command_input_callback = [](ImGuiTextEditCallbackData*) -> int {
                     return 0;  // TODO: command line history
@@ -654,13 +587,14 @@ void draw(Application& app)
 
     ImGui::BeginGroup();
 
-    const float threads_height = (window_height - 2 * ImGui::GetFrameHeightWithSpacing()) / 4;
-    const float stack_height = (window_height - 2 * ImGui::GetFrameHeightWithSpacing()) / 4;
-    const float locals_height = (window_height - 2 * ImGui::GetFrameHeightWithSpacing()) / 4;
-    const float breakpoint_height = (window_height - 2 * ImGui::GetFrameHeightWithSpacing()) / 4;
+    const float threads_height = (ui.window_height - 2 * ImGui::GetFrameHeightWithSpacing()) / 4;
+    const float stack_height = (ui.window_height - 2 * ImGui::GetFrameHeightWithSpacing()) / 4;
+    const float locals_height = (ui.window_height - 2 * ImGui::GetFrameHeightWithSpacing()) / 4;
+    const float breakpoint_height = (ui.window_height - 2 * ImGui::GetFrameHeightWithSpacing()) / 4;
 
-    ImGui::BeginChild("#ThreadsChild", ImVec2(window_width - file_browser_width - file_viewer_width,
-                                              threads_height));
+    ImGui::BeginChild(
+        "#ThreadsChild",
+        ImVec2(ui.window_width - ui.file_browser_width - ui.file_viewer_width, threads_height));
 
     // TODO: be consistent about whether or not to use Defer
     if (ImGui::BeginTabBar("#ThreadsTabs", ImGuiTabBarFlags_None)) {
@@ -771,6 +705,8 @@ void draw(Application& app)
 
                 for (uint32_t i = 0; i < locals.GetSize(); i++) {
                     lldb::SBValue local = locals.GetValueAtIndex(i);
+
+                    if (local.IsRuntimeSupportValue()) continue;
 
                     const char* local_type = local.GetDisplayTypeName();
                     const char* local_name = local.GetName();
@@ -941,6 +877,7 @@ void draw(Application& app)
         if (ImGui::BeginTabItem("watchpoints")) {
             Defer(ImGui::EndTabItem());
 
+            // TODO: add actual watch points
             for (int i = 0; i < 4; i++) {
                 StringBuffer label;
                 label.format("Watch {}", i);
@@ -957,7 +894,7 @@ void draw(Application& app)
     ImGui::End();
 
     {
-        ImGui::SetNextWindowPos(ImVec2(window_width / 2.f, window_height / 2.f),
+        ImGui::SetNextWindowPos(ImVec2(ui.window_width / 2.f, ui.window_height / 2.f),
                                 ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowSize(ImVec2(200, 200), ImGuiCond_FirstUseEver);
         if (ImGui::Begin("Debug Stream", 0)) {
@@ -997,6 +934,27 @@ static void tick(lldbg::Application& app)
     }
 }
 
+static void update_window_dimensions(UserInterface& ui)
+{
+    int new_width = -1;
+    int new_height = -1;
+
+    glfwGetFramebufferSize(ui.window, &new_width, &new_height);
+    assert(new_width > 0 && new_height > 0);
+
+    ui.window_resized_last_frame = new_width != ui.window_width || new_height != ui.window_height;
+
+    if (ui.window_resized_last_frame) {
+        ui.file_browser_width *= new_width / ui.window_width;
+        ui.file_viewer_width *= new_width / ui.window_width;
+        ui.file_viewer_height *= new_height / ui.window_height;
+        ui.console_height *= new_height / ui.window_height;
+
+        ui.window_width = new_width;
+        ui.window_height = new_height;
+    }
+}
+
 void Application::main_loop()
 {
     static size_t frame_number = 0;
@@ -1004,7 +962,6 @@ void Application::main_loop()
     while (!glfwWindowShouldClose(ui.window)) {
         glfwPollEvents();
 
-        // Start the Dear ImGui frame
         ImGui_ImplOpenGL2_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
@@ -1012,7 +969,6 @@ void Application::main_loop()
         tick(*this);
 
         ImGui::Render();
-        glfwGetFramebufferSize(ui.window, &ui.window_width, &ui.window_height);
         glViewport(0, 0, ui.window_width, ui.window_height);
         static const ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
         glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
@@ -1023,11 +979,12 @@ void Application::main_loop()
 
         // TODO: develop bettery strategy for when to read stdout,
         // possible upon receiving certian types of LLDBEvent?
-        // TODO: define some sort of ProcessContext to keep the stdout per process/target
         if ((frame_number % 10 == 0) && has_target(*this)) {
             stdout_buf.update(get_process(*this));
             stderr_buf.update(get_process(*this));
         }
+
+        update_window_dimensions(ui);
 
         frame_number++;
     }
@@ -1050,6 +1007,13 @@ int initialize_rendering(UserInterface& ui)
         glfwTerminate();
         return -1;
     }
+
+    ui.window_width = 1920.f;
+    ui.window_height = 1080.f;
+    ui.file_browser_width = ui.window_width * 0.2f;
+    ui.file_viewer_width = ui.window_width * 0.52f;
+    ui.file_viewer_height = ui.window_height * 0.6f;
+    ui.console_height = ui.window_height * 0.4f;
 
     glfwMakeContextCurrent(ui.window);
     glfwSwapInterval(1);  // Enable vsync
