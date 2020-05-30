@@ -88,6 +88,10 @@ static void add_breakpoint_to_viewed_file(Application& app, int line)
     lldb::SBBreakpoint new_breakpoint =
         target.BreakpointCreateByLocation(filepath.c_str(), line);
 
+    // TODO: re-check for duplicate breakpoints here, as lldb will move the breakpoint to a
+    // different line than you have specificied, for example if the line specified is only an
+    // open/close bracket
+
     if (new_breakpoint.IsValid() && new_breakpoint.GetNumLocations() > 0) {
         app.breakpoints.synchronize(app.debugger.GetSelectedTarget());
         app.text_editor.SetBreakpoints(app.breakpoints.Get(focus));
@@ -716,7 +720,7 @@ void draw(Application& app)
                 for (uint32_t i = 0; i < locals.GetSize(); i++) {
                     lldb::SBValue local = locals.GetValueAtIndex(i);
 
-                    const char* local_type = local.GetTypeName();
+                    const char* local_type = local.GetDisplayTypeName();
                     const char* local_name = local.GetName();
                     const char* local_value = local.GetValue();
 
@@ -724,24 +728,51 @@ void draw(Application& app)
                         continue;
                     }
 
-                    ImGui::TextUnformatted(local_name);
-                    ImGui::NextColumn();
-
-                    ImGui::TextUnformatted(local_type);
-                    ImGui::NextColumn();
-
+                    // TODO: break this out into a recursive function to load children of
+                    // children and so on
+                    // TODO: double click on any entry to open a more detailed view in a pop
+                    // out window
                     if (local.MightHaveChildren()) {
                         StringBuffer children_node_label;
-                        children_node_label.format("...##{}_Children", local_name);
+                        children_node_label.format("{}##Children", local_name);
+
                         if (ImGui::TreeNode(children_node_label.data())) {
-                            ImGui::TextUnformatted("0\n1\n2\n\0");
+                            ImGui::NextColumn();
+                            ImGui::TextUnformatted(local_type);
+                            ImGui::NextColumn();
+                            ImGui::TextUnformatted("...");
+                            ImGui::NextColumn();
+                            for (uint32_t i = 0; i < local.GetNumChildren(100); i++) {
+                                lldb::SBValue child = local.GetChildAtIndex(i);
+                                const char* child_type = child.GetTypeName();
+                                const char* child_name = child.GetName();
+                                const char* child_value = child.GetValue();
+
+                                ImGui::TextUnformatted(child_name);
+                                ImGui::NextColumn();
+                                ImGui::TextUnformatted(child_type);
+                                ImGui::NextColumn();
+                                ImGui::TextUnformatted(child_value);
+                                ImGui::NextColumn();
+                            }
                             ImGui::TreePop();
+                        }
+                        else {
+                            ImGui::NextColumn();
+                            ImGui::TextUnformatted(local_type);
+                            ImGui::NextColumn();
+                            ImGui::TextUnformatted("...");
+                            ImGui::NextColumn();
                         }
                     }
                     else {
+                        ImGui::TextUnformatted(local_name);
+                        ImGui::NextColumn();
+                        ImGui::TextUnformatted(local_type);
+                        ImGui::NextColumn();
                         ImGui::TextUnformatted(local_value);
+                        ImGui::NextColumn();
                     }
-                    ImGui::NextColumn();
                 }
 
                 ImGui::Columns(1);
