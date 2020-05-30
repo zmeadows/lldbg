@@ -339,7 +339,9 @@ namespace lldbg {
 void draw(Application& app)
 {
     lldb::SBProcess process = get_process(app);
-    const bool stopped = process.GetState() == lldb::eStateStopped;
+    const bool stopped = process.GetState() != lldb::eStateRunning;
+    // TODO: count a few milliseconds after resuming before displaying thread/stack/etc information
+    // to avoid reading in invalid/suspended LLDB state
 
     // ImGuiIO& io = ImGui::GetIO();
     // io.FontGlobalScale = 1.1;
@@ -515,8 +517,6 @@ void draw(Application& app)
         if (ImGui::BeginTabBar("##ConsoleLogTabs", ImGuiTabBarFlags_None)) {
             if (ImGui::BeginTabItem("console")) {
                 ImGui::BeginChild("ConsoleEntries");
-
-                // TODO: keep console input focused until user moves mouse
 
                 for (const lldbg::CommandLineEntry& entry : app.command_line.get_history()) {
                     ImGui::TextColored(ImVec4(255, 0, 0, 255), "> %s", entry.input.c_str());
@@ -748,7 +748,7 @@ void draw(Application& app)
     }
     ImGui::EndChild();
 
-    static bool use_hex_locals = true;
+    // static bool use_hex_locals = true;
     ImGui::BeginChild("#LocalsChild", ImVec2(0, locals_height));
     if (ImGui::BeginTabBar("##LocalsTabs", ImGuiTabBarFlags_None)) {
         if (ImGui::BeginTabItem("locals")) {
@@ -766,6 +766,8 @@ void draw(Application& app)
                 lldb::SBThread viewed_thread = process.GetThreadAtIndex(app.ui.viewed_thread_index);
                 lldb::SBFrame frame = viewed_thread.GetFrameAtIndex(app.ui.viewed_frame_index);
                 lldb::SBValueList locals = frame.GetVariables(true, true, true, true);
+
+                // TODO: select entire row like in stack trace
 
                 for (uint32_t i = 0; i < locals.GetSize(); i++) {
                     lldb::SBValue local = locals.GetValueAtIndex(i);
@@ -831,39 +833,49 @@ void draw(Application& app)
         }
 
         if (ImGui::BeginTabItem("registers")) {
-            // FIXME: why does this stall the program?
-            // if (stopped && app.ui.viewed_frame_index >= 0) {
-            //     lldb::SBThread viewed_thread =
-            //     process.GetThreadAtIndex(app.ui.viewed_thread_index);
-            //     lldb::SBFrame frame =
-            //     viewed_thread.GetFrameAtIndex(app.ui.viewed_frame_index);
-            //     lldb::SBValueList register_collections = frame.GetRegisters();
+            if (stopped && app.ui.viewed_thread_index >= 0) {
+                lldb::SBThread viewed_thread = process.GetThreadAtIndex(app.ui.viewed_thread_index);
+                lldb::SBFrame frame = viewed_thread.GetFrameAtIndex(app.ui.viewed_frame_index);
+                if (viewed_thread.IsValid() && frame.IsValid()) {
+                    lldb::SBValueList register_collections = frame.GetRegisters();
 
-            //     for (uint32_t i = 0; i < register_collections.GetSize(); i++) {
-            //         lldb::SBValue register_set = register_collections.GetValueAtIndex(i);
-            //         //const std::string label = std::string(register_set.GetName()) +
-            //         std::to_string(i); const std::string label = "Configuration##" +
-            //         std::to_string(i);
+                    for (uint32_t i = 0; i < register_collections.GetSize(); i++) {
+                        lldb::SBValue regcol = register_collections.GetValueAtIndex(i);
 
-            //         if (FileTreeNode(label.c_str())) {
+                        const char* collection_name = regcol.GetName();
 
-            //             for (uint32_t i = 0; register_set.GetNumChildren(); i++) {
-            //                 lldb::SBValue child = register_set.GetChildAtIndex(i);
-            //                 if (child.GetName()) {
-            //                     ImGui::TextUnformatted(child.GetName());
-            //                 }
-            //             }
+                        if (!collection_name) {
+                            LOG(Warning) << "Skipping over invalid/un-named register collection";
+                            continue;
+                        }
 
-            //             ImGui::TreePop();
-            //         }
-            //     }
-            // }
+                        StringBuffer reg_coll_name;
+                        reg_coll_name.format("{}##RegisterCollection", collection_name);
+                        if (ImGui::TreeNode(reg_coll_name.data())) {
+                            for (uint32_t i = 0; i < regcol.GetNumChildren(); i++) {
+                                lldb::SBValue reg = regcol.GetChildAtIndex(i);
+                                const char* reg_name = reg.GetName();
+                                const char* reg_value = reg.GetValue();
+
+                                if (!reg_name || !reg_value) {
+                                    LOG(Warning) << "skipping invalid register";
+                                    continue;
+                                }
+
+                                ImGui::Text("%s = %s", reg_name, reg_value);
+                            }
+
+                            ImGui::TreePop();
+                        }
+                    }
+                }
+            }
             ImGui::EndTabItem();
         }
 
         ImGui::EndTabBar();
-        ImGui::SameLine(ImGui::GetWindowWidth() - 150);
-        ImGui::Checkbox("use hexadecimal", &use_hex_locals);
+        // ImGui::SameLine(ImGui::GetWindowWidth() - 150);
+        // ImGui::Checkbox("use hexadecimal", &use_hex_locals);
     }
     ImGui::EndChild();
 
@@ -907,6 +919,7 @@ void draw(Application& app)
 
                     const std::string filename =
                         build_string(line_entry.GetFileSpec().GetFilename());
+                    // TODO: select entire row
                     if (ImGui::Selectable(filename.c_str(), (int)i == selected_row)) {
                         // TODO: factor out function to combine directory and filename
                         const std::string directory =
