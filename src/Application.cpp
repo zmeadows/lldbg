@@ -547,6 +547,7 @@ void draw(Application& app)
                     ImGui::SetKeyboardFocusHere(0);
                 }
 
+                // TODO: resize input_buf when necessary?
                 static char input_buf[2048];
                 if (ImGui::InputText("lldb console", input_buf, 2048, command_input_flags,
                                      command_input_callback)) {
@@ -665,6 +666,10 @@ void draw(Application& app)
     if (ImGui::BeginTabBar("#ThreadsTabs", ImGuiTabBarFlags_None)) {
         if (ImGui::BeginTabItem("Threads")) {
             if (stopped) {  // TODO: better handle this 'stopped' condition
+                if (process.GetNumThreads() > 0 && app.ui.viewed_thread_index < 0) {
+                    app.ui.viewed_thread_index = 0;
+                }
+
                 for (uint32_t i = 0; i < process.GetNumThreads(); i++) {
                     lldb::SBThread th = process.GetThreadAtIndex(i);
 
@@ -681,10 +686,6 @@ void draw(Application& app)
                                           (int)i == app.ui.viewed_thread_index)) {
                         app.ui.viewed_thread_index = i;
                     }
-                }
-
-                if (process.GetNumThreads() > 0 && app.ui.viewed_thread_index < 0) {
-                    app.ui.viewed_thread_index = 0;
                 }
             }
             ImGui::EndTabItem();
@@ -711,6 +712,10 @@ void draw(Application& app)
                 ImGui::Separator();
 
                 lldb::SBThread viewed_thread = process.GetThreadAtIndex(app.ui.viewed_thread_index);
+
+                if (viewed_thread.GetNumFrames() > 0 && selected_row < 0) {
+                    selected_row = 0;
+                }
 
                 for (uint32_t i = 0; i < viewed_thread.GetNumFrames(); i++) {
                     auto frame = StackFrame::create(viewed_thread.GetFrameAtIndex(i));
