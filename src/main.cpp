@@ -16,9 +16,15 @@ const std::string target_path = fmt::format("{}/test", LLDBG_TESTS_DIR);
 
 using namespace lldbg;
 
-int main(int, char* argv[])
+int main(int argc, char** argv)
 {
     (void)argv;
+
+    // TODO: read in cmd line arguments, find location of '--' if exists, and split between
+    // lldb/lldbg arguments and debugee program arguments
+    for (int i = 0; i < argc; i++) {
+        std::cout << argv[i] << std::endl;
+    }
 
     Application app;
     app.argv = argv;

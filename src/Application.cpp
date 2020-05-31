@@ -345,7 +345,6 @@ void draw(Application& app)
     const bool stopped = process.GetState() != lldb::eStateRunning;
 
     UserInterface& ui = app.ui;
-
     DEBUG_STREAM(ui.window_width);
     DEBUG_STREAM(ui.window_height);
     DEBUG_STREAM(ui.file_browser_width);
@@ -368,7 +367,7 @@ void draw(Application& app)
     ImGui::PushFont(app.ui.font);
 
     Splitter("##S1", true, 3.0f, &ui.file_browser_width, &ui.file_viewer_width,
-             0.1 * ui.window_width, 0.1 * ui.window_width, ui.window_height);
+             0.05 * ui.window_width, 0.05 * ui.window_width, ui.window_height);
 
     ImGui::BeginChild("FileBrowserPane", ImVec2(ui.file_browser_width, 0));
 
@@ -822,6 +821,7 @@ void draw(Application& app)
         if (ImGui::BeginTabItem("breakpoints")) {
             Defer(ImGui::EndTabItem());
 
+            // TODO: show hit count and column number as well
             if (stopped && app.ui.viewed_thread_index >= 0) {
                 static int selected_row = -1;
 
@@ -908,21 +908,29 @@ void draw(Application& app)
     }
 }  // namespace lldbg
 
+static void handle_lldb_event(Application& app, lldb::SBEvent event)
+{
+    const lldb::StateType new_state = lldb::SBProcess::GetStateFromEvent(event);
+    const char* state_descr = lldb::SBDebugger::StateAsCString(new_state);
+    LOG(Debug) << "Found event with new state: " << state_descr;
+
+    if (new_state == lldb::eStateCrashed || new_state == lldb::eStateDetached ||
+        new_state == lldb::eStateExited) {
+        app.event_listener.stop(app.debugger);
+    }
+}
+
 static void tick(lldbg::Application& app)
 {
     // process all queued LLDB events before drawing each frame
     while (true) {
         lldb::SBEvent event;
         const bool found_event = app.event_listener.pop_event(event);
-        if (!found_event) break;
-
-        const lldb::StateType new_state = lldb::SBProcess::GetStateFromEvent(event);
-        const char* state_descr = lldb::SBDebugger::StateAsCString(new_state);
-        LOG(Debug) << "Found event with new state: " << state_descr;
-
-        if (new_state == lldb::eStateCrashed || new_state == lldb::eStateDetached ||
-            new_state == lldb::eStateExited) {
-            app.event_listener.stop(app.debugger);
+        if (found_event) {
+            handle_lldb_event(app, event);
+        }
+        else {
+            break;
         }
     }
 
@@ -942,9 +950,11 @@ static void update_window_dimensions(UserInterface& ui)
     glfwGetFramebufferSize(ui.window, &new_width, &new_height);
     assert(new_width > 0 && new_height > 0);
 
+    // TODO: use fabs with delta to compare. delta == 1.f?
     ui.window_resized_last_frame = new_width != ui.window_width || new_height != ui.window_height;
 
     if (ui.window_resized_last_frame) {
+        // re-scale the size of the invididual panels to account for window resize
         ui.file_browser_width *= new_width / ui.window_width;
         ui.file_viewer_width *= new_width / ui.window_width;
         ui.file_viewer_height *= new_height / ui.window_height;

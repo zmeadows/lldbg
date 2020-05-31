@@ -24,15 +24,24 @@
 
 namespace lldbg {
 
-struct ExitDialog {
-    std::string process_name;
-    int exit_code;
+struct DebugSession {
+    lldb::SBTarget target;
+    lldb::SBProcess process;
+    LLDBEventListenerThread listener;
+    StreamBuffer stdout_buf;
+    StreamBuffer stderr_buf;
+    const int argc;
+    const char** argv;
+
+    DebugSession() = delete;
+
+    // static std::optional<DebugSession> create(const std::string& exe_path, bool stop_at_entry);
 };
 
-// TODO: move some of the static variables from draw(Application) to this struct
 // TODO: create sane Constructor and initialize UserInterface and Application *before* adding
 // targets in main
 // TODO: use std::optional<int> instead of -1
+// TODO: add size_t to keep track of frames_rendered
 struct UserInterface {
     int viewed_thread_index = -1;
     int viewed_frame_index = -1;
@@ -40,10 +49,10 @@ struct UserInterface {
     float window_width = -1.f;   // in pixels
     float window_height = -1.f;  // in pixels
 
-    float file_browser_width;
-    float file_viewer_width;
-    float file_viewer_height;
-    float console_height;
+    float file_browser_width = -1.f;
+    float file_viewer_width = -1.f;
+    float file_viewer_height = -1.f;
+    float console_height = -1.f;
 
     bool request_manual_tab_change = false;
     bool ran_command_last_frame = false;
@@ -54,6 +63,7 @@ struct UserInterface {
 };
 
 struct Application {
+    std::optional<DebugSession> session;
     lldb::SBDebugger debugger;
     LLDBEventListenerThread event_listener;
     LLDBCommandLine command_line;
@@ -62,7 +72,6 @@ struct Application {
     std::unique_ptr<lldbg::FileBrowserNode> file_browser;
     UserInterface ui;
     TextEditor text_editor;
-    std::optional<ExitDialog> exit_dialog;
     StreamBuffer stdout_buf;
     StreamBuffer stderr_buf;
     char** argv;
