@@ -59,8 +59,8 @@ class LLDBEventListenerThread {
     void poll_events();
 
 public:
-    void start(lldb::SBDebugger&);
-    void stop(lldb::SBDebugger&);
+    void start(lldb::SBProcess);
+    void stop(lldb::SBProcess);
     bool pop_event(lldb::SBEvent& event) { return m_events.pop(event); }
 
     LLDBEventListenerThread() : m_continue(false) {}

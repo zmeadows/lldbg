@@ -9,17 +9,13 @@
 
 namespace lldbg {
 
-void LLDBEventListenerThread::start(lldb::SBDebugger& debugger)
+void LLDBEventListenerThread::start(lldb::SBProcess process)
 {
+    // TODO: log process ID and compare when 'stop' is called
+    // TODO: check Process state
     if (m_thread) {
         LOG(Warning) << "Attempted to double-start the LLDBEventListenerThread";
-        this->stop(debugger);
-    }
-
-    if (debugger.GetNumTargets() == 0) {
-        LOG(Warning)
-            << "Attempted to start the LLDBEventListenerThread with no targets specified";
-        return;
+        this->stop(process);
     }
 
     m_listener.Clear();
@@ -29,20 +25,19 @@ void LLDBEventListenerThread::start(lldb::SBDebugger& debugger)
                                   lldb::SBProcess::eBroadcastBitSTDOUT |
                                   lldb::SBProcess::eBroadcastBitSTDERR;
 
-    debugger.GetSelectedTarget().GetProcess().GetBroadcaster().AddListener(m_listener,
-                                                                           listen_flags);
+    process.GetBroadcaster().AddListener(m_listener, listen_flags);
 
     m_continue.store(true);
 
-    if (!m_thread) {
-        m_thread.reset(new std::thread(&LLDBEventListenerThread::poll_events, this));
-    }
+    assert(!m_thread);
+    m_thread.reset(new std::thread(&LLDBEventListenerThread::poll_events, this));
 
     LOG(Debug) << "Successfully launched LLDBEventListenerThread.";
 }
 
-void LLDBEventListenerThread::stop(lldb::SBDebugger& debugger)
+void LLDBEventListenerThread::stop(lldb::SBProcess process)
 {
+    // TODO: check Process state
     if (!m_thread) {
         LOG(Warning) << "Attempted to double-stop the LLDBEventListenerThread";
         return;
@@ -52,7 +47,7 @@ void LLDBEventListenerThread::stop(lldb::SBDebugger& debugger)
     m_thread->join();
     m_thread.reset(nullptr);
 
-    debugger.GetSelectedTarget().GetProcess().GetBroadcaster().RemoveListener(m_listener);
+    process.GetBroadcaster().RemoveListener(m_listener);
 
     m_listener.Clear();
     m_events.clear();

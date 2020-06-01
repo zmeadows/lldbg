@@ -27,17 +27,17 @@ int main(int argc, char** argv)
     }
 
     Application app;
-    app.argv = argv;
+    app.session = DebugSession::create(app.debugger, target_path, argc, argv, true);
 
-    TargetAddResult add_result = add_target(app, target_path);
-    if (add_result != TargetAddResult::Success) {
-        return EXIT_FAILURE;
-    }
+    // TargetAddResult add_result = add_target(app, target_path);
+    // if (add_result != TargetAddResult::Success) {
+    //     return EXIT_FAILURE;
+    // }
 
-    TargetStartResult start_result = start_target(app);
-    if (start_result != TargetStartResult::Success) {
-        return EXIT_FAILURE;
-    }
+    // TargetStartResult start_result = start_target(app);
+    // if (start_result != TargetStartResult::Success) {
+    //     return EXIT_FAILURE;
+    // }
 
     set_workdir(app, LLDBG_TESTS_DIR);
 

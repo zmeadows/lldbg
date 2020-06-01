@@ -397,11 +397,6 @@ void draw(Application& app)
             get_process(app).Continue();
         }
     }
-    else {
-        if (ImGui::Button("start")) {
-            start_target(app);
-        }
-    }
 
     ImGui::SameLine();
 
@@ -555,22 +550,22 @@ void draw(Application& app)
 
             if (ImGui::BeginTabItem("stdout")) {
                 ImGui::BeginChild("StdOUTEntries");
-                ImGui::TextUnformatted(app.stdout_buf.get());
-                if (app.stdout_buf.size() > last_stdout_size) {
+                ImGui::TextUnformatted(app.session->stdout_buf.get());
+                if (app.session->stdout_buf.size() > last_stdout_size) {
                     ImGui::SetScrollHere(1.0f);
                 }
-                last_stdout_size = app.stdout_buf.size();
+                last_stdout_size = app.session->stdout_buf.size();
                 ImGui::EndChild();
                 ImGui::EndTabItem();
             }
 
             if (ImGui::BeginTabItem("stderr")) {
                 ImGui::BeginChild("StdERREntries");
-                ImGui::TextUnformatted(app.stderr_buf.get());
-                if (app.stderr_buf.size() > last_stderr_size) {
+                ImGui::TextUnformatted(app.session->stderr_buf.get());
+                if (app.session->stderr_buf.size() > last_stderr_size) {
                     ImGui::SetScrollHere(1.0f);
                 }
-                last_stderr_size = app.stderr_buf.size();
+                last_stderr_size = app.session->stderr_buf.size();
                 ImGui::EndChild();
                 ImGui::EndTabItem();
             }
@@ -914,18 +909,23 @@ static void handle_lldb_event(Application& app, lldb::SBEvent event)
     const char* state_descr = lldb::SBDebugger::StateAsCString(new_state);
     LOG(Debug) << "Found event with new state: " << state_descr;
 
+    if (!app.session) {
+        LOG(Error) << "Attempted to handle lldb event while no session is active";
+        return;
+    }
+
     if (new_state == lldb::eStateCrashed || new_state == lldb::eStateDetached ||
         new_state == lldb::eStateExited) {
-        app.event_listener.stop(app.debugger);
+        app.session->listener.stop(get_process(app));
     }
 }
 
 static void tick(lldbg::Application& app)
 {
     // process all queued LLDB events before drawing each frame
-    while (true) {
+    while (app.session) {
         lldb::SBEvent event;
-        const bool found_event = app.event_listener.pop_event(event);
+        const bool found_event = app.session->listener.pop_event(event);
         if (found_event) {
             handle_lldb_event(app, event);
         }
@@ -989,9 +989,9 @@ void Application::main_loop()
 
         // TODO: develop bettery strategy for when to read stdout,
         // possible upon receiving certian types of LLDBEvent?
-        if ((frame_number % 10 == 0) && has_target(*this)) {
-            stdout_buf.update(get_process(*this));
-            stderr_buf.update(get_process(*this));
+        if (this->session && (frame_number % 10 == 0) && has_target(*this)) {
+            this->session->stdout_buf.update(get_process(*this));
+            this->session->stderr_buf.update(get_process(*this));
         }
 
         update_window_dimensions(ui);
@@ -1069,7 +1069,6 @@ int initialize_rendering(UserInterface& ui)
 namespace lldbg {
 
 Application::Application()
-    : stdout_buf(StreamBuffer::StreamSource::StdOut), stderr_buf(StreamBuffer::StreamSource::StdErr)
 {
     lldb::SBDebugger::Initialize();
     debugger = lldb::SBDebugger::Create();
@@ -1090,7 +1089,9 @@ Application::Application()
 
 Application::~Application()
 {
-    event_listener.stop(debugger);
+    if (this->session) {
+        this->session->listener.stop(get_process(*this));
+    }
     lldb::SBDebugger::Terminate();
 
     ImGui_ImplOpenGL2_Shutdown();
@@ -1112,62 +1113,48 @@ void set_workdir(Application& app, const std::string& workdir)
     }
 }
 
-TargetAddResult add_target(Application& app, const std::string& exe_path)
+std::unique_ptr<DebugSession> DebugSession::create(lldb::SBDebugger debugger,
+                                                   const std::string& exe_path, int argc,
+                                                   char** argv, bool stop_at_entry)
 {
-    if (has_target(app)) {
-        LOG(Error) << "Attempted add multiple targets, which is not (yet) supported by lldbg.";
-        return TargetAddResult::TooManyTargetsError;
-    }
-
     const fs::path full_exe_path = fs::canonical(exe_path);
 
     if (!fs::exists(full_exe_path)) {
         LOG(Error) << "Requested executable does not exist: {}" << full_exe_path;
-        return TargetAddResult::ExeDoesNotExistError;
+        return {};
     }
 
     lldb::SBError lldb_error;
-    lldb::SBTarget new_target =
-        app.debugger.CreateTarget(full_exe_path.c_str(), nullptr, nullptr, true, lldb_error);
+    lldb::SBTarget target =
+        debugger.CreateTarget(full_exe_path.c_str(), nullptr, nullptr, true, lldb_error);
 
     if (!lldb_error.Success()) {
         const char* lldb_error_cstr = lldb_error.GetCString();
         LOG(Error) << (lldb_error_cstr ? lldb_error_cstr : "Unknown target creation error.");
-        return TargetAddResult::TargetCreateError;
+        return {};
     }
+    lldb_error.Clear();
 
     LOG(Debug) << "Succesfully added target for executable: " << full_exe_path;
 
-    return TargetAddResult::Success;
-}
-
-TargetStartResult start_target(Application& app)
-{
-    if (!has_target(app)) {
-        LOG(Warning) << "Failed to start target because no target is currently specified.";
-        return TargetStartResult::NoTargetError;
+    lldb::SBLaunchInfo launch_info(const_cast<const char**>(argv));
+    if (stop_at_entry) {
+        launch_info.SetLaunchFlags(lldb::eLaunchFlagStopAtEntry);
     }
 
-    app.stdout_buf.clear();
-    app.stderr_buf.clear();
-
-    lldb::SBTarget target = app.debugger.GetTargetAtIndex(0);
-    lldb::SBLaunchInfo launch_info(const_cast<const char**>(app.argv));
-    launch_info.SetLaunchFlags(lldb::eLaunchFlagDisableASLR | lldb::eLaunchFlagStopAtEntry);
-    lldb::SBError lldb_error;
     lldb::SBProcess process = target.Launch(launch_info, lldb_error);
+
+    auto cleanup_failed_target = [&](void) -> void { debugger.DeleteTarget(target); };
 
     if (!lldb_error.Success()) {
         const char* lldb_error_cstr = lldb_error.GetCString();
-        LOG(Error) << (lldb_error_cstr ? std::string(lldb_error_cstr)
-                                       : "Unknown target launch error!");
+        LOG(Error) << (lldb_error_cstr ? lldb_error_cstr : "Unknown target launch error!");
         LOG(Error) << "Failed to launch process, destroying target...";
-        app.debugger.DeleteTarget(target);
-        return TargetStartResult::LaunchError;
+        cleanup_failed_target();
+        return {};
     }
 
-    // TODO: print exe filepath here
-    LOG(Debug) << "Succesfully launched process.";
+    LOG(Debug) << "Succesfully launched target process for executable: " << full_exe_path;
 
     size_t ms_attaching = 0;
     while (process.GetState() == lldb::eStateAttaching) {
@@ -1175,16 +1162,23 @@ TargetStartResult start_target(Application& app)
         ms_attaching += 100;
         if (ms_attaching / 1000 > 5) {
             LOG(Error) << "Attach timeout after launching target process.";
-            return TargetStartResult::AttachTimeoutError;
+            cleanup_failed_target();
+            return {};
         }
     }
 
-    // TODO: print exe filepath here
-    LOG(Debug) << "Succesfully attached to process.";
+    LOG(Debug) << "Succesfully attached to target process for executable: " << full_exe_path;
 
-    app.event_listener.start(app.debugger);
+    return std::unique_ptr<DebugSession>(new DebugSession(target, argc, argv));
+}
 
-    return TargetStartResult::Success;
+// static bool start_session(DebugSession* session);
+// static bool pause_session(DebugSession* session);
+// static bool kill_session(DebugSession* session);
+
+static inline bool session_can_be_examined(DebugSession* session)
+{
+    return session->process.GetState() == lldb::eStateStopped;
 }
 
 }  // namespace lldbg

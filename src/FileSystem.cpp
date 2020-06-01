@@ -17,6 +17,7 @@ std::optional<FileHandle> FileHandle::create(const std::string& filepath)
 {
     const fs::path canonical_path = fs::canonical(filepath);
 
+    // TODO: Log specific reason for any failures
     if (!fs::exists(canonical_path)) {
         return {};
     }
@@ -54,11 +55,8 @@ const std::vector<std::string>& FileHandle::contents(void)
 {
     std::unique_lock<std::mutex> lock(s_mutex);
 
-    {
-        auto it = s_contents_cache.find(m_hash);
-        if (it != s_contents_cache.end()) {
-            return it->second;
-        }
+    if (auto it = s_contents_cache.find(m_hash); it != s_contents_cache.end()) {
+        return it->second;
     }
 
     const std::string& filepath = s_filepath_cache[m_hash];
@@ -69,13 +67,14 @@ const std::vector<std::string>& FileHandle::contents(void)
 
     std::string line;
     while (std::getline(infile, line)) {
+        line.shrink_to_fit();
         contents.emplace_back(std::move(line));
     }
     contents.shrink_to_fit();
 
     LOG(Verbose) << "Read file from disk: " << filepath;
 
-    const auto& [insert_iter, _] = s_contents_cache.emplace(m_hash, contents);
+    const auto& [insert_iter, _] = s_contents_cache.emplace(m_hash, std::move(contents));
     return insert_iter->second;
 }
 

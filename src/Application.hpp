@@ -30,17 +30,35 @@ struct DebugSession {
     LLDBEventListenerThread listener;
     StreamBuffer stdout_buf;
     StreamBuffer stderr_buf;
-    const int argc;
-    const char** argv;
+    int argc;
+    char** argv;
 
+private:
+    DebugSession(lldb::SBTarget _target, int _argc, char** _argv)
+        : target(_target),
+          process(_target.GetProcess()),
+          listener(),
+          stdout_buf(StreamBuffer::StreamSource::StdOut),
+          stderr_buf(StreamBuffer::StreamSource::StdErr),
+          argc(_argc),
+          argv(_argv)
+    {
+        assert(target.IsValid());
+        assert(process.IsValid());
+        this->listener.start(this->process);
+    }
+
+public:
     DebugSession() = delete;
 
-    // static std::optional<DebugSession> create(const std::string& exe_path, bool stop_at_entry);
+    static std::unique_ptr<DebugSession> create(lldb::SBDebugger debugger,
+                                                const std::string& exe_path, int argc, char** argv,
+                                                bool stop_at_entry);
 };
 
 // TODO: create sane Constructor and initialize UserInterface and Application *before* adding
 // targets in main
-// TODO: use std::optional<int> instead of -1
+// TODO: use std::optional<size_t> instead of -1
 // TODO: add size_t to keep track of frames_rendered
 struct UserInterface {
     int viewed_thread_index = -1;
@@ -63,18 +81,14 @@ struct UserInterface {
 };
 
 struct Application {
-    std::optional<DebugSession> session;
+    std::unique_ptr<DebugSession> session;
     lldb::SBDebugger debugger;
-    LLDBEventListenerThread event_listener;
     LLDBCommandLine command_line;
     OpenFiles open_files;
     BreakPointSet breakpoints;  // TODO: move to TextEditor
     std::unique_ptr<lldbg::FileBrowserNode> file_browser;
     UserInterface ui;
     TextEditor text_editor;
-    StreamBuffer stdout_buf;
-    StreamBuffer stderr_buf;
-    char** argv;
 
     // TODO: make this a non-member function
     void main_loop(void);
@@ -88,25 +102,5 @@ struct Application {
 };
 
 void set_workdir(Application& app, const std::string& workdir);
-
-enum class TargetAddResult {
-    ExeDoesNotExistError,
-    TargetCreateError,
-    TooManyTargetsError,
-    UnknownError,
-    Success
-};
-
-TargetAddResult add_target(Application& app, const std::string& exe_path);
-
-enum class TargetStartResult {
-    NoTargetError,
-    LaunchError,
-    AttachTimeoutError,
-    UnknownError,
-    Success
-};
-
-TargetStartResult start_target(Application& app);
 
 }  // namespace lldbg

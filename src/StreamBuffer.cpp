@@ -65,10 +65,7 @@ void StreamBuffer::clear(void)
 }
 
 StreamBuffer::StreamBuffer(StreamSource source)
-    : m_offset(0),
-      m_capacity(2),
-      m_data((char*)malloc(sizeof(char) * m_capacity)),
-      m_source(source)
+    : m_offset(0), m_capacity(2), m_data((char*)malloc(sizeof(char) * m_capacity)), m_source(source)
 {
     this->clear();
 }
