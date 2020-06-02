@@ -3,6 +3,7 @@
 #include <cassert>
 #include <iostream>
 
+#include "FPSTimer.hpp"
 #include "FileSystem.hpp"
 #include "LLDBCommandLine.hpp"
 #include "LLDBEventListenerThread.hpp"
@@ -89,6 +90,7 @@ struct Application {
     std::unique_ptr<lldbg::FileBrowserNode> file_browser;
     UserInterface ui;
     TextEditor text_editor;
+    FPSTimer fps_timer;
 
     // TODO: make this a non-member function
     void main_loop(void);

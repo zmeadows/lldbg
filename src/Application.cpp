@@ -34,38 +34,6 @@ static std::map<std::string, std::string> s_debug_stream;
         }                                              \
     }
 
-/*
-static void continue_process(Application& app)
-{
-    lldb::SBProcess process = app.debugger.GetSelectedTarget().GetProcess();
-    assert(process.IsValid());
-    process.Continue();
-}
-
-static void pause_process(Application& app)
-{
-    lldb::SBProcess process = app.debugger.GetSelectedTarget().GetProcess();
-    assert(process.IsValid());
-    process.Stop();
-}
-
-static void kill_process(Application& app)
-{
-    lldb::SBProcess process = app.debugger.GetSelectedTarget().GetProcess();
-    assert(process.IsValid());
-    process.Kill();
-}
-
-static void delete_current_targets(Application& app)
-{
-    lldb::SBDebugger& dbg = app.debugger;
-    for (uint32_t i = 0; i < dbg.GetNumTargets(); i++) {
-        lldb::SBTarget target = dbg.GetTargetAtIndex(i);
-        dbg.DeleteTarget(target);
-    }
-}
-*/
-
 static void add_breakpoint_to_viewed_file(Application& app, int line)
 {
     if (!app.open_files.focus()) {
@@ -352,6 +320,11 @@ void draw(Application& app)
     DEBUG_STREAM(ui.file_viewer_height);
     DEBUG_STREAM(ui.console_height);
 
+    {
+        const float fps = app.fps_timer.current_fps();
+        DEBUG_STREAM(fps);
+    }
+
     const char* process_state = lldb::SBDebugger::StateAsCString(process.GetState());
     assert(process_state);
     DEBUG_STREAM(process_state);
@@ -392,6 +365,7 @@ void draw(Application& app)
         ImGui::TextUnformatted(target_description.data());
     }
 
+    // TODO: cleanup these button displays based on more detailed inspection of process state
     if (stopped) {
         if (ImGui::Button("resume")) {
             get_process(app).Continue();
@@ -985,6 +959,8 @@ void Application::main_loop()
         glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
 
+        glFinish();
+
         glfwSwapBuffers(ui.window);
 
         // TODO: develop bettery strategy for when to read stdout,
@@ -996,6 +972,8 @@ void Application::main_loop()
 
         update_window_dimensions(ui);
 
+        this->fps_timer.wait_for_frame_duration(16666);
+        this->fps_timer.frame_end();
         frame_number++;
     }
 
