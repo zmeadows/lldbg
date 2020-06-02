@@ -866,12 +866,14 @@ void draw(Application& app)
         ImGui::SetNextWindowPos(ImVec2(ui.window_width / 2.f, ui.window_height / 2.f),
                                 ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowSize(ImVec2(200, 200), ImGuiCond_FirstUseEver);
+        ImGui::PushFont(app.ui.font);
         if (ImGui::Begin("Debug Stream", 0)) {
             for (const auto& [xkey, xstr] : s_debug_stream) {
                 StringBuffer debug_line;
                 debug_line.format("{} : {}", xkey, xstr);
                 ImGui::TextUnformatted(debug_line.data());
             }
+            ImGui::PopFont();
         }
         ImGui::End();
     }
@@ -989,6 +991,7 @@ int initialize_rendering(UserInterface& ui)
         return -1;
     }
 
+    // TODO: use function to choose initial window resolution based on display resolution
     ui.window = glfwCreateWindow(1920, 1080, "lldbg", nullptr, nullptr);
 
     if (ui.window == nullptr) {
@@ -1004,7 +1007,7 @@ int initialize_rendering(UserInterface& ui)
     ui.console_height = ui.window_height * 0.4f;
 
     glfwMakeContextCurrent(ui.window);
-    glfwSwapInterval(1);  // Enable vsync
+    glfwSwapInterval(0);  // disable vsync
 
     const GLenum err = glewInit();
     if (err != GLEW_OK) {
