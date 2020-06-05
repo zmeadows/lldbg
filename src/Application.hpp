@@ -5,11 +5,11 @@
 
 #include "FPSTimer.hpp"
 #include "FileSystem.hpp"
+#include "FileViewer.hpp"
 #include "LLDBCommandLine.hpp"
 #include "LLDBEventListenerThread.hpp"
 #include "Log.hpp"
 #include "StreamBuffer.hpp"
-#include "TextEditor.h"
 
 // clang-format off
 #include "imgui.h"
@@ -89,7 +89,7 @@ struct Application {
     BreakPointSet breakpoints;  // TODO: move to TextEditor
     std::unique_ptr<lldbg::FileBrowserNode> file_browser;
     UserInterface ui;
-    TextEditor text_editor;
+    FileViewer text_editor;
     FPSTimer fps_timer;
 
     // TODO: make this a non-member function

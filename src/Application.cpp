@@ -34,52 +34,53 @@ static std::map<std::string, std::string> s_debug_stream;
         }                                              \
     }
 
-static void add_breakpoint_to_viewed_file(Application& app, int line)
-{
-    if (!app.open_files.focus()) {
-        LOG(Warning) << "add_breakpoint_to_viewed_file called while no file was focused";
-        return;
-    }
-
-    FileHandle focus = *app.open_files.focus();
-
-    const std::string& filepath = focus.filepath();
-    lldb::SBTarget target = app.debugger.GetSelectedTarget();
-
-    lldb::SBBreakpoint new_breakpoint = target.BreakpointCreateByLocation(filepath.c_str(), line);
-
-    auto undo_breakpoint = [&](const char* msg) -> void {
-        LOG(Warning) << "Failed to add breakpoint. Reason: " << msg;
-        target.BreakpointDelete(new_breakpoint.GetID());
-    };
-
-    if (!new_breakpoint.IsValid() || new_breakpoint.GetNumLocations() == 0) {
-        undo_breakpoint("no locations found for specified breakpoint");
-        return;
-    }
-
-    lldb::SBBreakpointLocation location = new_breakpoint.GetLocationAtIndex(0);
-    if (!location.IsValid() || !location.IsEnabled()) {
-        undo_breakpoint("breakpoint locations found, but they are invalid");
-        return;
-    }
-
-    lldb::SBAddress address = location.GetAddress();
-    if (!address.IsValid()) {
-        undo_breakpoint("Invalid breakpoint address");
-        return;
-    }
-
-    const std::unordered_set<int>* bps = app.breakpoints.Get(focus);
-    if (bps != nullptr && bps->find(address.GetLineEntry().GetLine()) != bps->end()) {
-        undo_breakpoint("duplicate");
-        return;
-    }
-
-    app.breakpoints.synchronize(app.debugger.GetSelectedTarget());
-    app.text_editor.SetBreakpoints(app.breakpoints.Get(focus));
-    LOG(Verbose) << "Successfully added breakpoint in file " << filepath << " at line: " << line;
-}
+// static void add_breakpoint_to_viewed_file(Application& app, int line)
+// {
+//     if (!app.open_files.focus()) {
+//         LOG(Warning) << "add_breakpoint_to_viewed_file called while no file was focused";
+//         return;
+//     }
+//
+//     FileHandle focus = *app.open_files.focus();
+//
+//     const std::string& filepath = focus.filepath();
+//     lldb::SBTarget target = app.debugger.GetSelectedTarget();
+//
+//     lldb::SBBreakpoint new_breakpoint = target.BreakpointCreateByLocation(filepath.c_str(),
+//     line);
+//
+//     auto undo_breakpoint = [&](const char* msg) -> void {
+//         LOG(Warning) << "Failed to add breakpoint. Reason: " << msg;
+//         target.BreakpointDelete(new_breakpoint.GetID());
+//     };
+//
+//     if (!new_breakpoint.IsValid() || new_breakpoint.GetNumLocations() == 0) {
+//         undo_breakpoint("no locations found for specified breakpoint");
+//         return;
+//     }
+//
+//     lldb::SBBreakpointLocation location = new_breakpoint.GetLocationAtIndex(0);
+//     if (!location.IsValid() || !location.IsEnabled()) {
+//         undo_breakpoint("breakpoint locations found, but they are invalid");
+//         return;
+//     }
+//
+//     lldb::SBAddress address = location.GetAddress();
+//     if (!address.IsValid()) {
+//         undo_breakpoint("Invalid breakpoint address");
+//         return;
+//     }
+//
+//     const std::unordered_set<int>* bps = app.breakpoints.Get(focus);
+//     if (bps != nullptr && bps->find(address.GetLineEntry().GetLine()) != bps->end()) {
+//         undo_breakpoint("duplicate");
+//         return;
+//     }
+//
+//     app.breakpoints.synchronize(app.debugger.GetSelectedTarget());
+//     app.text_editor.set_breakpoints(app.breakpoints.Get(focus));
+//     LOG(Verbose) << "Successfully added breakpoint in file " << filepath << " at line: " << line;
+// }
 
 static std::string build_string(const char* cstr)
 {
@@ -207,8 +208,8 @@ static void draw_open_files(lldbg::Application& app)
         auto tab_flags = ImGuiTabItemFlags_None;
         if (app.ui.request_manual_tab_change && is_focused) {
             tab_flags = ImGuiTabItemFlags_SetSelected;
-            app.text_editor.SetTextLines(handle.contents());
-            app.text_editor.SetBreakpoints(app.breakpoints.Get(handle));
+            app.text_editor.set_lines(handle.contents());
+            app.text_editor.set_breakpoints(app.breakpoints.Get(handle));
         }
 
         bool keep_tab_open = true;
@@ -217,10 +218,10 @@ static void draw_open_files(lldbg::Application& app)
             if (!app.ui.request_manual_tab_change && !is_focused) {
                 // user selected tab directly with mouse
                 action = lldbg::OpenFiles::Action::ChangeFocusTo;
-                app.text_editor.SetTextLines(handle.contents());
-                app.text_editor.SetBreakpoints(app.breakpoints.Get(handle));
+                app.text_editor.set_lines(handle.contents());
+                app.text_editor.set_breakpoints(app.breakpoints.Get(handle));
             }
-            app.text_editor.Render("TextEditor");
+            app.text_editor.render();
             ImGui::EndChild();
             ImGui::EndTabItem();
         }
@@ -237,8 +238,8 @@ static void draw_open_files(lldbg::Application& app)
 
     if (closed_tab && app.open_files.size() > 0) {
         FileHandle handle = *app.open_files.focus();
-        app.text_editor.SetTextLines(handle.contents());
-        app.text_editor.SetBreakpoints(app.breakpoints.Get(handle));
+        app.text_editor.set_lines(handle.contents());
+        app.text_editor.set_breakpoints(app.breakpoints.Get(handle));
     }
 }
 
@@ -295,7 +296,7 @@ static bool run_lldb_command(Application& app, const char* command)
         app.breakpoints.synchronize(app.debugger.GetSelectedTarget());
 
         if (auto handle = app.open_files.focus(); handle.has_value()) {
-            app.text_editor.SetBreakpoints(app.breakpoints.Get(*handle));
+            app.text_editor.set_breakpoints(app.breakpoints.Get(*handle));
         }
     }
 
@@ -912,10 +913,10 @@ static void tick(lldbg::Application& app)
 
     lldbg::draw(app);
 
-    std::optional<int> line_clicked = app.text_editor.line_clicked_this_frame;
-    if (line_clicked) {
-        add_breakpoint_to_viewed_file(app, *line_clicked);
-    }
+    // std::optional<int> line_clicked = app.text_editor.line_clicked_this_frame;
+    // if (line_clicked) {
+    //     add_breakpoint_to_viewed_file(app, *line_clicked);
+    // }
 }
 
 static void update_window_dimensions(UserInterface& ui)
@@ -1061,11 +1062,6 @@ Application::Application()
     command_line.run_command("settings set target.x86-disassembly-flavor intel", true);
 
     initialize_rendering(this->ui);
-
-    text_editor.SetLanguageDefinition(TextEditor::LanguageDefinition::CPlusPlus());
-    TextEditor::Palette pal = text_editor.GetPalette();
-    pal[(int)TextEditor::PaletteIndex::Breakpoint] = ImGui::GetColorU32(ImVec4(255, 0, 0, 255));
-    text_editor.SetPalette(pal);
 }
 
 Application::~Application()

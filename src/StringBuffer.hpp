@@ -17,5 +17,6 @@ public:
     }
 
     inline const char* data(void) { return m_buffer.data(); }
-    // std::string to_string(void) { return fmt::to_string(m_buffer); }
+
+    inline void clear(void) { m_buffer.clear(); }
 };
