@@ -21,6 +21,7 @@ void LLDBEventListenerThread::start(lldb::SBProcess process)
     m_listener.Clear();
     m_listener = lldb::SBListener("lldbg_listener");
 
+    // TODO: verify these flags are all we need
     const uint32_t listen_flags = lldb::SBProcess::eBroadcastBitStateChanged |
                                   lldb::SBProcess::eBroadcastBitSTDOUT |
                                   lldb::SBProcess::eBroadcastBitSTDERR;
@@ -63,6 +64,7 @@ void LLDBEventListenerThread::poll_events()
             if (!event.IsValid()) {
                 // TODO: print event description using event.GetDescription(stream)
                 LOG(Warning) << "Invalid LLDB event encountered, skipping...";
+                continue;
             }
 
             m_events.push(event);

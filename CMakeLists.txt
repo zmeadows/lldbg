@@ -4,7 +4,7 @@ project(lldbgui VERSION 0.1
                 DESCRIPTION "A GUI for lldb."
                 LANGUAGES CXX C)
 
-set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -62,6 +62,8 @@ add_subdirectory(./third_party/glfw-3.3.2)
 target_link_libraries(lldbgui glfw ${OPENGL_glu_LIBRARY} ${GLFW_LIBRARIES})
 
 target_include_directories(lldbgui PUBLIC "third_party/cxxopts-2.2.0/include")
+
+target_include_directories(lldbgui PUBLIC "third_party/GSL-3.1.0/include/")
 
 add_definitions(-DIMGUI_DEFINE_MATH_OPERATORS)
 target_include_directories(lldbgui PUBLIC "third_party/imgui-1.75/")

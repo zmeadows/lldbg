@@ -6,6 +6,7 @@
 #include <mutex>
 #include <thread>
 
+#include "Log.hpp"
 #include "lldb/API/LLDB.h"
 
 namespace lldbg {
@@ -61,6 +62,8 @@ class LLDBEventListenerThread {
 public:
     void start(lldb::SBProcess);
     void stop(lldb::SBProcess);
+
+    // TODO: use std::optional
     bool pop_event(lldb::SBEvent& event) { return m_events.pop(event); }
 
     LLDBEventListenerThread() : m_continue(false) {}
@@ -68,7 +71,15 @@ public:
     LLDBEventListenerThread(const LLDBEventListenerThread&) = delete;
     LLDBEventListenerThread& operator=(const LLDBEventListenerThread&) = delete;
     LLDBEventListenerThread& operator=(LLDBEventListenerThread&&) = delete;
-    ~LLDBEventListenerThread() = default;
+    ~LLDBEventListenerThread()
+    {
+        if (m_thread) {
+            LOG(Warning) << "Manually killing LLDBEventListenerThread, should not happen!";
+            m_continue.store(false);
+            m_thread->join();
+            m_thread.reset(nullptr);
+        }
+    }
 };
 
 }  // namespace lldbg

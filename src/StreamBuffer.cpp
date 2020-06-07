@@ -65,15 +65,20 @@ void StreamBuffer::clear(void)
 }
 
 StreamBuffer::StreamBuffer(StreamSource source)
-    : m_offset(0), m_capacity(2), m_data((char*)malloc(sizeof(char) * m_capacity)), m_source(source)
+    : m_offset(0),
+      m_capacity(2048),
+      m_data((char*)malloc(sizeof(char) * m_capacity)),
+      m_source(source)
 {
     this->clear();
 }
 
 StreamBuffer::~StreamBuffer(void)
 {
-    assert(m_data != nullptr);
-    free(m_data);
+    if (m_data != nullptr) {
+        free(m_data);
+        m_data = nullptr;
+    }
     m_capacity = 0;
     m_offset = 0;
 }

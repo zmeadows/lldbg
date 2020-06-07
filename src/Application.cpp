@@ -87,19 +87,6 @@ static std::string build_string(const char* cstr)
     return cstr ? std::string(cstr) : std::string();
 }
 
-static inline bool has_target(Application& app)
-{
-    const uint32_t target_count = app.debugger.GetNumTargets();
-    assert(target_count == 0 || target_count == 1);
-    return target_count > 0;
-}
-
-static lldb::SBProcess get_process(Application& app)
-{
-    assert(has_target(app));
-    return app.debugger.GetSelectedTarget().GetProcess();
-}
-
 static void glfw_error_callback(int error, const char* description)
 {
     StringBuffer buffer;
@@ -127,7 +114,10 @@ public:
         fs::path filename = fs::path(build_string(spec.GetFilename()));
         fs::path directory = fs::path(build_string(spec.GetDirectory()));
 
-        if (!fs::exists(directory)) return {};
+        if (!fs::exists(directory)) {
+            LOG(Warning) << "Directory specified by lldb stack frame doesn't exist: " << directory;
+            return {};
+        }
 
         if (auto handle = FileHandle::create(directory / filename); handle.has_value()) {
             return StackFrame(*handle, (int)frame.GetLineEntry().GetLine(),
@@ -135,6 +125,8 @@ public:
                               build_string(frame.GetDisplayFunctionName()));
         }
         else {
+            LOG(Warning) << "Filepath corresponding to lldb stack frame doesn't exist: "
+                         << directory / filename;
             return {};
         }
     }
@@ -286,32 +278,42 @@ static void draw_file_browser(lldbg::Application& app, lldbg::FileBrowserNode* n
     }
 }
 
-static bool run_lldb_command(Application& app, const char* command)
+static void run_lldb_command(Application& app, const char* command)
 {
-    const size_t num_breakpoints_before = app.debugger.GetSelectedTarget().GetNumBreakpoints();
-    const bool command_succeeded = app.command_line.run_command(command);
-    const size_t num_breakpoints_after = app.debugger.GetSelectedTarget().GetNumBreakpoints();
+    // TODO: print message to console, so that user doesn't have to switch to log tab to see this
+    if (app.session == nullptr) {
+        LOG(Warning) << "No session active, so lldb commands cannot be run!";
+        return;
+    }
+
+    // TODO: count breakpoint locations, not just breakpoints
+    const size_t num_breakpoints_before = app.session->num_breakpoints();
+    app.session->run_lldb_command(command);
+    const size_t num_breakpoints_after = app.session->num_breakpoints();
 
     if (num_breakpoints_before != num_breakpoints_after) {
-        app.breakpoints.synchronize(app.debugger.GetSelectedTarget());
+        app.breakpoints.synchronize(app.session->get_target());
 
         if (auto handle = app.open_files.focus(); handle.has_value()) {
             app.text_editor.set_breakpoints(app.breakpoints.Get(*handle));
         }
     }
-
-    return command_succeeded;
 }
 
 namespace lldbg {
 
 void draw(Application& app)
 {
-    lldb::SBProcess process = get_process(app);
-
     // TODO: count a few milliseconds after resuming before displaying thread/stack/etc information
     // to avoid reading in invalid/suspended LLDB state
-    const bool stopped = process.GetState() != lldb::eStateRunning;
+
+    std::optional<lldb::SBProcess> process = {};
+    bool process_stopped = false;
+
+    if (app.session != nullptr) {
+        process = app.session->get_process();
+        process_stopped = app.session->process_is_stopped();
+    }
 
     UserInterface& ui = app.ui;
     DEBUG_STREAM(ui.window_width);
@@ -320,14 +322,12 @@ void draw(Application& app)
     DEBUG_STREAM(ui.file_viewer_width);
     DEBUG_STREAM(ui.file_viewer_height);
     DEBUG_STREAM(ui.console_height);
+    DEBUG_STREAM(app.fps_timer.current_fps());
 
-    {
-        const float fps = app.fps_timer.current_fps();
-        DEBUG_STREAM(fps);
+    const char* process_state = "unspecified or awaiting launch";
+    if (process.has_value()) {
+        process_state = lldb::SBDebugger::StateAsCString(process->GetState());
     }
-
-    const char* process_state = lldb::SBDebugger::StateAsCString(process.GetState());
-    assert(process_state);
     DEBUG_STREAM(process_state);
 
     ImGui::SetNextWindowPos(ImVec2(0.f, 0.f), ImGuiCond_Always);
@@ -345,11 +345,11 @@ void draw(Application& app)
 
     ImGui::BeginChild("FileBrowserPane", ImVec2(ui.file_browser_width, 0));
 
-    if (has_target(app)) {
+    if (app.session != nullptr) {
         // TODO: show rightmost chunk of path in case it is too long to fit on screen
         // TODO: add button to select new target using
         // https://github.com/aiekick/ImGuiFileDialog
-        lldb::SBFileSpec fs = app.debugger.GetSelectedTarget().GetExecutable();
+        lldb::SBFileSpec fs = app.session->get_target().GetExecutable();
 
         StringBuffer target_description;
 
@@ -364,19 +364,29 @@ void draw(Application& app)
             target_description.format("Target: Unknown/Invalid (?)\nState: {}", process_state);
         }
         ImGui::TextUnformatted(target_description.data());
-    }
 
-    // TODO: cleanup these button displays based on more detailed inspection of process state
-    if (stopped) {
-        if (ImGui::Button("resume")) {
-            get_process(app).Continue();
+        // TODO: cleanup these button displays based on more detailed inspection of process state
+        if (process_stopped) {
+            if (ImGui::Button("resume")) {
+                app.session->continue_process();
+                process_stopped = false;
+            }
         }
-    }
 
-    ImGui::SameLine();
+        ImGui::SameLine();
 
-    if (ImGui::Button("stop")) {
-        get_process(app).Stop();
+        if (!process_stopped) {
+            if (ImGui::Button("stop")) {
+                app.session->stop_process();
+                process_stopped = true;
+            }
+        }
+
+        if (ImGui::Button("kill")) {
+            app.session->kill_process();
+            process_stopped = false;
+            process = {};
+        }
     }
 
     ImGui::Separator();
@@ -420,54 +430,57 @@ void draw(Application& app)
             if (ImGui::BeginTabItem("console")) {
                 ImGui::BeginChild("ConsoleEntries");
 
-                for (const lldbg::CommandLineEntry& entry : app.command_line.get_history()) {
-                    ImGui::TextColored(ImVec4(255, 0, 0, 255), "> %s", entry.input.c_str());
-                    if (entry.succeeded) {
-                        ImGui::TextUnformatted(entry.output.c_str());
+                if (app.session != nullptr) {
+                    for (const lldbg::CommandLineEntry& entry :
+                         app.session->get_lldb_command_history()) {
+                        ImGui::TextColored(ImVec4(255, 0, 0, 255), "> %s", entry.input.c_str());
+                        if (entry.succeeded) {
+                            ImGui::TextUnformatted(entry.output.c_str());
+                        }
+                        else {
+                            ImGui::Text("error: %s is not a valid command.", entry.input.c_str());
+                        }
+
+                        ImGui::TextUnformatted("\n");
                     }
-                    else {
-                        ImGui::Text("error: %s is not a valid command.", entry.input.c_str());
+
+                    // always scroll to the bottom of the command history after running a command
+                    const bool should_auto_scroll_command_window =
+                        app.ui.ran_command_last_frame || ui.window_resized_last_frame;
+
+                    auto command_input_callback = [](ImGuiTextEditCallbackData*) -> int {
+                        return 0;  // TODO: command line history
+                    };
+
+                    const ImGuiInputTextFlags command_input_flags =
+                        ImGuiInputTextFlags_EnterReturnsTrue;
+
+                    // keep console input focused unless user is doing something else
+                    if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
+                        !ImGui::IsAnyItemActive() && !ImGui::IsMouseClicked(0)) {
+                        ImGui::SetKeyboardFocusHere(0);
                     }
 
-                    ImGui::TextUnformatted("\n");
-                }
+                    // TODO: resize input_buf when necessary?
+                    static char input_buf[2048];
+                    if (ImGui::InputText("lldb console", input_buf, 2048, command_input_flags,
+                                         command_input_callback)) {
+                        run_lldb_command(app, input_buf);
+                        memset(input_buf, 0, sizeof(input_buf));
+                        input_buf[0] = '\0';
+                        app.ui.ran_command_last_frame = true;
+                    }
 
-                // always scroll to the bottom of the command history after running a command
-                const bool should_auto_scroll_command_window =
-                    app.ui.ran_command_last_frame || ui.window_resized_last_frame;
+                    // Keep auto focus on the input box
+                    if (ImGui::IsItemHovered() ||
+                        (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootWindow) &&
+                         !ImGui::IsAnyItemActive() && !ImGui::IsMouseClicked(0)))
+                        ImGui::SetKeyboardFocusHere(-1);  // Auto focus previous widget
 
-                auto command_input_callback = [](ImGuiTextEditCallbackData*) -> int {
-                    return 0;  // TODO: command line history
-                };
-
-                const ImGuiInputTextFlags command_input_flags =
-                    ImGuiInputTextFlags_EnterReturnsTrue;
-
-                // keep console input focused unless user is doing something else
-                if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
-                    !ImGui::IsAnyItemActive() && !ImGui::IsMouseClicked(0)) {
-                    ImGui::SetKeyboardFocusHere(0);
-                }
-
-                // TODO: resize input_buf when necessary?
-                static char input_buf[2048];
-                if (ImGui::InputText("lldb console", input_buf, 2048, command_input_flags,
-                                     command_input_callback)) {
-                    run_lldb_command(app, input_buf);
-                    memset(input_buf, 0, sizeof(input_buf));
-                    input_buf[0] = '\0';
-                    app.ui.ran_command_last_frame = true;
-                }
-
-                // Keep auto focus on the input box
-                if (ImGui::IsItemHovered() ||
-                    (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootWindow) &&
-                     !ImGui::IsAnyItemActive() && !ImGui::IsMouseClicked(0)))
-                    ImGui::SetKeyboardFocusHere(-1);  // Auto focus previous widget
-
-                if (should_auto_scroll_command_window) {
-                    ImGui::SetScrollHere(1.0f);
-                    app.ui.ran_command_last_frame = false;
+                    if (should_auto_scroll_command_window) {
+                        ImGui::SetScrollHere(1.0f);
+                        app.ui.ran_command_last_frame = false;
+                    }
                 }
 
                 ImGui::EndChild();
@@ -520,27 +533,34 @@ void draw(Application& app)
                 ImGui::EndTabItem();
             }
 
+            // TODO: these quantities need to be reset whenever the DebugSession is reset
             static size_t last_stdout_size = 0;
             static size_t last_stderr_size = 0;
 
             if (ImGui::BeginTabItem("stdout")) {
                 ImGui::BeginChild("StdOUTEntries");
-                ImGui::TextUnformatted(app.session->stdout_buf.get());
-                if (app.session->stdout_buf.size() > last_stdout_size) {
-                    ImGui::SetScrollHere(1.0f);
+
+                if (app.session != nullptr) {
+                    ImGui::TextUnformatted(app.session->stdout().get());
+                    if (app.session->stdout().size() > last_stdout_size) {
+                        ImGui::SetScrollHere(1.0f);
+                    }
+                    last_stdout_size = app.session->stdout().size();
                 }
-                last_stdout_size = app.session->stdout_buf.size();
+
                 ImGui::EndChild();
                 ImGui::EndTabItem();
             }
 
             if (ImGui::BeginTabItem("stderr")) {
                 ImGui::BeginChild("StdERREntries");
-                ImGui::TextUnformatted(app.session->stderr_buf.get());
-                if (app.session->stderr_buf.size() > last_stderr_size) {
-                    ImGui::SetScrollHere(1.0f);
+                if (app.session != nullptr) {
+                    ImGui::TextUnformatted(app.session->stderr().get());
+                    if (app.session->stderr().size() > last_stderr_size) {
+                        ImGui::SetScrollHere(1.0f);
+                    }
+                    last_stderr_size = app.session->stderr().size();
                 }
-                last_stderr_size = app.session->stderr_buf.size();
                 ImGui::EndChild();
                 ImGui::EndTabItem();
             }
@@ -568,13 +588,13 @@ void draw(Application& app)
     // TODO: be consistent about whether or not to use Defer
     if (ImGui::BeginTabBar("#ThreadsTabs", ImGuiTabBarFlags_None)) {
         if (ImGui::BeginTabItem("threads")) {
-            if (stopped) {  // TODO: better handle this 'stopped' condition
-                if (process.GetNumThreads() > 0 && app.ui.viewed_thread_index < 0) {
+            if (process_stopped) {
+                if (process->GetNumThreads() > 0 && ui.viewed_thread_index < 0) {
                     app.ui.viewed_thread_index = 0;
                 }
 
-                for (uint32_t i = 0; i < process.GetNumThreads(); i++) {
-                    lldb::SBThread th = process.GetThreadAtIndex(i);
+                for (uint32_t i = 0; i < process->GetNumThreads(); i++) {
+                    lldb::SBThread th = process->GetThreadAtIndex(i);
 
                     const char* thread_name = th.GetName();
                     if (!thread_name) {
@@ -603,7 +623,7 @@ void draw(Application& app)
         if (ImGui::BeginTabItem("stack trace")) {
             static int selected_row = -1;
 
-            if (stopped && app.ui.viewed_thread_index >= 0) {
+            if (process_stopped && ui.viewed_thread_index >= 0) {
                 ImGui::Columns(3, "##StackTraceColumns");
                 ImGui::Separator();
                 ImGui::Text("FUNCTION");
@@ -614,7 +634,8 @@ void draw(Application& app)
                 ImGui::NextColumn();
                 ImGui::Separator();
 
-                lldb::SBThread viewed_thread = process.GetThreadAtIndex(app.ui.viewed_thread_index);
+                lldb::SBThread viewed_thread =
+                    process->GetThreadAtIndex(app.ui.viewed_thread_index);
 
                 if (viewed_thread.GetNumFrames() > 0 && selected_row < 0) {
                     selected_row = 0;
@@ -655,7 +676,7 @@ void draw(Application& app)
     ImGui::BeginChild("#LocalsChild", ImVec2(0, locals_height));
     if (ImGui::BeginTabBar("##LocalsTabs", ImGuiTabBarFlags_None)) {
         if (ImGui::BeginTabItem("locals")) {
-            if (stopped && app.ui.viewed_frame_index >= 0) {
+            if (process_stopped && ui.viewed_frame_index >= 0) {
                 ImGui::Columns(3, "##LocalsColumns");
                 ImGui::Separator();
                 ImGui::Text("NAME");
@@ -666,7 +687,8 @@ void draw(Application& app)
                 ImGui::NextColumn();
                 ImGui::Separator();
 
-                lldb::SBThread viewed_thread = process.GetThreadAtIndex(app.ui.viewed_thread_index);
+                lldb::SBThread viewed_thread =
+                    process->GetThreadAtIndex(app.ui.viewed_thread_index);
                 lldb::SBFrame frame = viewed_thread.GetFrameAtIndex(app.ui.viewed_frame_index);
                 lldb::SBValueList locals = frame.GetVariables(true, true, true, true);
 
@@ -738,8 +760,9 @@ void draw(Application& app)
         }
 
         if (ImGui::BeginTabItem("registers")) {
-            if (stopped && app.ui.viewed_thread_index >= 0) {
-                lldb::SBThread viewed_thread = process.GetThreadAtIndex(app.ui.viewed_thread_index);
+            if (process_stopped && ui.viewed_thread_index >= 0) {
+                lldb::SBThread viewed_thread =
+                    process->GetThreadAtIndex(app.ui.viewed_thread_index);
                 lldb::SBFrame frame = viewed_thread.GetFrameAtIndex(app.ui.viewed_frame_index);
                 if (viewed_thread.IsValid() && frame.IsValid()) {
                     lldb::SBValueList register_collections = frame.GetRegisters();
@@ -792,7 +815,7 @@ void draw(Application& app)
             Defer(ImGui::EndTabItem());
 
             // TODO: show hit count and column number as well
-            if (stopped && app.ui.viewed_thread_index >= 0) {
+            if (process_stopped && ui.viewed_thread_index >= 0) {
                 static int selected_row = -1;
 
                 ImGui::Columns(2);
@@ -804,7 +827,7 @@ void draw(Application& app)
                 ImGui::Separator();
                 Defer(ImGui::Columns(1));
 
-                lldb::SBTarget target = app.debugger.GetSelectedTarget();
+                lldb::SBTarget target = app.session->get_target();
                 for (uint32_t i = 0; i < target.GetNumBreakpoints(); i++) {
                     lldb::SBBreakpoint breakpoint = target.GetBreakpointAtIndex(i);
                     lldb::SBBreakpointLocation location = breakpoint.GetLocationAtIndex(0);
@@ -880,35 +903,11 @@ void draw(Application& app)
     }
 }  // namespace lldbg
 
-static void handle_lldb_event(Application& app, lldb::SBEvent event)
-{
-    const lldb::StateType new_state = lldb::SBProcess::GetStateFromEvent(event);
-    const char* state_descr = lldb::SBDebugger::StateAsCString(new_state);
-    LOG(Debug) << "Found event with new state: " << state_descr;
-
-    if (!app.session) {
-        LOG(Error) << "Attempted to handle lldb event while no session is active";
-        return;
-    }
-
-    if (new_state == lldb::eStateCrashed || new_state == lldb::eStateDetached ||
-        new_state == lldb::eStateExited) {
-        app.session->listener.stop(get_process(app));
-    }
-}
-
 static void tick(lldbg::Application& app)
 {
     // process all queued LLDB events before drawing each frame
-    while (app.session) {
-        lldb::SBEvent event;
-        const bool found_event = app.session->listener.pop_event(event);
-        if (found_event) {
-            handle_lldb_event(app, event);
-        }
-        else {
-            break;
-        }
+    if (app.session) {
+        app.session->handle_lldb_events();
     }
 
     lldbg::draw(app);
@@ -942,13 +941,14 @@ static void update_window_dimensions(UserInterface& ui)
     }
 }
 
-void Application::main_loop()
+int Application::main_loop()
 {
     static size_t frame_number = 0;
 
     while (!glfwWindowShouldClose(ui.window)) {
         glfwPollEvents();
 
+        // TODO: switch to OpenGL 3
         ImGui_ImplOpenGL2_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
@@ -968,9 +968,8 @@ void Application::main_loop()
 
         // TODO: develop bettery strategy for when to read stdout,
         // possible upon receiving certian types of LLDBEvent?
-        if (this->session && (frame_number % 10 == 0) && has_target(*this)) {
-            this->session->stdout_buf.update(get_process(*this));
-            this->session->stderr_buf.update(get_process(*this));
+        if (this->session && (frame_number % 10 == 0)) {
+            this->session->read_stream_buffers();
         }
 
         update_window_dimensions(ui);
@@ -980,7 +979,12 @@ void Application::main_loop()
         frame_number++;
     }
 
-    debugger.GetSelectedTarget().GetProcess().Kill();
+    // TODO: more smoothly close DebugSession
+    if (this->session) {
+        this->session->kill_process();
+    }
+
+    return EXIT_SUCCESS;
 }
 
 // TODO: add return code and rename init_graphics
@@ -1050,31 +1054,13 @@ int initialize_rendering(UserInterface& ui)
 
 namespace lldbg {
 
-Application::Application()
-{
-    lldb::SBDebugger::Initialize();
-    debugger = lldb::SBDebugger::Create();
-    debugger.SetAsync(true);
-    command_line.replace_interpreter(debugger.GetCommandInterpreter());
-    command_line.run_command("settings set auto-confirm 1", true);
-
-    // TODO: let use choose disassembly flavor in drop down menu
-    command_line.run_command("settings set target.x86-disassembly-flavor intel", true);
-
-    initialize_rendering(this->ui);
-}
+Application::Application() { initialize_rendering(this->ui); }
 
 Application::~Application()
 {
-    if (this->session) {
-        this->session->listener.stop(get_process(*this));
-    }
-    lldb::SBDebugger::Terminate();
-
     ImGui_ImplOpenGL2_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
-
     glfwDestroyWindow(this->ui.window);
     glfwTerminate();
 }
@@ -1090,72 +1076,104 @@ void set_workdir(Application& app, const std::string& workdir)
     }
 }
 
-std::unique_ptr<DebugSession> DebugSession::create(lldb::SBDebugger debugger,
-                                                   const std::string& exe_path, int argc,
-                                                   char** argv, bool stop_at_entry)
+std::unique_ptr<DebugSession> DebugSession::create(const std::string& exe_path,
+                                                   const std::vector<std::string>& exe_args,
+                                                   uint32_t launch_flags)
 {
-    const fs::path full_exe_path = fs::canonical(exe_path);
+    auto debugger = lldb::SBDebugger::Create();
+
+    // Wait for debugee program to fully stop before returning control when running commands like
+    // 'step' and 'continue'
+    debugger.SetAsync(false);
+
+    const auto full_exe_path = fs::canonical(exe_path);
 
     if (!fs::exists(full_exe_path)) {
-        LOG(Error) << "Requested executable does not exist: {}" << full_exe_path;
-        return {};
+        LOG(Error) << "Requested executable does not exist: " << full_exe_path;
+        return nullptr;
     }
 
     lldb::SBError lldb_error;
-    lldb::SBTarget target =
-        debugger.CreateTarget(full_exe_path.c_str(), nullptr, nullptr, true, lldb_error);
+    (void)debugger.CreateTarget(full_exe_path.c_str(), nullptr, nullptr, true, lldb_error);
 
-    if (!lldb_error.Success()) {
-        const char* lldb_error_cstr = lldb_error.GetCString();
+    if (lldb_error.Success()) {
+        LOG(Debug) << "Succesfully created target for executable: " << full_exe_path;
+    }
+    else {
+        auto lldb_error_cstr = lldb_error.GetCString();
         LOG(Error) << (lldb_error_cstr ? lldb_error_cstr : "Unknown target creation error.");
-        return {};
-    }
-    lldb_error.Clear();
-
-    LOG(Debug) << "Succesfully added target for executable: " << full_exe_path;
-
-    lldb::SBLaunchInfo launch_info(const_cast<const char**>(argv));
-    if (stop_at_entry) {
-        launch_info.SetLaunchFlags(lldb::eLaunchFlagStopAtEntry);
+        return nullptr;
     }
 
-    lldb::SBProcess process = target.Launch(launch_info, lldb_error);
+    return std::make_unique<DebugSession>(std::move(debugger), exe_args, launch_flags);
+}
 
-    auto cleanup_failed_target = [&](void) -> void { debugger.DeleteTarget(target); };
+bool DebugSession::start_process(std::optional<uint32_t> new_launch_flags)
+{
+    lldb::SBTarget target = get_target();
 
-    if (!lldb_error.Success()) {
+    // TODO: check that process doesn't already exist
+    auto cleanup_failed_target = [&](void) -> void { m_debugger->DeleteTarget(target); };
+
+    if (!target.IsValid()) {
+        LOG(Error) << "Invalid target encountered in DebugSession::start";
+        cleanup_failed_target();
+        return false;
+    }
+
+    std::vector<const char*> argv_cstr;
+    argv_cstr.reserve(m_argv.size());
+    for (const auto& arg : m_argv) {
+        argv_cstr.push_back(arg.c_str());
+    }
+
+    lldb::SBLaunchInfo launch_info(argv_cstr.data());
+    assert(launch_info.GetNumArguments() == argv_cstr.size());
+
+    if (new_launch_flags.has_value()) {
+        m_launch_flags = *new_launch_flags;
+    }
+    // launch_info.SetLaunchFlags(lldb::eLaunchFlagStopAtEntry);
+    launch_info.SetLaunchFlags(*new_launch_flags);
+
+    lldb::SBError lldb_error;
+    session->process = session->target.Launch(launch_info, lldb_error);
+
+    if (lldb_error.Success()) {
+        LOG(Debug) << "Succesfully launched target process for executable: " << full_exe_path;
+    }
+    else {
         const char* lldb_error_cstr = lldb_error.GetCString();
         LOG(Error) << (lldb_error_cstr ? lldb_error_cstr : "Unknown target launch error!");
         LOG(Error) << "Failed to launch process, destroying target...";
         cleanup_failed_target();
-        return {};
+        return nullptr;
     }
 
-    LOG(Debug) << "Succesfully launched target process for executable: " << full_exe_path;
-
     size_t ms_attaching = 0;
-    while (process.GetState() == lldb::eStateAttaching) {
+    while (session->process.GetState() == lldb::eStateAttaching) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         ms_attaching += 100;
         if (ms_attaching / 1000 > 5) {
             LOG(Error) << "Attach timeout after launching target process.";
             cleanup_failed_target();
-            return {};
+            return false;
         }
     }
 
     LOG(Debug) << "Succesfully attached to target process for executable: " << full_exe_path;
 
-    return std::unique_ptr<DebugSession>(new DebugSession(target, argc, argv));
+    return session;
 }
 
-// static bool start_session(DebugSession* session);
-// static bool pause_session(DebugSession* session);
-// static bool kill_session(DebugSession* session);
-
-static inline bool session_can_be_examined(DebugSession* session)
+void DebugSession::stop(std::optional<uint32_t> new_launch_flags)
 {
-    return session->process.GetState() == lldb::eStateStopped;
+    if (!is_running()) {
+        LOG(Warning) << "Attempted to stop a process that isn't running.";
+        return;
+    }
 }
+
+void DebugSession::resume(std::optional<uint32_t> new_launch_flags) {}
 
 }  // namespace lldbg

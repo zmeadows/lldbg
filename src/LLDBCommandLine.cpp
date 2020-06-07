@@ -4,11 +4,20 @@
 
 namespace lldbg {
 
-bool LLDBCommandLine::run_command(const char* command, bool hide_from_history)
+LLDBCommandLine::LLDBCommandLine(lldb::SBDebugger& debugger)
+    : m_interpreter(debugger.GetCommandInterpreter())
+{
+    run_command("settings set auto-confirm 1", true);
+
+    // TODO: let use choose disassembly flavor in drop down menu
+    run_command("settings set target.x86-disassembly-flavor intel", true);
+}
+
+void LLDBCommandLine::run_command(const char* command, bool hide_from_history)
 {
     if (!command) {
         LOG(Error) << "Attempted to run empty command!";
-        return false;
+        return;
     }
 
     CommandLineEntry entry;
@@ -26,16 +35,15 @@ bool LLDBCommandLine::run_command(const char* command, bool hide_from_history)
     if (!entry.succeeded) {
         if (ret.GetError()) {
             entry.error_msg = std::string(ret.GetError());
-        } else {
+        }
+        else {
             entry.error_msg = "Unknown failure reason!";
         }
     }
 
     if (!hide_from_history) {
-        m_history.emplace_back(entry);
+        m_history.emplace_back(std::move(entry));
     }
-
-    return ret.Succeeded();
 }
 
-}
+}  // namespace lldbg
