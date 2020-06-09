@@ -115,7 +115,8 @@ public:
         fs::path directory = fs::path(build_string(spec.GetDirectory()));
 
         if (!fs::exists(directory)) {
-            LOG(Warning) << "Directory specified by lldb stack frame doesn't exist: " << directory;
+            // LOG(Warning) << "Directory specified by lldb stack frame doesn't exist: " <<
+            // directory; LOG(Warning) << "Filepath specified: " << filename;
             return {};
         }
 
@@ -323,10 +324,12 @@ void draw(Application& app)
     DEBUG_STREAM(ui.file_viewer_height);
     DEBUG_STREAM(ui.console_height);
     DEBUG_STREAM(app.fps_timer.current_fps());
+    DEBUG_STREAM(process_stopped);
 
     const char* process_state = "unspecified or awaiting launch";
     if (process.has_value()) {
         process_state = lldb::SBDebugger::StateAsCString(process->GetState());
+        DEBUG_STREAM(process->GetNumThreads());
     }
     DEBUG_STREAM(process_state);
 
@@ -366,6 +369,11 @@ void draw(Application& app)
         ImGui::TextUnformatted(target_description.data());
 
         // TODO: cleanup these button displays based on more detailed inspection of process state
+        // category 1: process not yet started
+        // category 2: process stopped
+        // category 3: process running
+        // category 4: process exited cleanly
+        // category 5: process exited with error
         if (process_stopped) {
             if (ImGui::Button("resume")) {
                 app.session->continue_process();
@@ -711,6 +719,7 @@ void draw(Application& app)
                     // children and so on
                     // TODO: double click on any entry to open a more detailed view in a pop
                     // out window
+                    // TODO: create helper lambda that writes UNKNOWN if passed null char*
                     if (local.MightHaveChildren()) {
                         StringBuffer children_node_label;
                         children_node_label.format("{}##Children", local_name);
@@ -749,7 +758,7 @@ void draw(Application& app)
                         ImGui::NextColumn();
                         ImGui::TextUnformatted(local_type);
                         ImGui::NextColumn();
-                        ImGui::TextUnformatted(local_value);
+                        if (local_value) ImGui::TextUnformatted(local_value);
                         ImGui::NextColumn();
                     }
                 }
@@ -1075,105 +1084,5 @@ void set_workdir(Application& app, const std::string& workdir)
         app.file_browser = FileBrowserNode::create(fs::current_path());
     }
 }
-
-std::unique_ptr<DebugSession> DebugSession::create(const std::string& exe_path,
-                                                   const std::vector<std::string>& exe_args,
-                                                   uint32_t launch_flags)
-{
-    auto debugger = lldb::SBDebugger::Create();
-
-    // Wait for debugee program to fully stop before returning control when running commands like
-    // 'step' and 'continue'
-    debugger.SetAsync(false);
-
-    const auto full_exe_path = fs::canonical(exe_path);
-
-    if (!fs::exists(full_exe_path)) {
-        LOG(Error) << "Requested executable does not exist: " << full_exe_path;
-        return nullptr;
-    }
-
-    lldb::SBError lldb_error;
-    (void)debugger.CreateTarget(full_exe_path.c_str(), nullptr, nullptr, true, lldb_error);
-
-    if (lldb_error.Success()) {
-        LOG(Debug) << "Succesfully created target for executable: " << full_exe_path;
-    }
-    else {
-        auto lldb_error_cstr = lldb_error.GetCString();
-        LOG(Error) << (lldb_error_cstr ? lldb_error_cstr : "Unknown target creation error.");
-        return nullptr;
-    }
-
-    return std::make_unique<DebugSession>(std::move(debugger), exe_args, launch_flags);
-}
-
-bool DebugSession::start_process(std::optional<uint32_t> new_launch_flags)
-{
-    lldb::SBTarget target = get_target();
-
-    // TODO: check that process doesn't already exist
-    auto cleanup_failed_target = [&](void) -> void { m_debugger->DeleteTarget(target); };
-
-    if (!target.IsValid()) {
-        LOG(Error) << "Invalid target encountered in DebugSession::start";
-        cleanup_failed_target();
-        return false;
-    }
-
-    std::vector<const char*> argv_cstr;
-    argv_cstr.reserve(m_argv.size());
-    for (const auto& arg : m_argv) {
-        argv_cstr.push_back(arg.c_str());
-    }
-
-    lldb::SBLaunchInfo launch_info(argv_cstr.data());
-    assert(launch_info.GetNumArguments() == argv_cstr.size());
-
-    if (new_launch_flags.has_value()) {
-        m_launch_flags = *new_launch_flags;
-    }
-    // launch_info.SetLaunchFlags(lldb::eLaunchFlagStopAtEntry);
-    launch_info.SetLaunchFlags(*new_launch_flags);
-
-    lldb::SBError lldb_error;
-    session->process = session->target.Launch(launch_info, lldb_error);
-
-    if (lldb_error.Success()) {
-        LOG(Debug) << "Succesfully launched target process for executable: " << full_exe_path;
-    }
-    else {
-        const char* lldb_error_cstr = lldb_error.GetCString();
-        LOG(Error) << (lldb_error_cstr ? lldb_error_cstr : "Unknown target launch error!");
-        LOG(Error) << "Failed to launch process, destroying target...";
-        cleanup_failed_target();
-        return nullptr;
-    }
-
-    size_t ms_attaching = 0;
-    while (session->process.GetState() == lldb::eStateAttaching) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        ms_attaching += 100;
-        if (ms_attaching / 1000 > 5) {
-            LOG(Error) << "Attach timeout after launching target process.";
-            cleanup_failed_target();
-            return false;
-        }
-    }
-
-    LOG(Debug) << "Succesfully attached to target process for executable: " << full_exe_path;
-
-    return session;
-}
-
-void DebugSession::stop(std::optional<uint32_t> new_launch_flags)
-{
-    if (!is_running()) {
-        LOG(Warning) << "Attempted to stop a process that isn't running.";
-        return;
-    }
-}
-
-void DebugSession::resume(std::optional<uint32_t> new_launch_flags) {}
 
 }  // namespace lldbg

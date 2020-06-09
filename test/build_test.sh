@@ -1,1 +1,1 @@
-clang++ -g test.cpp -o test
+clang++ -g -Og test.cpp -o test

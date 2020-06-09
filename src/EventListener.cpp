@@ -11,10 +11,15 @@ namespace lldbg {
 
 void LLDBEventListenerThread::start(lldb::SBProcess process)
 {
+    if (!process.IsValid()) {
+        LOG(Warning) << "Attempted to start LLDBEventListenerThread for invalid process.";
+        return;
+    }
+
     // TODO: log process ID and compare when 'stop' is called
     // TODO: check Process state
     if (m_thread) {
-        LOG(Warning) << "Attempted to double-start the LLDBEventListenerThread";
+        LOG(Warning) << "Attempted to double-start the LLDBEventListenerThread. Stopping it first.";
         this->stop(process);
     }
 
@@ -22,9 +27,9 @@ void LLDBEventListenerThread::start(lldb::SBProcess process)
     m_listener = lldb::SBListener("lldbg_listener");
 
     // TODO: verify these flags are all we need
-    const uint32_t listen_flags = lldb::SBProcess::eBroadcastBitStateChanged |
-                                  lldb::SBProcess::eBroadcastBitSTDOUT |
-                                  lldb::SBProcess::eBroadcastBitSTDERR;
+    const uint32_t listen_flags =
+        lldb::SBProcess::eBroadcastBitStateChanged | lldb::SBProcess::eBroadcastBitSTDOUT |
+        lldb::SBProcess::eBroadcastBitSTDERR | lldb::SBProcess::eBroadcastBitInterrupt;
 
     process.GetBroadcaster().AddListener(m_listener, listen_flags);
 

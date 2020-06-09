@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iostream>
 #include <memory>
 #include <mutex>
 #include <sstream>
@@ -41,6 +42,7 @@ public:
 
     void log(LogLevel level, const std::string& message)
     {
+        // TODO: compute hash for log message and don't add if it has occurred 10+ times
         std::unique_lock<std::mutex> lock(s_mutex);
         m_messages.emplace_back(level, message);
     };
