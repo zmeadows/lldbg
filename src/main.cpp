@@ -74,6 +74,7 @@ int main(int argc, char** argv)
 
     Application app;
     app.set_workdir(LLDBG_TESTS_DIR);
+    app.session.run_lldb_command("file /home/zmeadows/lldbg/test/test");
 
     // if (exe_filepath.has_value()) {
     // }

@@ -178,7 +178,7 @@ std::optional<lldb::SBProcess> DebugSession::find_process()
 void DebugSession::read_stream_buffers(void)
 {
     // TODO: only do this upon receiving stdout/stderr process events
-    if (auto process = find_process(); process.has_value() && process_is_stopped(*process)) {
+    if (auto process = find_process(); process.has_value()) {
         m_stdout.update(*process);
         m_stderr.update(*process);
     }
