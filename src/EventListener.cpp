@@ -56,51 +56,6 @@ LLDBEventListenerThread::~LLDBEventListenerThread()
     LOG(Debug) << "Successfully stopped LLDBEventListenerThread.";
 }
 
-// void LLDBEventListenerThread::start_thread(void)
-// {
-//     // if (!process.IsValid()) {
-//     //     LOG(Warning) << "Attempted to start LLDBEventListenerThread for invalid process.";
-//     //     return;
-//     // }
-//
-//     // TODO: log process ID and compare when 'stop' is called
-//     if (m_thread) {
-//         LOG(Warning) << "Attempted to double-start the LLDBEventListenerThread. Stopping it
-//         first."; this->stop(process);
-//     }
-//
-//     m_listener.Clear();
-//     m_listener = lldb::SBListener("lldbg_listener");
-//
-//     // TODO: verify these flags are all we need
-//     const uint32_t listen_flags =
-//         lldb::SBProcess::eBroadcastBitStateChanged | lldb::SBProcess::eBroadcastBitSTDOUT |
-//         lldb::SBProcess::eBroadcastBitSTDERR | lldb::SBProcess::eBroadcastBitInterrupt;
-//
-//     process.GetBroadcaster().AddListener(m_listener, listen_flags);
-// }
-
-// void LLDBEventListenerThread::stop_thread(lldb::SBProcess process)
-// {
-//     if (!m_thread) {
-//         LOG(Warning) << "Attempted to double-stop the LLDBEventListenerThread";
-//         return;
-//     }
-//
-//     m_continue.store(false);
-//     m_thread->join();
-//     m_thread.reset(nullptr);
-//
-//     // if (process.IsValid()) {
-//     //     process.GetBroadcaster().RemoveListener(m_listener);
-//     // }
-//
-//     m_listener.Clear();
-//     m_events.clear();
-//
-//     LOG(Debug) << "Successfully stopped LLDBEventListenerThread.";
-// }
-
 void LLDBEventListenerThread::poll_events()
 {
     LOG(Debug) << "Launched LLDBEventListenerThread.";

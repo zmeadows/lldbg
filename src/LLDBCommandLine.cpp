@@ -2,6 +2,8 @@
 
 #include "Log.hpp"
 
+// TODO: smart user completion using the HandleCompletionWithDescriptions functions
+
 LLDBCommandLine::LLDBCommandLine(lldb::SBDebugger& debugger)
     : m_interpreter(debugger.GetCommandInterpreter())
 {
@@ -57,7 +59,7 @@ std::optional<std::string> LLDBCommandLine::expand_and_unalias_command(const cha
     }
 
     lldb::SBCommandReturnObject ret;
-    m_interpreter.HandleCommand(command, ret);
+    m_interpreter.ResolveCommand(command, ret);
 
     const char* output = ret.GetOutput();
     if (ret.Succeeded() && output) {

@@ -374,10 +374,6 @@ void draw(Application& app)
     // TODO: maybe count a few milliseconds after resuming before displaying thread/stack/etc
     // information to avoid reading in invalid/suspended LLDB state
 
-    // std::optional<lldb::SBTarget> target = app.session.find_target();
-    // std::optional<lldb::SBProcess> process = app.session.find_process();
-    // bool process_stopped = process.has_value() ? process_is_stopped(*process) : false;
-
     DebugSession& session = app.session;
     UserInterface& ui = app.ui;
     DEBUG_STREAM(ui.window_width);
@@ -396,7 +392,7 @@ void draw(Application& app)
                      ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
                      ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings |
                      ImGuiWindowFlags_NoTitleBar);
-    ImGui::PushFont(app.ui.font);
+    ImGui::PushFont(ui.font);
 
     Splitter("##S1", true, 3.0f, &ui.file_browser_width, &ui.file_viewer_width,
              0.05 * ui.window_width, 0.05 * ui.window_width, ui.window_height);
@@ -1039,8 +1035,8 @@ int initialize_rendering(UserInterface& ui)
     ui.font = io.Fonts->AddFontFromFileTTF(font_path.c_str(), 15.0f);
 
     // Setup Dear ImGui style
-    // ImGui::StyleColorsDark();
-    ImGui::StyleColorsClassic();
+    ImGui::StyleColorsDark();
+    // ImGui::StyleColorsClassic();
 
     // disable all 'rounding' of corners in the UI
     ImGui::GetStyle().WindowRounding = 0.0f;

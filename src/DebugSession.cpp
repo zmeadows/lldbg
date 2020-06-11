@@ -169,12 +169,6 @@ std::optional<lldb::SBProcess> DebugSession::find_process()
     lldb::SBProcess process = target->GetProcess();
 
     if (!process.IsValid()) {
-        LOG(Debug) << "Found invalid process.";
-        return {};
-    }
-
-    if (process.GetNumThreads() == 0) {
-        LOG(Debug) << "Found valid process with zero threads...?";
         return {};
     }
 
@@ -281,8 +275,20 @@ void DebugSession::run_lldb_command(const char* command, bool hide_from_history)
         LOG(Debug) << "Unaliased command: " << *unaliased_cmd;
     }
 
+    auto target_before = find_target();
+
     lldb::SBCommandReturnObject ret = m_cmdline.run_command(command, hide_from_history);
     assert(ret.IsValid());
+
+    auto target_after = find_target();
+
+    // TODO: remove target_before broadcast listening, in second case?
+    if ((!target_before && target_after) ||
+        (target_before && target_after && (*target_before != *target_after))) {
+        target_after->GetBroadcaster().AddListener(
+            m_listener.get_lldb_listener(), lldb::SBTarget::eBroadcastBitBreakpointChanged |
+                                                lldb::SBTarget::eBroadcastBitWatchpointChanged);
+    }
 
     switch (ret.GetStatus()) {
         case lldb::eReturnStatusInvalid:
@@ -354,10 +360,12 @@ void DebugSession::handle_lldb_process_event(lldb::SBEvent& event)
 {
     const lldb::StateType new_state = lldb::SBProcess::GetStateFromEvent(event);
     const char* state_descr = lldb::SBDebugger::StateAsCString(new_state);
-    LOG(Debug) << "Found process event with new state: " << state_descr;
+    if (state_descr) {
+        LOG(Debug) << "Found process event with new state: " << state_descr;
+    }
 }
 
-void DebugSession::handle_lldb_target_event(lldb::SBEvent&) {}
+void DebugSession::handle_lldb_target_event(lldb::SBEvent&) { LOG(Debug) << "Found target event"; }
 
 void DebugSession::handle_lldb_events(void)
 {
@@ -366,16 +374,35 @@ void DebugSession::handle_lldb_events(void)
         if (!maybe_event.has_value()) break;
         auto event = *maybe_event;
 
-        if (lldb::SBProcess::EventIsProcessEvent(event)) {
-            handle_lldb_process_event(event);
+        if (!event.IsValid()) {
+            LOG(Warning) << "Invalid event found.";
+            continue;
         }
-        else if (lldb::SBTarget::EventIsTargetEvent(event)) {
+
+        auto process = find_process();
+        auto target = find_target();
+
+        if (target.has_value() && event.BroadcasterMatchesRef(target->GetBroadcaster())) {
             handle_lldb_target_event(event);
+        }
+        else if (process.has_value() && event.BroadcasterMatchesRef(process->GetBroadcaster())) {
+            handle_lldb_process_event(event);
         }
         else {
             // TODO: print event description
             LOG(Debug) << "Found non-target/process event";
         }
+
+        // if (lldb::SBProcess::EventIsProcessEvent(event)) {
+        //     handle_lldb_process_event(event);
+        // }
+        // else if (lldb::SBTarget::EventIsTargetEvent(event)) {
+        //     handle_lldb_target_event(event);
+        // }
+        // else {
+        //     // TODO: print event description
+        //     LOG(Debug) << "Found non-target/process event";
+        // }
 
         // if (new_state == lldb::eStateCrashed || new_state == lldb::eStateDetached ||
         //     new_state == lldb::eStateExited) {

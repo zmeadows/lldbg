@@ -76,16 +76,6 @@ int main(int argc, char** argv)
     app.set_workdir(LLDBG_TESTS_DIR);
 
     // if (exe_filepath.has_value()) {
-    //     const std::string target_path = fmt::format("{}/test", LLDBG_TESTS_DIR);
-    //     app.session = DebugSession::create(target_path, exe_args, lldb::eLaunchFlagStopAtEntry);
-
-    //     if (app.session == nullptr) {
-    //         std::cerr << "failed to launch test target";
-    //         return EXIT_FAILURE;
-    //     }
-    //     // TODO: set workdir from cmd line args, or cwd if unspecified
-
-    //     // assert(app.session->start_process());
     // }
 
     return app.main_loop();
