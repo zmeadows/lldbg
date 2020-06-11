@@ -2,8 +2,6 @@
 
 #include "Log.hpp"
 
-namespace lldbg {
-
 LLDBCommandLine::LLDBCommandLine(lldb::SBDebugger& debugger)
     : m_interpreter(debugger.GetCommandInterpreter())
 {
@@ -13,11 +11,14 @@ LLDBCommandLine::LLDBCommandLine(lldb::SBDebugger& debugger)
     run_command("settings set target.x86-disassembly-flavor intel", true);
 }
 
-void LLDBCommandLine::run_command(const char* command, bool hide_from_history)
+lldb::SBCommandReturnObject LLDBCommandLine::run_command(const char* command,
+                                                         bool hide_from_history)
 {
     if (!command) {
-        LOG(Error) << "Attempted to run empty command!";
-        return;
+        LOG(Warning) << "Attempted to run empty command!";
+        auto ret = lldb::SBCommandReturnObject();
+        ret.SetStatus(lldb::eReturnStatusInvalid);
+        return ret;
     }
 
     CommandLineEntry entry;
@@ -44,6 +45,25 @@ void LLDBCommandLine::run_command(const char* command, bool hide_from_history)
     if (!hide_from_history) {
         m_history.emplace_back(std::move(entry));
     }
+
+    return ret;
 }
 
-}  // namespace lldbg
+std::optional<std::string> LLDBCommandLine::expand_and_unalias_command(const char* command)
+{
+    if (!command) {
+        LOG(Warning) << "Attempted to expand/unalias empty command!";
+        return {};
+    }
+
+    lldb::SBCommandReturnObject ret;
+    m_interpreter.HandleCommand(command, ret);
+
+    const char* output = ret.GetOutput();
+    if (ret.Succeeded() && output) {
+        return std::string(output);
+    }
+    else {
+        return {};
+    }
+}

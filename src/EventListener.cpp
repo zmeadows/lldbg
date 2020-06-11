@@ -1,4 +1,4 @@
-#include "LLDBEventListenerThread.hpp"
+#include "EventListener.hpp"
 
 #include <assert.h>
 
@@ -7,81 +7,126 @@
 #include "Log.hpp"
 #include "lldb/API/LLDB.h"
 
-namespace lldbg {
-
-void LLDBEventListenerThread::start(lldb::SBProcess process)
+size_t LLDBEventQueue::size(void)
 {
-    if (!process.IsValid()) {
-        LOG(Warning) << "Attempted to start LLDBEventListenerThread for invalid process.";
-        return;
-    }
-
-    // TODO: log process ID and compare when 'stop' is called
-    // TODO: check Process state
-    if (m_thread) {
-        LOG(Warning) << "Attempted to double-start the LLDBEventListenerThread. Stopping it first.";
-        this->stop(process);
-    }
-
-    m_listener.Clear();
-    m_listener = lldb::SBListener("lldbg_listener");
-
-    // TODO: verify these flags are all we need
-    const uint32_t listen_flags =
-        lldb::SBProcess::eBroadcastBitStateChanged | lldb::SBProcess::eBroadcastBitSTDOUT |
-        lldb::SBProcess::eBroadcastBitSTDERR | lldb::SBProcess::eBroadcastBitInterrupt;
-
-    process.GetBroadcaster().AddListener(m_listener, listen_flags);
-
-    m_continue.store(true);
-
-    assert(!m_thread);
-    m_thread.reset(new std::thread(&LLDBEventListenerThread::poll_events, this));
-
-    LOG(Debug) << "Successfully launched LLDBEventListenerThread.";
+    std::unique_lock<std::mutex> lock(m_mutex);
+    return m_events.size();
 }
 
-void LLDBEventListenerThread::stop(lldb::SBProcess process)
+void LLDBEventQueue::push(const lldb::SBEvent& new_event)
 {
-    // TODO: check Process state
-    if (!m_thread) {
-        LOG(Warning) << "Attempted to double-stop the LLDBEventListenerThread";
-        return;
-    }
+    std::unique_lock<std::mutex> lock(m_mutex);
+    m_events.push_back(new_event);
+}
 
+std::optional<lldb::SBEvent> LLDBEventQueue::pop(void)
+{
+    std::unique_lock<std::mutex> lock(m_mutex);
+
+    if (m_events.empty()) {
+        return {};
+    }
+    else {
+        auto event = m_events.front();
+        m_events.pop_front();
+        return event;
+    }
+}
+
+void LLDBEventQueue::clear(void)
+{
+    std::unique_lock<std::mutex> lock(m_mutex);
+    m_events.clear();
+}
+
+LLDBEventListenerThread::LLDBEventListenerThread(lldb::SBDebugger& debugger)
+    : m_listener(debugger.GetListener()),
+      m_continue(true),
+      m_events(),
+      m_thread(new std::thread(&LLDBEventListenerThread::poll_events, this))
+{
+}
+
+LLDBEventListenerThread::~LLDBEventListenerThread()
+{
     m_continue.store(false);
     m_thread->join();
     m_thread.reset(nullptr);
-
-    process.GetBroadcaster().RemoveListener(m_listener);
-
-    m_listener.Clear();
     m_events.clear();
-
     LOG(Debug) << "Successfully stopped LLDBEventListenerThread.";
 }
 
+// void LLDBEventListenerThread::start_thread(void)
+// {
+//     // if (!process.IsValid()) {
+//     //     LOG(Warning) << "Attempted to start LLDBEventListenerThread for invalid process.";
+//     //     return;
+//     // }
+//
+//     // TODO: log process ID and compare when 'stop' is called
+//     if (m_thread) {
+//         LOG(Warning) << "Attempted to double-start the LLDBEventListenerThread. Stopping it
+//         first."; this->stop(process);
+//     }
+//
+//     m_listener.Clear();
+//     m_listener = lldb::SBListener("lldbg_listener");
+//
+//     // TODO: verify these flags are all we need
+//     const uint32_t listen_flags =
+//         lldb::SBProcess::eBroadcastBitStateChanged | lldb::SBProcess::eBroadcastBitSTDOUT |
+//         lldb::SBProcess::eBroadcastBitSTDERR | lldb::SBProcess::eBroadcastBitInterrupt;
+//
+//     process.GetBroadcaster().AddListener(m_listener, listen_flags);
+// }
+
+// void LLDBEventListenerThread::stop_thread(lldb::SBProcess process)
+// {
+//     if (!m_thread) {
+//         LOG(Warning) << "Attempted to double-stop the LLDBEventListenerThread";
+//         return;
+//     }
+//
+//     m_continue.store(false);
+//     m_thread->join();
+//     m_thread.reset(nullptr);
+//
+//     // if (process.IsValid()) {
+//     //     process.GetBroadcaster().RemoveListener(m_listener);
+//     // }
+//
+//     m_listener.Clear();
+//     m_events.clear();
+//
+//     LOG(Debug) << "Successfully stopped LLDBEventListenerThread.";
+// }
+
 void LLDBEventListenerThread::poll_events()
 {
+    LOG(Debug) << "Launched LLDBEventListenerThread.";
+
     while (m_continue.load()) {
         lldb::SBEvent event;
         if (m_listener.WaitForEvent(1, event)) {
             if (!event.IsValid()) {
-                // TODO: print event description using event.GetDescription(stream)
                 LOG(Warning) << "Invalid LLDB event encountered, skipping...";
                 continue;
             }
+            // TODO: log event description using event.GetDescription(stream)
 
             m_events.push(event);
 
-            const lldb::StateType state = lldb::SBProcess::GetStateFromEvent(event);
-            if (state == lldb::eStateCrashed || state == lldb::eStateDetached ||
-                state == lldb::eStateExited) {
-                m_continue.store(false);
-                return;
-            }
+            // In the case where the process has crashed/exited, we stop the thread immediately to
+            // avoid any more WaitForEvent delays in the case of program shutdown
+            // TODO: use global std::atomic<bool> to check for program shutdown
+            // if (lldb::SBProcess::EventIsProcessEvent(event)) {
+            //     const lldb::StateType state = lldb::SBProcess::GetStateFromEvent(event);
+            //     if (state == lldb::eStateCrashed || state == lldb::eStateDetached ||
+            //         state == lldb::eStateExited) {
+            //         m_continue.store(false);
+            //         return;
+            //     }
+            // }
         }
     }
 }
-
-}  // namespace lldbg

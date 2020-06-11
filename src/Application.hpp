@@ -5,11 +5,12 @@
 #include <cassert>
 #include <iostream>
 
+#include "DebugSession.hpp"
+#include "EventListener.hpp"
 #include "FPSTimer.hpp"
 #include "FileSystem.hpp"
 #include "FileViewer.hpp"
 #include "LLDBCommandLine.hpp"
-#include "LLDBEventListenerThread.hpp"
 #include "Log.hpp"
 #include "StreamBuffer.hpp"
 
@@ -49,18 +50,22 @@ struct UserInterface {
     GLFWwindow* window = nullptr;
 };
 
-// TODO: convert this struct to OOP-style
+// TODO: turn into class with OOP style
 struct Application {
-    std::unique_ptr<DebugSession> session;
+    DebugSession session;
     OpenFiles open_files;
-    BreakPointSet breakpoints;  // TODO: move to TextEditor
-    std::unique_ptr<lldbg::FileBrowserNode> file_browser;
-    UserInterface ui;
+    BreakPointSet
+        breakpoints;  // TODO: move to TextEditor, as this is just for visual marking purposes
+    std::unique_ptr<lldbg::FileBrowserNode>
+        file_browser;  // TODO convert to non-pointer with default constructor in cwd
+    UserInterface ui;  // TODO use UserInterface constructor to initializer graphics
     FileViewer text_editor;
     FPSTimer fps_timer;
 
     int main_loop(void);
+    void set_workdir(const std::string& workdir);
 
+    // TODO: take UserInterface&& as argument
     Application();
     ~Application();
 
@@ -68,7 +73,5 @@ struct Application {
     Application& operator=(const Application&) = delete;
     Application& operator=(Application&&) = delete;
 };
-
-void set_workdir(Application& app, const std::string& workdir);
 
 }  // namespace lldbg

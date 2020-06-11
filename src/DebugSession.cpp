@@ -1,23 +1,41 @@
 #include "DebugSession.hpp"
 
+#include <cassert>
+
+#include "Log.hpp"
+
 DebugSession::DebugSession()
     : m_debugger(lldb::SBDebugger::Create()),
       m_cmdline(m_debugger),
-      m_listener(),
+      m_listener(m_debugger),
       m_stdout(StreamBuffer::StreamSource::StdOut),
       m_stderr(StreamBuffer::StreamSource::StdErr)
 {
 }
 
+// TODO: if process running, present user with dialogue and give option to detach from lldb rather
+// than kill process. But don't do that here, rather in a callback for application exit request.
 DebugSession::~DebugSession(void)
 {
-    kill_process();
-    auto target = get_target();
-    if (target.IsValid()) m_debugger.DeleteTarget(target);
-    lldb::SBDebugger::Destroy(m_debugger);
+    if (auto process = find_process(); process.has_value() && process->IsValid()) {
+        LOG(Warning) << "Found active process while destructing DebugSession.";
+        kill_process(*process);
+    }
+
+    if (auto target = find_target(); target.has_value() && target->IsValid()) {
+        LOG(Warning) << "Found active target while destructing DebugSession.";
+        m_debugger.DeleteTarget(*target);
+    }
+
+    if (m_debugger.IsValid()) {
+        lldb::SBDebugger::Destroy(m_debugger);
+        m_debugger.Clear();
+    }
+    else {
+        LOG(Warning) << "Found invalid lldb::SBDebugger while destructing DebugSession.";
+    }
 }
 
-// TODO: separate target/process listener threads :
 // https://lists.llvm.org/pipermail/lldb-dev/2016-January/009454.html
 // std::unique_ptr<DebugSession>
 // DebugSession::create(const std::string& exe_path,
@@ -144,7 +162,7 @@ std::optional<lldb::SBTarget> DebugSession::find_target()
 
 std::optional<lldb::SBProcess> DebugSession::find_process()
 {
-    auto target = get_target();
+    auto target = find_target();
 
     if (!target.has_value()) return {};
 
@@ -156,123 +174,175 @@ std::optional<lldb::SBProcess> DebugSession::find_process()
     }
 
     if (process.GetNumThreads() == 0) {
-        LOG(Debug) << "Found valid process with zero threads.";
+        LOG(Debug) << "Found valid process with zero threads...?";
         return {};
     }
 
     return process;
 }
 
-// std::vector<lldb::SBThread> DebugSession::get_process_threads()
-// {
-//     auto process = get_process();
-//     if (!process.has_value()) return {};
-//
-//     const auto nthreads = process->GetNumThreads();
-//     std::vector<lldb::SBThread> result;
-//     result.reserve(nthreads);
-//
-//     for (uint32_t i = 0; i < nthreads; i++) {
-//         result.push_back(process->GetThreadAtIndex(i));
-//     }
-//
-//     return result;
-// }
-
 void DebugSession::read_stream_buffers(void)
 {
-    if (auto process = get_process(); process.has_value()) {
+    // TODO: only do this upon receiving stdout/stderr process events
+    if (auto process = find_process(); process.has_value() && process_is_stopped(*process)) {
         m_stdout.update(*process);
         m_stderr.update(*process);
     }
 }
 
-bool DebugSession::process_is_running(void)
+bool process_is_running(lldb::SBProcess& process)
 {
-    auto process = get_process();
-    return process.has_value() && process->GetState() == lldb::eStateRunning;
+    return process.IsValid() && process.GetState() == lldb::eStateRunning;
 }
 
-bool DebugSession::process_is_stopped(void)
+bool process_is_stopped(lldb::SBProcess& process)
 {
-    auto process = get_process();
-    return process.has_value() && process->GetState() == lldb::eStateStopped;
+    return process.IsValid() && process.GetState() == lldb::eStateStopped;
 }
 
-bool DebugSession::process_is_finished(void)
+std::pair<bool, bool> process_is_finished(lldb::SBProcess& process)
 {
-    auto process = get_process();
-    if (!process.has_value()) return false;
+    if (!process.IsValid()) {
+        return {false, false};
+    }
 
-    auto state = process->GetState();
-    return state == lldb::eStateCrashed || state == lldb::eStateDetached ||
-           state == lldb::eStateExited;
+    const lldb::StateType state = process.GetState();
+
+    const bool exited = state == lldb::eStateExited;
+    const bool failed = state == lldb::eStateCrashed;
+
+    return {exited || failed, !failed};
 }
 
-bool DebugSession::process_exited_successfully(void)
+void stop_process(lldb::SBProcess& process)
 {
-    auto process = get_process();
-    if (!process.has_value()) return false;
-
-    return process->GetState() == lldb::eStateExited;
-}
-
-void DebugSession::stop_process(void)
-{
-    auto process = get_process();
-
-    if (!process.has_value()) {
-        LOG(Warning) << "Attempted to stop a non-existent process.";
+    if (!process.IsValid()) {
+        LOG(Warning) << "Attempted to stop an invalid process.";
         return;
     }
 
-    if (process_is_stopped()) {
+    if (process_is_stopped(process)) {
         LOG(Warning) << "Attempted to stop an already-stopped process.";
         return;
     }
 
-    process->Stop();
+    lldb::SBError err = process.Stop();
+    if (err.Fail()) {
+        LOG(Error) << "Failed to stop the process, encountered the following error: "
+                   << err.GetCString();
+        return;
+    }
 }
 
-void DebugSession::continue_process(void)
+void continue_process(lldb::SBProcess& process)
 {
-    auto process = get_process();
-
-    if (!process.has_value()) {
-        LOG(Warning) << "Attempted to continue a non-existent process.";
+    if (!process.IsValid()) {
+        LOG(Warning) << "Attempted to continue an invalid process.";
         return;
     }
 
-    if (process_is_running()) {
+    if (process_is_running(process)) {
         LOG(Warning) << "Attempted to continue an already-running process.";
         return;
     }
 
-    process->Continue();
+    lldb::SBError err = process.Continue();
+    if (err.Fail()) {
+        LOG(Error) << "Failed to continue the process, encountered the following error: "
+                   << err.GetCString();
+        return;
+    }
 }
 
-void DebugSession::kill_process(void)
+void kill_process(lldb::SBProcess& process)
 {
-    auto process = get_process();
-
-    if (!process.has_value()) {
-        LOG(Warning) << "Attempted to kill a non-existent process.";
+    if (!process.IsValid()) {
+        LOG(Warning) << "Attempted to kill an invalid process.";
         return;
     }
 
-    if (process_is_finished()) {
+    if (process_is_finished(process).first) {
         LOG(Warning) << "Attempted to kill an already-finished process.";
         return;
     }
 
-    process->Kill();
+    lldb::SBError err = process.Kill();
+    if (err.Fail()) {
+        LOG(Error) << "Failed to kill the process, encountered the following error: "
+                   << err.GetCString();
+        return;
+    }
 }
 
 void DebugSession::run_lldb_command(const char* command, bool hide_from_history)
 {
-    const bool process_existed_before = get_process().has_value();
-    m_cmdline.run_command(command, hide_from_history);
-    const bool process_exists_after = get_process().has_value();
+    if (auto unaliased_cmd = m_cmdline.expand_and_unalias_command(command);
+        unaliased_cmd.has_value()) {
+        LOG(Debug) << "Unaliased command: " << *unaliased_cmd;
+    }
+
+    lldb::SBCommandReturnObject ret = m_cmdline.run_command(command, hide_from_history);
+    assert(ret.IsValid());
+
+    switch (ret.GetStatus()) {
+        case lldb::eReturnStatusInvalid:
+            LOG(Debug) << "eReturnStatusInvalid";
+            break;
+        case lldb::eReturnStatusSuccessFinishNoResult:
+            LOG(Debug) << "eReturnStatusSuccessFinishNoResult";
+            break;
+        case lldb::eReturnStatusSuccessFinishResult:
+            LOG(Debug) << "eReturnStatusSuccessFinishResult";
+            break;
+        case lldb::eReturnStatusSuccessContinuingNoResult:
+            LOG(Debug) << "eReturnStatusSuccessContinuingNoResult";
+            break;
+        case lldb::eReturnStatusSuccessContinuingResult:
+            LOG(Debug) << "eReturnStatusSuccessContinuingResult";
+            break;
+        case lldb::eReturnStatusStarted:
+            LOG(Debug) << "eReturnStatusStarted";
+            break;
+        case lldb::eReturnStatusFailed:
+            LOG(Debug) << "eReturnStatusFailed";
+            break;
+        case lldb::eReturnStatusQuit:
+            LOG(Debug) << "eReturnStatusQuit";
+            break;
+        default:
+            LOG(Debug) << "unknown lldd command return status encountered.";
+            break;
+    }
+}
+
+DebugSession::State DebugSession::get_state(void)
+{
+    auto target = find_target();
+
+    if (!target.has_value()) {
+        return State::NoTarget;
+    }
+
+    auto process = find_process();
+
+    if (!process.has_value()) {
+        return State::ProcessNotYetLaunched;
+    }
+
+    if (process_is_stopped(*process)) {
+        return State::ProcessStopped;
+    }
+
+    if (process_is_running(*process)) {
+        return State::ProcessRunning;
+    }
+
+    if (const auto [finished, _] = process_is_finished(*process); finished) {
+        return State::ProcessFinished;
+    }
+
+    LOG(Error) << "Unknown/Invalid DebugSession::SessionState encountered!";
+    return State::Invalid;
 }
 
 const std::vector<CommandLineEntry>& DebugSession::get_lldb_command_history() const
@@ -280,26 +350,43 @@ const std::vector<CommandLineEntry>& DebugSession::get_lldb_command_history() co
     return m_cmdline.get_history();
 }
 
+void DebugSession::handle_lldb_process_event(lldb::SBEvent& event)
+{
+    const lldb::StateType new_state = lldb::SBProcess::GetStateFromEvent(event);
+    const char* state_descr = lldb::SBDebugger::StateAsCString(new_state);
+    LOG(Debug) << "Found process event with new state: " << state_descr;
+}
+
+void DebugSession::handle_lldb_target_event(lldb::SBEvent&) {}
+
 void DebugSession::handle_lldb_events(void)
 {
     while (true) {
-        lldb::SBEvent event;
-        const bool found_event = m_listener.pop_event(event);
-        if (!found_event) break;
+        auto maybe_event = m_listener.pop_event();
+        if (!maybe_event.has_value()) break;
+        auto event = *maybe_event;
 
-        const lldb::StateType new_state = lldb::SBProcess::GetStateFromEvent(event);
-        const char* state_descr = lldb::SBDebugger::StateAsCString(new_state);
-        LOG(Debug) << "Found event with new state: " << state_descr;
-
-        if (new_state == lldb::eStateCrashed || new_state == lldb::eStateDetached ||
-            new_state == lldb::eStateExited) {
-            auto process = get_process();
-            if (process.has_value()) {
-                m_listener.stop(*process);
-            }
-            else {
-                LOG(Warning) << "Tried handling lldb event while process doesn't exist!";
-            }
+        if (lldb::SBProcess::EventIsProcessEvent(event)) {
+            handle_lldb_process_event(event);
         }
+        else if (lldb::SBTarget::EventIsTargetEvent(event)) {
+            handle_lldb_target_event(event);
+        }
+        else {
+            // TODO: print event description
+            LOG(Debug) << "Found non-target/process event";
+        }
+
+        // if (new_state == lldb::eStateCrashed || new_state == lldb::eStateDetached ||
+        //     new_state == lldb::eStateExited) {
+        //     auto process = find_process();
+        //     if (process.has_value()) {
+        //         m_listener.stop(*process);
+        //     }
+        //     else {
+        //         LOG(Warning) << "Tried handling lldb event while process doesn't exist!";
+        //     }
+        // }
     }
 }
+
