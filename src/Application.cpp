@@ -189,12 +189,12 @@ static bool Splitter(const char* name, bool split_vertically, float thickness, f
                             min_size1, min_size2, 0.0f);
 }
 
-static void draw_open_files(lldbg::Application& app)
+static void draw_open_files(Application& app)
 {
     bool closed_tab = false;
 
     app.open_files.for_each_open_file([&](FileHandle handle, bool is_focused) {
-        auto action = lldbg::OpenFiles::Action::Nothing;
+        auto action = OpenFiles::Action::Nothing;
 
         // we programmatically set the focused tab if manual tab change requested
         // for example when the user clicks an entry in the stack trace or file explorer
@@ -210,7 +210,7 @@ static void draw_open_files(lldbg::Application& app)
             ImGui::BeginChild("FileContents");
             if (!app.ui.request_manual_tab_change && !is_focused) {
                 // user selected tab directly with mouse
-                action = lldbg::OpenFiles::Action::ChangeFocusTo;
+                action = OpenFiles::Action::ChangeFocusTo;
                 app.text_editor.set_lines(handle.contents());
                 app.text_editor.set_breakpoints(app.breakpoints.Get(handle));
             }
@@ -221,7 +221,7 @@ static void draw_open_files(lldbg::Application& app)
 
         if (!keep_tab_open) {  // user closed tab with mouse
             closed_tab = true;
-            action = lldbg::OpenFiles::Action::Close;
+            action = OpenFiles::Action::Close;
         }
 
         return action;
@@ -236,7 +236,7 @@ static void draw_open_files(lldbg::Application& app)
     }
 }
 
-static void manually_open_and_or_focus_file(lldbg::Application& app, FileHandle handle)
+static void manually_open_and_or_focus_file(Application& app, FileHandle handle)
 {
     if (auto focus = app.open_files.focus(); focus.has_value()) {
         if (*focus == handle) {
@@ -247,7 +247,7 @@ static void manually_open_and_or_focus_file(lldbg::Application& app, FileHandle 
     app.ui.request_manual_tab_change = true;
 }
 
-static void manually_open_and_or_focus_file(lldbg::Application& app, const char* filepath)
+static void manually_open_and_or_focus_file(Application& app, const char* filepath)
 {
     if (auto handle = FileHandle::create(filepath); handle.has_value()) {
         manually_open_and_or_focus_file(app, *handle);
@@ -258,8 +258,7 @@ static void manually_open_and_or_focus_file(lldbg::Application& app, const char*
     }
 }
 
-static void draw_file_browser(lldbg::Application& app, lldbg::FileBrowserNode* node_to_draw,
-                              size_t depth)
+static void draw_file_browser(Application& app, FileBrowserNode* node_to_draw, size_t depth)
 {
     if (node_to_draw->is_directory()) {
         const char* tree_node_label =
@@ -321,6 +320,9 @@ static void draw_control_bar(DebugSession& session)
         process_description.format("Process State: {}", process_state);
         ImGui::TextUnformatted(process_description.data());
     }
+    else if (target.has_value()) {
+        ImGui::TextUnformatted("Process State: Unlaunched");
+    }
 
     switch (session.get_state()) {
         case DebugSession::State::Invalid: {
@@ -366,8 +368,6 @@ static void draw_control_bar(DebugSession& session)
         }
     }
 }
-
-namespace lldbg {
 
 void draw(Application& app)
 {
@@ -914,7 +914,7 @@ void draw(Application& app)
     }
 }  // namespace lldbg
 
-static void tick(lldbg::Application& app)
+static void tick(Application& app)
 {
     // process all queued LLDB events before drawing each frame
     app.session.handle_lldb_events();
@@ -924,7 +924,7 @@ static void tick(lldbg::Application& app)
     //     add_breakpoint_to_viewed_file(app, *line_clicked);
     // }
 
-    lldbg::draw(app);
+    draw(app);
 }
 
 static void update_window_dimensions(UserInterface& ui)
@@ -1054,10 +1054,6 @@ int initialize_rendering(UserInterface& ui)
     return 0;
 }
 
-}  // namespace lldbg
-
-namespace lldbg {
-
 Application::Application() { initialize_rendering(this->ui); }
 
 Application::~Application()
@@ -1080,5 +1076,3 @@ void Application::set_workdir(const std::string& workdir)
         this->file_browser = FileBrowserNode::create(fs::current_path());
     }
 }
-
-}  // namespace lldbg

@@ -19,7 +19,8 @@ public:
 
     bool launch_process(std::optional<uint32_t> launch_flags = {});
 
-    void run_lldb_command(const char* command, bool hide_from_history = false);
+    lldb::SBCommandReturnObject run_lldb_command(const char* command,
+                                                 bool hide_from_history = false);
 
     const std::vector<CommandLineEntry>& get_lldb_command_history() const;
 

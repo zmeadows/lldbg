@@ -6,8 +6,6 @@
 #include "Log.hpp"
 #include "fmt/format.h"
 
-namespace lldbg {
-
 std::map<size_t, std::string> FileHandle::s_filepath_cache;
 std::map<size_t, std::string> FileHandle::s_filename_cache;
 std::map<size_t, std::vector<std::string>> FileHandle::s_contents_cache;
@@ -281,5 +279,3 @@ const std::unordered_set<int>* BreakPointSet::Get(FileHandle handle)
         return std::addressof(it->second);
     }
 }
-
-}  // namespace lldbg

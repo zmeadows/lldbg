@@ -268,7 +268,8 @@ void kill_process(lldb::SBProcess& process)
     }
 }
 
-void DebugSession::run_lldb_command(const char* command, bool hide_from_history)
+lldb::SBCommandReturnObject DebugSession::run_lldb_command(const char* command,
+                                                           bool hide_from_history)
 {
     if (auto unaliased_cmd = m_cmdline.expand_and_unalias_command(command);
         unaliased_cmd.has_value()) {
@@ -278,7 +279,6 @@ void DebugSession::run_lldb_command(const char* command, bool hide_from_history)
     auto target_before = find_target();
 
     lldb::SBCommandReturnObject ret = m_cmdline.run_command(command, hide_from_history);
-    assert(ret.IsValid());
 
     auto target_after = find_target();
 
@@ -319,6 +319,8 @@ void DebugSession::run_lldb_command(const char* command, bool hide_from_history)
             LOG(Debug) << "unknown lldd command return status encountered.";
             break;
     }
+
+    return ret;
 }
 
 DebugSession::State DebugSession::get_state(void)

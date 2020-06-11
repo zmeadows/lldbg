@@ -19,8 +19,6 @@
 
 namespace fs = std::filesystem;
 
-namespace lldbg {
-
 enum class FileReadError { DoesNotExist, NotRegularFile };
 
 class FileHandle {
@@ -154,6 +152,4 @@ public:
         return m_children;
     }
 };
-
-}  // namespace lldbg
 

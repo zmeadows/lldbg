@@ -24,8 +24,6 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
-namespace lldbg {
-
 // TODO: create sane Constructor and initialize UserInterface and Application *before* adding
 // targets in main
 // TODO: use std::optional<size_t> instead of -1
@@ -56,7 +54,7 @@ struct Application {
     OpenFiles open_files;
     BreakPointSet
         breakpoints;  // TODO: move to TextEditor, as this is just for visual marking purposes
-    std::unique_ptr<lldbg::FileBrowserNode>
+    std::unique_ptr<FileBrowserNode>
         file_browser;  // TODO convert to non-pointer with default constructor in cwd
     UserInterface ui;  // TODO use UserInterface constructor to initializer graphics
     FileViewer text_editor;
@@ -73,5 +71,3 @@ struct Application {
     Application& operator=(const Application&) = delete;
     Application& operator=(Application&&) = delete;
 };
-
-}  // namespace lldbg
