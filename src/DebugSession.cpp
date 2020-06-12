@@ -282,7 +282,7 @@ lldb::SBCommandReturnObject DebugSession::run_lldb_command(const char* command,
 
     auto target_after = find_target();
 
-    // TODO: remove target_before broadcast listening, in second case?
+    // TODO: need to think a bit about handling multiple targets
     if ((!target_before && target_after) ||
         (target_before && target_after && (*target_before != *target_after))) {
         target_after->GetBroadcaster().AddListener(

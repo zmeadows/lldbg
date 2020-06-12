@@ -16,8 +16,6 @@
 
 namespace fs = std::filesystem;
 
-using namespace lldbg;
-
 static std::map<std::string, std::string> s_debug_stream;
 
 // NOTE: remember this is updated once per frame and currently variables are never removed
@@ -300,8 +298,6 @@ static void draw_control_bar(DebugSession& session)
     auto target = session.find_target();
     if (target.has_value()) {
         // TODO: show rightmost chunk of path in case it is too long to fit on screen
-        // TODO: add button to select new target using
-        // https://github.com/aiekick/ImGuiFileDialog
         lldb::SBFileSpec fs = target->GetExecutable();
         StringBuffer target_description;
         const char* target_directory = fs.GetDirectory();
@@ -335,12 +331,15 @@ static void draw_control_bar(DebugSession& session)
 
         case DebugSession::State::NoTarget: {
             if (ImGui::Button("choose target")) {
+                // TODO: use https://github.com/aiekick/ImGuiFileDialog
+                LOG(Error) << "choose target button not yet implemented";
             }
             break;
         }
 
         case DebugSession::State::ProcessNotYetLaunched: {
             if (ImGui::Button("run")) {
+                (void)session.run_lldb_command("run");
             }
             break;
         }
@@ -348,9 +347,9 @@ static void draw_control_bar(DebugSession& session)
         case DebugSession::State::ProcessStopped: {
             assert(process.has_value());
             if (ImGui::Button("continue")) {
-                continue_process(*process);
+                (void)session.run_lldb_command("continue");
             }
-            // TODO: step over/into
+            // TODO: handle step over/into options
             break;
         }
 
@@ -365,7 +364,7 @@ static void draw_control_bar(DebugSession& session)
         case DebugSession::State::ProcessFinished: {
             assert(process.has_value());
             if (ImGui::Button("restart")) {
-                LOG(Error) << "restart button not yet implemented";
+                (void)session.run_lldb_command("run");
             }
             break;
         }
@@ -400,12 +399,13 @@ void draw(Application& app)
     Splitter("##S1", true, 3.0f, &ui.file_browser_width, &ui.file_viewer_width,
              0.05 * ui.window_width, 0.05 * ui.window_width, ui.window_height);
 
-    ImGui::BeginChild("FileBrowserPane", ImVec2(ui.file_browser_width, 0));
-
-    draw_control_bar(session);
-    ImGui::Separator();
-    draw_file_browser(app, app.file_browser.get(), 0);
-    ImGui::EndChild();
+    {
+        ImGui::BeginChild("FileBrowserPane", ImVec2(ui.file_browser_width, 0));
+        draw_control_bar(session);
+        ImGui::Separator();
+        draw_file_browser(app, app.file_browser.get(), 0);
+        ImGui::EndChild();
+    }
 
     ImGui::SameLine();
 
@@ -500,44 +500,43 @@ void draw(Application& app)
 
             if (ImGui::BeginTabItem("log")) {
                 ImGui::BeginChild("LogEntries");
-                lldbg::Logger::get_instance()->for_each_message(
-                    [](const lldbg::LogMessage& entry) -> void {
-                        const char* msg = entry.message.c_str();
-                        switch (entry.level) {
-                            case LogLevel::Verbose: {
-                                ImGui::TextColored(
-                                    ImVec4(78.f / 255.f, 78.f / 255.f, 78.f / 255.f, 255.f),
-                                    "[VERBOSE]");
-                                break;
-                            }
-                            case LogLevel::Debug: {
-                                ImGui::TextColored(ImVec4(52.f / 255.f, 56.f / 255.f, 176.f / 255.f,
-                                                          255.f / 255.f),
-                                                   "[DEBUG]");
-                                break;
-                            }
-                            case LogLevel::Info: {
-                                ImGui::TextColored(ImVec4(225.f / 255.f, 225.f / 255.f,
-                                                          225.f / 255.f, 255.f / 255.f),
-                                                   "[INFO]");
-                                break;
-                            }
-                            case LogLevel::Warning: {
-                                ImGui::TextColored(ImVec4(216.f / 255.f, 129.f / 255.f,
-                                                          42.f / 255.f, 255.f / 255.f),
-                                                   "[WARNING]");
-                                break;
-                            }
-                            case LogLevel::Error: {
-                                ImGui::TextColored(ImVec4(212.f / 255.f, 67.f / 255.f, 67.f / 255.f,
-                                                          255.f / 255.f),
-                                                   "[ERROR]");
-                                break;
-                            }
+                Logger::get_instance()->for_each_message([](const LogMessage& entry) -> void {
+                    const char* msg = entry.message.c_str();
+                    switch (entry.level) {
+                        case LogLevel::Verbose: {
+                            ImGui::TextColored(
+                                ImVec4(78.f / 255.f, 78.f / 255.f, 78.f / 255.f, 255.f),
+                                "[VERBOSE]");
+                            break;
                         }
-                        ImGui::SameLine();
-                        ImGui::TextUnformatted(msg);
-                    });
+                        case LogLevel::Debug: {
+                            ImGui::TextColored(
+                                ImVec4(52.f / 255.f, 56.f / 255.f, 176.f / 255.f, 255.f / 255.f),
+                                "[DEBUG]");
+                            break;
+                        }
+                        case LogLevel::Info: {
+                            ImGui::TextColored(
+                                ImVec4(225.f / 255.f, 225.f / 255.f, 225.f / 255.f, 255.f / 255.f),
+                                "[INFO]");
+                            break;
+                        }
+                        case LogLevel::Warning: {
+                            ImGui::TextColored(
+                                ImVec4(216.f / 255.f, 129.f / 255.f, 42.f / 255.f, 255.f / 255.f),
+                                "[WARNING]");
+                            break;
+                        }
+                        case LogLevel::Error: {
+                            ImGui::TextColored(
+                                ImVec4(212.f / 255.f, 67.f / 255.f, 67.f / 255.f, 255.f / 255.f),
+                                "[ERROR]");
+                            break;
+                        }
+                    }
+                    ImGui::SameLine();
+                    ImGui::TextUnformatted(msg);
+                });
                 ImGui::SetScrollHere(1.0f);
                 ImGui::EndChild();
                 ImGui::EndTabItem();
@@ -592,7 +591,7 @@ void draw(Application& app)
     auto process = session.find_process();
     auto target = session.find_target();
 
-    {  // THREADS
+    {  // start threads
         ImGui::BeginChild(
             "#ThreadsChild",
             ImVec2(ui.window_width - ui.file_browser_width - ui.file_viewer_width, threads_height));
@@ -639,7 +638,7 @@ void draw(Application& app)
                 }
             }
         }
-    }
+    }  // end threads
 
     ImGui::BeginChild("#StackTraceChild", ImVec2(0, stack_height));
     if (ImGui::BeginTabBar("##StackTraceTabs", ImGuiTabBarFlags_None)) {

@@ -8,9 +8,7 @@
 
 // TODO: modify to include file/function/line information?
 // also include lldb version/commit number?
-#define LOG(LEV) lldbg::LogMessageStream(lldbg::LogLevel::LEV)
-
-namespace lldbg {
+#define LOG(LEV) LogMessageStream(LogLevel::LEV)
 
 enum class LogLevel { Verbose, Debug, Info, Warning, Error };
 
@@ -77,6 +75,4 @@ public:
         Logger::get_instance()->log(level, oss.str());
     };
 };
-
-}  // namespace lldbg
 

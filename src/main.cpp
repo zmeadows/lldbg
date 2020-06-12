@@ -60,6 +60,7 @@ int main(int argc, char** argv)
         app.set_workdir(workdir.c_str());
     }
 
+    // TODO: test this
     if (result.count("source-before-file")) {
         const std::string source_path = result["source-before-file"].as<std::string>();
         auto handle = FileHandle::create(source_path);
