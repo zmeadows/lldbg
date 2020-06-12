@@ -53,11 +53,6 @@ int main(int argc, char** argv)
     }
     Defer(lldb::SBDebugger::Terminate());
 
-    std::vector<std::string> exe_args;
-    if (result.count("positional")) {
-        exe_args = result["positional"].as<std::vector<std::string>>();
-    }
-
     Application app;
 
     if (result.count("workdir")) {
@@ -88,6 +83,16 @@ int main(int argc, char** argv)
         StringBuffer target_set_cmd;
         target_set_cmd.format("file {}", result["file"].as<std::string>());
         app.session.run_lldb_command(target_set_cmd.data());
+
+        if (result.count("positional")) {
+            StringBuffer argset_command;
+            argset_command.format_("settings set target.run-args ");
+            for (const auto& arg : result["positional"].as<std::vector<std::string>>()) {
+                argset_command.format_("{} ", arg);
+            }
+            argset_command.format_("{}", '\0');
+            app.session.run_lldb_command(argset_command.data());
+        }
     }
 
     return app.main_loop();

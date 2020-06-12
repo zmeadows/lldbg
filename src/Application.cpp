@@ -103,7 +103,10 @@ struct StackFrame {
 
 private:
     StackFrame(FileHandle _file_handle, int _line, int _column, std::string&& _function_name)
-        : file_handle(_file_handle), function_name(_function_name), line(_line), column(_column)
+        : file_handle(_file_handle),
+          function_name(std::move(_function_name)),
+          line(_line),
+          column(_column)
     {
     }
 
