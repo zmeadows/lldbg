@@ -165,8 +165,7 @@ void OpenFiles::open(FileHandle handle)
     auto it = std::find(m_files.begin(), m_files.end(), handle);
     if (it != m_files.end()) {
         m_focus = it - m_files.begin();
-        LOG(Verbose) << "Successfully switched focus to previously-opened file: "
-                     << handle.filepath();
+        LOG(Verbose) << "Successfully opened previously-opened file: " << handle.filepath();
         return;
     }
 

@@ -26,11 +26,13 @@
 
 // TODO: create sane Constructor and initialize UserInterface and Application *before* adding
 // targets in main
-// TODO: use std::optional<size_t> instead of -1
+// TODO: use uint32_t and default values of 0
 // TODO: add size_t to keep track of frames_rendered
 struct UserInterface {
-    int viewed_thread_index = -1;
-    int viewed_frame_index = -1;
+    // TODO: rename user_selected_*
+    uint32_t viewed_thread_index = 0;
+    uint32_t viewed_frame_index = 0;
+    uint32_t viewed_breakpoint_index = 0;
 
     float window_width = -1.f;   // in pixels
     float window_height = -1.f;  // in pixels

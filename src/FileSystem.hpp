@@ -19,8 +19,6 @@
 
 namespace fs = std::filesystem;
 
-enum class FileReadError { DoesNotExist, NotRegularFile };
-
 class FileHandle {
     size_t m_hash;
 

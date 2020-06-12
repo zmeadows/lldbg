@@ -84,6 +84,7 @@ int main(int argc, char** argv)
     }
 
     if (result.count("file")) {
+        // TODO: detect and open main file of specified executable
         StringBuffer target_set_cmd;
         target_set_cmd.format("file {}", result["file"].as<std::string>());
         app.session.run_lldb_command(target_set_cmd.data());

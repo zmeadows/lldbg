@@ -586,53 +586,62 @@ void draw(Application& app)
     const float locals_height = (ui.window_height - 2 * ImGui::GetFrameHeightWithSpacing()) / 4;
     const float breakpoint_height = (ui.window_height - 2 * ImGui::GetFrameHeightWithSpacing()) / 4;
 
-    ImGui::BeginChild(
-        "#ThreadsChild",
-        ImVec2(ui.window_width - ui.file_browser_width - ui.file_viewer_width, threads_height));
-
     auto process = session.find_process();
     auto target = session.find_target();
 
-    // TODO: be consistent about whether or not to use Defer
-    if (ImGui::BeginTabBar("#ThreadsTabs", ImGuiTabBarFlags_None)) {
-        if (ImGui::BeginTabItem("threads")) {
-            if (process.has_value() && process_is_stopped(*process)) {
-                if (process->GetNumThreads() > 0 && ui.viewed_thread_index < 0) {
-                    app.ui.viewed_thread_index = 0;
-                }
+    {  // THREADS
+        ImGui::BeginChild(
+            "#ThreadsChild",
+            ImVec2(ui.window_width - ui.file_browser_width - ui.file_viewer_width, threads_height));
 
-                for (uint32_t i = 0; i < process->GetNumThreads(); i++) {
-                    lldb::SBThread th = process->GetThreadAtIndex(i);
+        Defer(ImGui::EndChild());
 
-                    const char* thread_name = th.GetName();
-                    if (!thread_name) {
-                        LOG(Warning) << "Skipping thread with null name";
-                        continue;
+        // TODO: be consistent about whether or not to use Defer
+        // TODO: add columns with stop reason and other potential information
+        if (ImGui::BeginTabBar("#ThreadsTabs", ImGuiTabBarFlags_None)) {
+            Defer(ImGui::EndTabBar());
+            if (ImGui::BeginTabItem("threads")) {
+                Defer(ImGui::EndTabItem());
+                if (process.has_value() && process_is_stopped(*process)) {
+                    const uint32_t nthreads = process->GetNumThreads();
+
+                    if (ui.viewed_thread_index >= nthreads) {
+                        ui.viewed_thread_index = nthreads - 1;
+                        LOG(Warning) << "detected/fixed overflow of ui.viewed_thread_index";
                     }
 
                     StringBuffer thread_label;
-                    thread_label.format("Thread {}: {}", i, th.GetName());
+                    for (uint32_t i = 0; i < nthreads; i++) {
+                        lldb::SBThread th = process->GetThreadAtIndex(i);
 
-                    if (ImGui::Selectable(thread_label.data(),
-                                          (int)i == app.ui.viewed_thread_index)) {
-                        app.ui.viewed_thread_index = i;
+                        if (!th.IsValid()) {
+                            LOG(Warning) << "Encountered invalid thread";
+                            continue;
+                        }
+
+                        const char* thread_name = th.GetName();
+                        if (thread_name == nullptr) {
+                            LOG(Warning) << "Skipping thread with null name";
+                            continue;
+                        }
+
+                        thread_label.format("Thread {}: {}", i, th.GetName());
+
+                        if (ImGui::Selectable(thread_label.data(), i == ui.viewed_thread_index)) {
+                            app.ui.viewed_thread_index = i;
+                        }
+
+                        thread_label.clear();
                     }
                 }
             }
-            ImGui::EndTabItem();
         }
-        ImGui::EndTabBar();
     }
-
-    ImGui::EndChild();
 
     ImGui::BeginChild("#StackTraceChild", ImVec2(0, stack_height));
     if (ImGui::BeginTabBar("##StackTraceTabs", ImGuiTabBarFlags_None)) {
         if (ImGui::BeginTabItem("stack trace")) {
-            static int selected_row = -1;
-
-            if (process.has_value() && process_is_stopped(*process) &&
-                ui.viewed_thread_index >= 0) {
+            if (process.has_value() && process_is_stopped(*process)) {
                 ImGui::Columns(3, "##StackTraceColumns");
                 ImGui::Separator();
                 ImGui::Text("FUNCTION");
@@ -643,11 +652,11 @@ void draw(Application& app)
                 ImGui::NextColumn();
                 ImGui::Separator();
 
-                lldb::SBThread viewed_thread =
-                    process->GetThreadAtIndex(app.ui.viewed_thread_index);
+                lldb::SBThread viewed_thread = process->GetThreadAtIndex(ui.viewed_thread_index);
+                const uint32_t nframes = viewed_thread.GetNumFrames();
 
-                if (viewed_thread.GetNumFrames() > 0 && selected_row < 0) {
-                    selected_row = 0;
+                if (ui.viewed_frame_index >= nframes) {
+                    ui.viewed_frame_index = nframes - 1;
                 }
 
                 for (uint32_t i = 0; i < viewed_thread.GetNumFrames(); i++) {
@@ -655,10 +664,10 @@ void draw(Application& app)
 
                     if (!frame) continue;
 
-                    if (ImGui::Selectable(frame->function_name.c_str(), (int)i == selected_row,
+                    if (ImGui::Selectable(frame->function_name.c_str(), i == ui.viewed_frame_index,
                                           ImGuiSelectableFlags_SpanAllColumns)) {
                         manually_open_and_or_focus_file(app, frame->file_handle);
-                        selected_row = (int)i;
+                        ui.viewed_frame_index = i;
                     }
                     ImGui::NextColumn();
 
@@ -671,7 +680,6 @@ void draw(Application& app)
                     ImGui::NextColumn();
                 }
 
-                app.ui.viewed_frame_index = selected_row;
                 ImGui::Columns(1);
             }
 
@@ -685,7 +693,7 @@ void draw(Application& app)
     ImGui::BeginChild("#LocalsChild", ImVec2(0, locals_height));
     if (ImGui::BeginTabBar("##LocalsTabs", ImGuiTabBarFlags_None)) {
         if (ImGui::BeginTabItem("locals")) {
-            if (process.has_value() && process_is_stopped(*process) && ui.viewed_frame_index >= 0) {
+            if (process.has_value() && process_is_stopped(*process)) {
                 ImGui::Columns(3, "##LocalsColumns");
                 ImGui::Separator();
                 ImGui::Text("NAME");
@@ -696,9 +704,8 @@ void draw(Application& app)
                 ImGui::NextColumn();
                 ImGui::Separator();
 
-                lldb::SBThread viewed_thread =
-                    process->GetThreadAtIndex(app.ui.viewed_thread_index);
-                lldb::SBFrame frame = viewed_thread.GetFrameAtIndex(app.ui.viewed_frame_index);
+                lldb::SBThread viewed_thread = process->GetThreadAtIndex(ui.viewed_thread_index);
+                lldb::SBFrame frame = viewed_thread.GetFrameAtIndex(ui.viewed_frame_index);
                 lldb::SBValueList locals = frame.GetVariables(true, true, true, true);
 
                 // TODO: select entire row like in stack trace
@@ -770,11 +777,9 @@ void draw(Application& app)
         }
 
         if (ImGui::BeginTabItem("registers")) {
-            if (process.has_value() && process_is_stopped(*process) &&
-                ui.viewed_thread_index >= 0) {
-                lldb::SBThread viewed_thread =
-                    process->GetThreadAtIndex(app.ui.viewed_thread_index);
-                lldb::SBFrame frame = viewed_thread.GetFrameAtIndex(app.ui.viewed_frame_index);
+            if (process.has_value() && process_is_stopped(*process)) {
+                lldb::SBThread viewed_thread = process->GetThreadAtIndex(ui.viewed_thread_index);
+                lldb::SBFrame frame = viewed_thread.GetFrameAtIndex(ui.viewed_frame_index);
                 if (viewed_thread.IsValid() && frame.IsValid()) {
                     lldb::SBValueList register_collections = frame.GetRegisters();
 
@@ -826,10 +831,7 @@ void draw(Application& app)
             Defer(ImGui::EndTabItem());
 
             // TODO: show hit count and column number as well
-            if (target.has_value() && process.has_value() && process_is_stopped(*process) &&
-                ui.viewed_thread_index >= 0) {
-                static int selected_row = -1;
-
+            if (target.has_value() && process.has_value() && process_is_stopped(*process)) {
                 ImGui::Columns(2);
                 ImGui::Separator();
                 ImGui::Text("FILE");
@@ -839,40 +841,57 @@ void draw(Application& app)
                 ImGui::Separator();
                 Defer(ImGui::Columns(1));
 
-                for (uint32_t i = 0; i < target->GetNumBreakpoints(); i++) {
+                const uint32_t nbreakpoints = target->GetNumBreakpoints();
+                if (ui.viewed_breakpoint_index >= nbreakpoints) {
+                    ui.viewed_breakpoint_index = nbreakpoints - 1;
+                }
+
+                for (uint32_t i = 0; i < nbreakpoints; i++) {
                     lldb::SBBreakpoint breakpoint = target->GetBreakpointAtIndex(i);
+                    if (!breakpoint.IsValid()) {
+                        LOG(Error) << "Invalid breakpoint encountered!";
+                        continue;
+                    }
+
                     lldb::SBBreakpointLocation location = breakpoint.GetLocationAtIndex(0);
 
                     if (!location.IsValid()) {
                         LOG(Error) << "Invalid breakpoint location encountered!";
+                        continue;
                     }
 
                     lldb::SBAddress address = location.GetAddress();
 
                     if (!address.IsValid()) {
-                        LOG(Error) << "Invalid lldb::SBAddress for breakpoint!";
+                        LOG(Error) << "Invalid breakpoint address encountered!";
+                        continue;
                     }
 
                     lldb::SBLineEntry line_entry = address.GetLineEntry();
 
-                    // TODO: save description and don't rebuild every frame
+                    if (!line_entry.IsValid()) {
+                        LOG(Error) << "Invalid line entry encountered!";
+                        continue;
+                    }
 
-                    const std::string filename =
-                        build_string(line_entry.GetFileSpec().GetFilename());
-                    // TODO: select entire row
-                    if (ImGui::Selectable(filename.c_str(), (int)i == selected_row)) {
-                        // TODO: factor out function to combine directory and filename
-                        const std::string directory =
-                            build_string(line_entry.GetFileSpec().GetDirectory()) + "/";
-                        const std::string full_path = directory + filename;
-                        manually_open_and_or_focus_file(app, full_path.c_str());
-                        selected_row = (int)i;
+                    const char* filename = line_entry.GetFileSpec().GetFilename();
+                    const char* directory = line_entry.GetFileSpec().GetDirectory();
+                    if (filename == nullptr || directory == nullptr) {
+                        LOG(Error) << "invalid/unspecified filepath encountered for breakpoint";
+                        continue;
+                    }
+
+                    if (ImGui::Selectable(filename, i == ui.viewed_breakpoint_index,
+                                          ImGuiSelectableFlags_SpanAllColumns)) {
+                        fs::path breakpoint_filepath = fs::path(directory) / fs::path(filename);
+                        manually_open_and_or_focus_file(app, breakpoint_filepath.c_str());
+                        ui.viewed_breakpoint_index = i;
                     }
                     ImGui::NextColumn();
 
                     StringBuffer line_buf;
                     line_buf.format("{}", line_entry.GetLine());
-                    ImGui::Selectable(line_buf.data(), (int)i == selected_row);
+                    ImGui::TextUnformatted(line_buf.data());
                     ImGui::NextColumn();
                 }
             }
