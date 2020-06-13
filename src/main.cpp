@@ -53,7 +53,12 @@ int main(int argc, char** argv)
     }
     Defer(lldb::SBDebugger::Terminate());
 
-    Application app;
+    auto ui = UserInterface::init();
+    if (!ui.has_value()) {
+        return EXIT_FAILURE;
+    }
+
+    Application app(std::move(*ui));
 
     if (result.count("workdir")) {
         const std::string workdir = result["workdir"].as<std::string>();

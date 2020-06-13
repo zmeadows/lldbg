@@ -24,12 +24,7 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
-// TODO: create sane Constructor and initialize UserInterface and Application *before* adding
-// targets in main
-// TODO: use uint32_t and default values of 0
-// TODO: add size_t to keep track of frames_rendered
 struct UserInterface {
-    // TODO: rename user_selected_*
     uint32_t viewed_thread_index = 0;
     uint32_t viewed_frame_index = 0;
     uint32_t viewed_breakpoint_index = 0;
@@ -46,8 +41,15 @@ struct UserInterface {
     bool ran_command_last_frame = false;
     bool window_resized_last_frame = false;
 
+    size_t frames_rendered = 0;
+
     ImFont* font = nullptr;
     GLFWwindow* window = nullptr;
+
+    static std::optional<UserInterface> init(void);
+
+private:
+    UserInterface() = default;
 };
 
 // TODO: turn into class with OOP style
@@ -65,10 +67,10 @@ struct Application {
     int main_loop(void);
     void set_workdir(const std::string& workdir);
 
-    // TODO: take UserInterface&& as argument
-    Application();
+    Application(UserInterface&&);
     ~Application();
 
+    Application() = delete;
     Application(const Application&) = delete;
     Application& operator=(const Application&) = delete;
     Application& operator=(Application&&) = delete;

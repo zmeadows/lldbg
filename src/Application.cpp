@@ -952,26 +952,28 @@ __attribute__((flatten)) void draw(Application& app)
 
     ImGui::SameLine();
 
-    ImGui::BeginGroup();
+    {
+        ImGui::BeginGroup();
 
-    // TODO: let locals tab have all the expanded space
-    const float stack_height = (ui.window_height - 2 * ImGui::GetFrameHeightWithSpacing()) / 4;
+        // TODO: let locals tab have all the expanded space
+        const float stack_height = (ui.window_height - 2 * ImGui::GetFrameHeightWithSpacing()) / 4;
 
-    draw_threads(ui, session.find_process(), stack_height);
-    draw_stack_trace(ui, open_files, session.find_process(), stack_height);
-    draw_locals_and_registers(ui, session.find_process(), stack_height);
-    draw_breakpoints_and_watchpoints(ui, open_files, session.find_target(), session.find_process(),
-                                     stack_height);
+        draw_threads(ui, session.find_process(), stack_height);
+        draw_stack_trace(ui, open_files, session.find_process(), stack_height);
+        draw_locals_and_registers(ui, session.find_process(), stack_height);
+        draw_breakpoints_and_watchpoints(ui, open_files, session.find_target(),
+                                         session.find_process(), stack_height);
 
-    ImGui::EndGroup();
+        ImGui::EndGroup();
+    }
 
     ImGui::PopFont();
     ImGui::End();
 
     draw_debug_stream_popup(ui);
-}  // namespace lldbg
+}
 
-static void tick(Application& app)
+__attribute__((flatten)) static void tick(Application& app)
 {
     // TODO: handle events at application level
     app.session.handle_lldb_events();
@@ -1018,8 +1020,6 @@ static void update_window_dimensions(UserInterface& ui)
 
 int Application::main_loop()
 {
-    static size_t frame_number = 0;
-
     while (!glfwWindowShouldClose(ui.window)) {
         glfwPollEvents();
 
@@ -1043,27 +1043,28 @@ int Application::main_loop()
 
         // TODO: develop bettery strategy for when to read stdout,
         // possible upon receiving certian types of LLDBEvent?
-        if (frame_number % 10 == 0) {
+        if (ui.frames_rendered % 10 == 0) {
             session.read_stream_buffers();
         }
 
         update_window_dimensions(ui);
 
-        this->fps_timer.wait_for_frame_duration(16666);
+        this->fps_timer.wait_for_frame_duration(20666);
         this->fps_timer.frame_end();
-        frame_number++;
+        ui.frames_rendered++;
     }
 
     return EXIT_SUCCESS;
 }
 
-// TODO: add return code and rename init_graphics
-int initialize_rendering(UserInterface& ui)
+std::optional<UserInterface> UserInterface::init(void)
 {
+    UserInterface ui;
+
     glfwSetErrorCallback(glfw_error_callback);
 
     if (glfwInit() != GLFW_TRUE) {
-        return -1;
+        return {};
     }
 
     // TODO: use function to choose initial window resolution based on display resolution
@@ -1071,7 +1072,7 @@ int initialize_rendering(UserInterface& ui)
 
     if (ui.window == nullptr) {
         glfwTerminate();
-        return -1;
+        return {};
     }
 
     ui.window_width = 1920.f;
@@ -1087,7 +1088,7 @@ int initialize_rendering(UserInterface& ui)
     const GLenum err = glewInit();
     if (err != GLEW_OK) {
         fprintf(stderr, "GLEW Error: %s\n", glewGetErrorString(err));
-        return -1;
+        return {};
     }
 
     // Setup Dear ImGui context
@@ -1117,10 +1118,10 @@ int initialize_rendering(UserInterface& ui)
     ImGui_ImplGlfw_InitForOpenGL(ui.window, true);
     ImGui_ImplOpenGL2_Init();
 
-    return 0;
+    return ui;
 }
 
-Application::Application() { initialize_rendering(this->ui); }
+Application::Application(UserInterface&& ui_) : ui(std::move(ui_)) {}
 
 Application::~Application()
 {
