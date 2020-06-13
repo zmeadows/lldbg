@@ -240,10 +240,8 @@ static void draw_open_files(Application& app)
 static void manually_open_and_or_focus_file(UserInterface& ui, OpenFiles& open_files,
                                             FileHandle handle)
 {
-    if (auto focus = open_files.focus(); focus.has_value()) {
-        if (*focus == handle) {
-            return;  // already focused
-        }
+    if (auto focus = open_files.focus(); focus.has_value() && (*focus == handle)) {
+        return;  // already focused
     }
 
     open_files.open(handle);
@@ -264,6 +262,8 @@ static void manually_open_and_or_focus_file(UserInterface& ui, OpenFiles& open_f
 
 static void draw_file_browser(Application& app, FileBrowserNode* node_to_draw, size_t depth)
 {
+    assert(node_to_draw);
+
     if (node_to_draw->is_directory()) {
         const char* tree_node_label =
             depth == 0 ? node_to_draw->filepath() : node_to_draw->filename();
@@ -906,9 +906,6 @@ static void draw_debug_stream_popup(UserInterface& ui)
 
 __attribute__((flatten)) void draw(Application& app)
 {
-    // TODO: maybe count a few milliseconds after resuming before displaying thread/stack/etc
-    // information to avoid reading in invalid/suspended LLDB state
-
     auto& session = app.session;
     auto& ui = app.ui;
     auto& open_files = app.open_files;
@@ -1049,7 +1046,7 @@ int Application::main_loop()
 
         update_window_dimensions(ui);
 
-        this->fps_timer.wait_for_frame_duration(20666);
+        this->fps_timer.wait_for_frame_duration(1.75 * 16666);
         this->fps_timer.frame_end();
         ui.frames_rendered++;
     }
@@ -1091,7 +1088,6 @@ std::optional<UserInterface> UserInterface::init(void)
         return {};
     }
 
-    // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
@@ -1101,7 +1097,6 @@ std::optional<UserInterface> UserInterface::init(void)
     static const std::string font_path = fmt::format("{}/ttf/Hack-Regular.ttf", LLDBG_ASSETS_DIR);
     ui.font = io.Fonts->AddFontFromFileTTF(font_path.c_str(), 15.0f);
 
-    // Setup Dear ImGui style
     ImGui::StyleColorsDark();
     // ImGui::StyleColorsClassic();
 
@@ -1114,7 +1109,6 @@ std::optional<UserInterface> UserInterface::init(void)
     ImGui::GetStyle().ScrollbarRounding = 0.0f;
     ImGui::GetStyle().TabRounding = 0.0f;
 
-    // Setup Platform/Renderer bindings
     ImGui_ImplGlfw_InitForOpenGL(ui.window, true);
     ImGui_ImplOpenGL2_Init();
 

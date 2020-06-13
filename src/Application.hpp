@@ -52,7 +52,6 @@ private:
     UserInterface() = default;
 };
 
-// TODO: turn into class with OOP style
 struct Application {
     DebugSession session;
     OpenFiles open_files;
