@@ -237,21 +237,24 @@ static void draw_open_files(Application& app)
     }
 }
 
-static void manually_open_and_or_focus_file(Application& app, FileHandle handle)
+static void manually_open_and_or_focus_file(UserInterface& ui, OpenFiles& open_files,
+                                            FileHandle handle)
 {
-    if (auto focus = app.open_files.focus(); focus.has_value()) {
+    if (auto focus = open_files.focus(); focus.has_value()) {
         if (*focus == handle) {
             return;  // already focused
         }
     }
-    app.open_files.open(handle);
-    app.ui.request_manual_tab_change = true;
+
+    open_files.open(handle);
+    ui.request_manual_tab_change = true;
 }
 
-static void manually_open_and_or_focus_file(Application& app, const char* filepath)
+static void manually_open_and_or_focus_file(UserInterface& ui, OpenFiles& open_files,
+                                            const char* filepath)
 {
     if (auto handle = FileHandle::create(filepath); handle.has_value()) {
-        manually_open_and_or_focus_file(app, *handle);
+        manually_open_and_or_focus_file(ui, open_files, *handle);
     }
     else {
         LOG(Warning) << "Failed to switch focus to file because it could not be located: "
@@ -274,7 +277,7 @@ static void draw_file_browser(Application& app, FileBrowserNode* node_to_draw, s
     }
     else {
         if (ImGui::Selectable(node_to_draw->filename())) {
-            manually_open_and_or_focus_file(app, node_to_draw->filepath());
+            manually_open_and_or_focus_file(app.ui, app.open_files, node_to_draw->filepath());
         }
     }
 }
@@ -349,7 +352,17 @@ static void draw_control_bar(DebugSession& session)
             if (ImGui::Button("continue")) {
                 (void)session.run_lldb_command("continue");
             }
-            // TODO: handle step over/into options
+            ImGui::SameLine();
+            if (ImGui::Button("step over")) {
+                LOG(Warning) << "Step over unimplemented";
+            }
+            if (ImGui::Button("step into")) {
+                LOG(Warning) << "Step over unimplemented";
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("step instr.")) {
+                LOG(Warning) << "Step over unimplemented";
+            }
             break;
         }
 
@@ -371,276 +384,221 @@ static void draw_control_bar(DebugSession& session)
     }
 }
 
-void draw(Application& app)
+static void draw_file_viewer(Application& app)
 {
-    // TODO: maybe count a few milliseconds after resuming before displaying thread/stack/etc
-    // information to avoid reading in invalid/suspended LLDB state
+    ImGui::BeginChild("FileViewer", ImVec2(app.ui.file_viewer_width, app.ui.file_viewer_height));
+    if (ImGui::BeginTabBar("##FileViewerTabs",
+                           ImGuiTabBarFlags_AutoSelectNewTabs | ImGuiTabBarFlags_NoTooltip)) {
+        Defer(ImGui::EndTabBar());
 
-    DebugSession& session = app.session;
-    UserInterface& ui = app.ui;
-    DEBUG_STREAM(ui.window_width);
-    DEBUG_STREAM(ui.window_height);
-    DEBUG_STREAM(ui.file_browser_width);
-    DEBUG_STREAM(ui.file_viewer_width);
-    DEBUG_STREAM(ui.file_viewer_height);
-    DEBUG_STREAM(ui.console_height);
-    DEBUG_STREAM(app.fps_timer.current_fps());
-
-    ImGui::SetNextWindowPos(ImVec2(0.f, 0.f), ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(ui.window_width, ui.window_height), ImGuiCond_Always);
-
-    ImGui::Begin("lldbg", 0,
-                 ImGuiWindowFlags_NoBringToFrontOnFocus |  // ImGuiWindowFlags_MenuBar |
-                     ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-                     ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings |
-                     ImGuiWindowFlags_NoTitleBar);
-    ImGui::PushFont(ui.font);
-
-    Splitter("##S1", true, 3.0f, &ui.file_browser_width, &ui.file_viewer_width,
-             0.05 * ui.window_width, 0.05 * ui.window_width, ui.window_height);
-
-    {
-        ImGui::BeginChild("FileBrowserPane", ImVec2(ui.file_browser_width, 0));
-        draw_control_bar(session);
-        ImGui::Separator();
-        draw_file_browser(app, app.file_browser.get(), 0);
-        ImGui::EndChild();
-    }
-
-    ImGui::SameLine();
-
-    ImGui::BeginGroup();
-
-    Splitter("##S2", false, 3.0f, &ui.file_viewer_height, &ui.console_height,
-             0.1 * ui.window_height, 0.1 * ui.window_height, ui.file_viewer_width);
-
-    {  // start file viewer
-        ImGui::BeginChild("FileViewer", ImVec2(ui.file_viewer_width, ui.file_viewer_height));
-        if (ImGui::BeginTabBar("##FileViewerTabs",
-                               ImGuiTabBarFlags_AutoSelectNewTabs | ImGuiTabBarFlags_NoTooltip)) {
-            Defer(ImGui::EndTabBar());
-
-            if (app.open_files.size() == 0) {
-                if (ImGui::BeginTabItem("about")) {
-                    Defer(ImGui::EndTabItem());
-                    ImGui::TextUnformatted("This is a GUI for lldb.");
-                }
-            }
-            else {
-                draw_open_files(app);
-            }
-        }
-        ImGui::EndChild();
-    }  // end file viewer
-
-    ImGui::Spacing();
-
-    {  // start console/log
-        ImGui::BeginChild("LogConsole",
-                          ImVec2(ui.file_viewer_width,
-                                 ui.console_height - 2 * ImGui::GetFrameHeightWithSpacing()));
-        if (ImGui::BeginTabBar("##ConsoleLogTabs", ImGuiTabBarFlags_None)) {
-            if (ImGui::BeginTabItem("console")) {
-                ImGui::BeginChild("ConsoleEntries");
-
-                for (const CommandLineEntry& entry : app.session.get_lldb_command_history()) {
-                    ImGui::TextColored(ImVec4(255, 0, 0, 255), "> %s", entry.input.c_str());
-                    if (entry.succeeded) {
-                        ImGui::TextUnformatted(entry.output.c_str());
-                    }
-                    else {
-                        ImGui::Text("error: %s is not a valid command.", entry.input.c_str());
-                    }
-
-                    ImGui::TextUnformatted("\n");
-                }
-
-                // always scroll to the bottom of the command history after running a command
-                const bool should_auto_scroll_command_window =
-                    app.ui.ran_command_last_frame || ui.window_resized_last_frame;
-
-                auto command_input_callback = [](ImGuiTextEditCallbackData*) -> int {
-                    return 0;  // TODO: command line history
-                };
-
-                const ImGuiInputTextFlags command_input_flags =
-                    ImGuiInputTextFlags_EnterReturnsTrue;
-
-                // keep console input focused unless user is doing something else
-                if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
-                    !ImGui::IsAnyItemActive() && !ImGui::IsMouseClicked(0)) {
-                    ImGui::SetKeyboardFocusHere(0);
-                }
-
-                // TODO: resize input_buf when necessary?
-                static char input_buf[2048];
-                if (ImGui::InputText("lldb console", input_buf, 2048, command_input_flags,
-                                     command_input_callback)) {
-                    app.session.run_lldb_command(input_buf);
-                    memset(input_buf, 0, sizeof(input_buf));
-                    input_buf[0] = '\0';
-                    app.ui.ran_command_last_frame = true;
-                }
-
-                // Keep auto focus on the input box
-                if (ImGui::IsItemHovered() ||
-                    (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootWindow) &&
-                     !ImGui::IsAnyItemActive() && !ImGui::IsMouseClicked(0)))
-                    ImGui::SetKeyboardFocusHere(-1);  // Auto focus previous widget
-
-                if (should_auto_scroll_command_window) {
-                    ImGui::SetScrollHere(1.0f);
-                    app.ui.ran_command_last_frame = false;
-                }
-
-                ImGui::EndChild();
-
-                ImGui::EndTabItem();
-            }
-
-            if (ImGui::BeginTabItem("log")) {
-                ImGui::BeginChild("LogEntries");
-                Logger::get_instance()->for_each_message([](const LogMessage& entry) -> void {
-                    const char* msg = entry.message.c_str();
-                    switch (entry.level) {
-                        case LogLevel::Verbose: {
-                            ImGui::TextColored(
-                                ImVec4(78.f / 255.f, 78.f / 255.f, 78.f / 255.f, 255.f),
-                                "[VERBOSE]");
-                            break;
-                        }
-                        case LogLevel::Debug: {
-                            ImGui::TextColored(
-                                ImVec4(52.f / 255.f, 56.f / 255.f, 176.f / 255.f, 255.f / 255.f),
-                                "[DEBUG]");
-                            break;
-                        }
-                        case LogLevel::Info: {
-                            ImGui::TextColored(
-                                ImVec4(225.f / 255.f, 225.f / 255.f, 225.f / 255.f, 255.f / 255.f),
-                                "[INFO]");
-                            break;
-                        }
-                        case LogLevel::Warning: {
-                            ImGui::TextColored(
-                                ImVec4(216.f / 255.f, 129.f / 255.f, 42.f / 255.f, 255.f / 255.f),
-                                "[WARNING]");
-                            break;
-                        }
-                        case LogLevel::Error: {
-                            ImGui::TextColored(
-                                ImVec4(212.f / 255.f, 67.f / 255.f, 67.f / 255.f, 255.f / 255.f),
-                                "[ERROR]");
-                            break;
-                        }
-                    }
-                    ImGui::SameLine();
-                    ImGui::TextUnformatted(msg);
-                });
-                ImGui::SetScrollHere(1.0f);
-                ImGui::EndChild();
-                ImGui::EndTabItem();
-            }
-
-            // TODO: these quantities need to be reset whenever the target is reset or process is
-            // re-launched
-            static size_t last_stdout_size = 0;
-            static size_t last_stderr_size = 0;
-
-            if (ImGui::BeginTabItem("stdout")) {
-                ImGui::BeginChild("StdOUTEntries");
-
-                ImGui::TextUnformatted(app.session.stdout().get());
-                if (app.session.stdout().size() > last_stdout_size) {
-                    ImGui::SetScrollHere(1.0f);
-                }
-                last_stdout_size = app.session.stdout().size();
-
-                ImGui::EndChild();
-                ImGui::EndTabItem();
-            }
-
-            if (ImGui::BeginTabItem("stderr")) {
-                ImGui::BeginChild("StdERREntries");
-                ImGui::TextUnformatted(app.session.stderr().get());
-                if (app.session.stderr().size() > last_stderr_size) {
-                    ImGui::SetScrollHere(1.0f);
-                }
-                last_stderr_size = app.session.stderr().size();
-                ImGui::EndChild();
-                ImGui::EndTabItem();
-            }
-
-            ImGui::EndTabBar();
-        }
-        ImGui::EndChild();
-    }  // end console/log
-
-    ImGui::EndGroup();
-
-    ImGui::SameLine();
-
-    ImGui::BeginGroup();
-
-    // TODO: let locals tab have all the expanded space
-    const float threads_height = (ui.window_height - 2 * ImGui::GetFrameHeightWithSpacing()) / 4;
-    const float stack_height = (ui.window_height - 2 * ImGui::GetFrameHeightWithSpacing()) / 4;
-    const float locals_height = (ui.window_height - 2 * ImGui::GetFrameHeightWithSpacing()) / 4;
-    const float breakpoint_height = (ui.window_height - 2 * ImGui::GetFrameHeightWithSpacing()) / 4;
-
-    auto process = session.find_process();
-    auto target = session.find_target();
-
-    {  // start threads
-        ImGui::BeginChild(
-            "#ThreadsChild",
-            ImVec2(ui.window_width - ui.file_browser_width - ui.file_viewer_width, threads_height));
-
-        Defer(ImGui::EndChild());
-
-        // TODO: be consistent about whether or not to use Defer
-        // TODO: add columns with stop reason and other potential information
-        if (ImGui::BeginTabBar("#ThreadsTabs", ImGuiTabBarFlags_None)) {
-            Defer(ImGui::EndTabBar());
-            if (ImGui::BeginTabItem("threads")) {
+        if (app.open_files.size() == 0) {
+            if (ImGui::BeginTabItem("about")) {
                 Defer(ImGui::EndTabItem());
-                if (process.has_value() && process_is_stopped(*process)) {
-                    const uint32_t nthreads = process->GetNumThreads();
+                ImGui::TextUnformatted("This is a GUI for lldb.");
+            }
+        }
+        else {
+            draw_open_files(app);
+        }
+    }
+    ImGui::EndChild();
+}
 
-                    if (ui.viewed_thread_index >= nthreads) {
-                        ui.viewed_thread_index = nthreads - 1;
-                        LOG(Warning) << "detected/fixed overflow of ui.viewed_thread_index";
+static void draw_console(Application& app)
+{
+    ImGui::BeginChild("LogConsole",
+                      ImVec2(app.ui.file_viewer_width,
+                             app.ui.console_height - 2 * ImGui::GetFrameHeightWithSpacing()));
+    if (ImGui::BeginTabBar("##ConsoleLogTabs", ImGuiTabBarFlags_None)) {
+        if (ImGui::BeginTabItem("console")) {
+            ImGui::BeginChild("ConsoleEntries");
+
+            for (const CommandLineEntry& entry : app.session.get_lldb_command_history()) {
+                ImGui::TextColored(ImVec4(255, 0, 0, 255), "> %s", entry.input.c_str());
+                if (entry.succeeded) {
+                    ImGui::TextUnformatted(entry.output.c_str());
+                }
+                else {
+                    ImGui::Text("error: %s is not a valid command.", entry.input.c_str());
+                }
+
+                ImGui::TextUnformatted("\n");
+            }
+
+            // always scroll to the bottom of the command history after running a command
+            const bool should_auto_scroll_command_window =
+                app.ui.ran_command_last_frame || app.ui.window_resized_last_frame;
+
+            auto command_input_callback = [](ImGuiTextEditCallbackData*) -> int {
+                return 0;  // TODO: command line history
+            };
+
+            const ImGuiInputTextFlags command_input_flags = ImGuiInputTextFlags_EnterReturnsTrue;
+
+            // keep console input focused unless user is doing something else
+            if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
+                !ImGui::IsAnyItemActive() && !ImGui::IsMouseClicked(0)) {
+                ImGui::SetKeyboardFocusHere(0);
+            }
+
+            // TODO: resize input_buf when necessary?
+            static char input_buf[2048];
+            if (ImGui::InputText("lldb console", input_buf, 2048, command_input_flags,
+                                 command_input_callback)) {
+                app.session.run_lldb_command(input_buf);
+                memset(input_buf, 0, sizeof(input_buf));
+                input_buf[0] = '\0';
+                app.ui.ran_command_last_frame = true;
+            }
+
+            // Keep auto focus on the input box
+            if (ImGui::IsItemHovered() || (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootWindow) &&
+                                           !ImGui::IsAnyItemActive() && !ImGui::IsMouseClicked(0)))
+                ImGui::SetKeyboardFocusHere(-1);  // Auto focus previous widget
+
+            if (should_auto_scroll_command_window) {
+                ImGui::SetScrollHere(1.0f);
+                app.ui.ran_command_last_frame = false;
+            }
+
+            ImGui::EndChild();
+
+            ImGui::EndTabItem();
+        }
+
+        if (ImGui::BeginTabItem("log")) {
+            ImGui::BeginChild("LogEntries");
+            Logger::get_instance()->for_each_message([](const LogMessage& entry) -> void {
+                const char* msg = entry.message.c_str();
+                switch (entry.level) {
+                    case LogLevel::Verbose: {
+                        ImGui::TextColored(ImVec4(78.f / 255.f, 78.f / 255.f, 78.f / 255.f, 255.f),
+                                           "[VERBOSE]");
+                        break;
+                    }
+                    case LogLevel::Debug: {
+                        ImGui::TextColored(
+                            ImVec4(52.f / 255.f, 56.f / 255.f, 176.f / 255.f, 255.f / 255.f),
+                            "[DEBUG]");
+                        break;
+                    }
+                    case LogLevel::Info: {
+                        ImGui::TextColored(
+                            ImVec4(225.f / 255.f, 225.f / 255.f, 225.f / 255.f, 255.f / 255.f),
+                            "[INFO]");
+                        break;
+                    }
+                    case LogLevel::Warning: {
+                        ImGui::TextColored(
+                            ImVec4(216.f / 255.f, 129.f / 255.f, 42.f / 255.f, 255.f / 255.f),
+                            "[WARNING]");
+                        break;
+                    }
+                    case LogLevel::Error: {
+                        ImGui::TextColored(
+                            ImVec4(212.f / 255.f, 67.f / 255.f, 67.f / 255.f, 255.f / 255.f),
+                            "[ERROR]");
+                        break;
+                    }
+                }
+                ImGui::SameLine();
+                ImGui::TextUnformatted(msg);
+            });
+            ImGui::SetScrollHere(1.0f);
+            ImGui::EndChild();
+            ImGui::EndTabItem();
+        }
+
+        // TODO: these quantities need to be reset whenever the target is reset or process is
+        // re-launched
+        static size_t last_stdout_size = 0;
+        static size_t last_stderr_size = 0;
+
+        if (ImGui::BeginTabItem("stdout")) {
+            ImGui::BeginChild("StdOUTEntries");
+
+            ImGui::TextUnformatted(app.session.stdout().get());
+            if (app.session.stdout().size() > last_stdout_size) {
+                ImGui::SetScrollHere(1.0f);
+            }
+            last_stdout_size = app.session.stdout().size();
+
+            ImGui::EndChild();
+            ImGui::EndTabItem();
+        }
+
+        if (ImGui::BeginTabItem("stderr")) {
+            ImGui::BeginChild("StdERREntries");
+            ImGui::TextUnformatted(app.session.stderr().get());
+            if (app.session.stderr().size() > last_stderr_size) {
+                ImGui::SetScrollHere(1.0f);
+            }
+            last_stderr_size = app.session.stderr().size();
+            ImGui::EndChild();
+            ImGui::EndTabItem();
+        }
+
+        ImGui::EndTabBar();
+    }
+    ImGui::EndChild();
+}
+
+static void draw_threads(UserInterface& ui, std::optional<lldb::SBProcess> process,
+                         float stack_height)
+{
+    ImGui::BeginChild(
+        "#ThreadsChild",
+        ImVec2(ui.window_width - ui.file_browser_width - ui.file_viewer_width, stack_height));
+
+    Defer(ImGui::EndChild());
+
+    // TODO: be consistent about whether or not to use Defer
+    // TODO: add columns with stop reason and other potential information
+    if (ImGui::BeginTabBar("#ThreadsTabs", ImGuiTabBarFlags_None)) {
+        Defer(ImGui::EndTabBar());
+        if (ImGui::BeginTabItem("threads")) {
+            Defer(ImGui::EndTabItem());
+            if (process.has_value() && process_is_stopped(*process)) {
+                const uint32_t nthreads = process->GetNumThreads();
+
+                if (ui.viewed_thread_index >= nthreads) {
+                    ui.viewed_thread_index = nthreads - 1;
+                    LOG(Warning) << "detected/fixed overflow of ui.viewed_thread_index";
+                }
+
+                StringBuffer thread_label;
+                for (uint32_t i = 0; i < nthreads; i++) {
+                    lldb::SBThread th = process->GetThreadAtIndex(i);
+
+                    if (!th.IsValid()) {
+                        LOG(Warning) << "Encountered invalid thread";
+                        continue;
                     }
 
-                    StringBuffer thread_label;
-                    for (uint32_t i = 0; i < nthreads; i++) {
-                        lldb::SBThread th = process->GetThreadAtIndex(i);
-
-                        if (!th.IsValid()) {
-                            LOG(Warning) << "Encountered invalid thread";
-                            continue;
-                        }
-
-                        const char* thread_name = th.GetName();
-                        if (thread_name == nullptr) {
-                            LOG(Warning) << "Skipping thread with null name";
-                            continue;
-                        }
-
-                        thread_label.format("Thread {}: {}", i, th.GetName());
-
-                        if (ImGui::Selectable(thread_label.data(), i == ui.viewed_thread_index)) {
-                            app.ui.viewed_thread_index = i;
-                        }
-
-                        thread_label.clear();
+                    const char* thread_name = th.GetName();
+                    if (thread_name == nullptr) {
+                        LOG(Warning) << "Skipping thread with null name";
+                        continue;
                     }
+
+                    thread_label.format("Thread {}: {}", i, th.GetName());
+
+                    if (ImGui::Selectable(thread_label.data(), i == ui.viewed_thread_index)) {
+                        ui.viewed_thread_index = i;
+                    }
+
+                    thread_label.clear();
                 }
             }
         }
-    }  // end threads
+    }
+}
 
+static void draw_stack_trace(UserInterface& ui, OpenFiles& open_files,
+                             std::optional<lldb::SBProcess> process, float stack_height)
+{
     ImGui::BeginChild("#StackTraceChild", ImVec2(0, stack_height));
+
     if (ImGui::BeginTabBar("##StackTraceTabs", ImGuiTabBarFlags_None)) {
         if (ImGui::BeginTabItem("stack trace")) {
             if (process.has_value() && process_is_stopped(*process)) {
@@ -668,7 +626,7 @@ void draw(Application& app)
 
                     if (ImGui::Selectable(frame->function_name.c_str(), i == ui.viewed_frame_index,
                                           ImGuiSelectableFlags_SpanAllColumns)) {
-                        manually_open_and_or_focus_file(app, frame->file_handle);
+                        manually_open_and_or_focus_file(ui, open_files, frame->file_handle);
                         ui.viewed_frame_index = i;
                     }
                     ImGui::NextColumn();
@@ -681,18 +639,21 @@ void draw(Application& app)
                     ImGui::TextUnformatted(linebuf.data());
                     ImGui::NextColumn();
                 }
-
                 ImGui::Columns(1);
             }
-
             ImGui::EndTabItem();
         }
         ImGui::EndTabBar();
     }
-    ImGui::EndChild();
 
-    // static bool use_hex_locals = true;
-    ImGui::BeginChild("#LocalsChild", ImVec2(0, locals_height));
+    ImGui::EndChild();
+}
+
+static void draw_locals_and_registers(UserInterface& ui, std::optional<lldb::SBProcess> process,
+                                      float stack_height)
+{
+    ImGui::BeginChild("#LocalsChild", ImVec2(0, stack_height));
+
     if (ImGui::BeginTabBar("##LocalsTabs", ImGuiTabBarFlags_None)) {
         if (ImGui::BeginTabItem("locals")) {
             if (process.has_value() && process_is_stopped(*process)) {
@@ -824,8 +785,14 @@ void draw(Application& app)
         // ImGui::Checkbox("use hexadecimal", &use_hex_locals);
     }
     ImGui::EndChild();
+}
 
-    ImGui::BeginChild("#BreakWatchPointChild", ImVec2(0, breakpoint_height));
+static void draw_breakpoints_and_watchpoints(UserInterface& ui, OpenFiles& open_files,
+                                             std::optional<lldb::SBTarget> target,
+                                             std::optional<lldb::SBProcess> process,
+                                             float stack_height)
+{
+    ImGui::BeginChild("#BreakWatchPointChild", ImVec2(0, stack_height));
     if (ImGui::BeginTabBar("##BreakWatchPointTabs", ImGuiTabBarFlags_None)) {
         Defer(ImGui::EndTabBar());
 
@@ -886,7 +853,8 @@ void draw(Application& app)
                     if (ImGui::Selectable(filename, i == ui.viewed_breakpoint_index,
                                           ImGuiSelectableFlags_SpanAllColumns)) {
                         fs::path breakpoint_filepath = fs::path(directory) / fs::path(filename);
-                        manually_open_and_or_focus_file(app, breakpoint_filepath.c_str());
+                        manually_open_and_or_focus_file(ui, open_files,
+                                                        breakpoint_filepath.c_str());
                         ui.viewed_breakpoint_index = i;
                     }
                     ImGui::NextColumn();
@@ -912,38 +880,115 @@ void draw(Application& app)
             }
         }
     }
-
     ImGui::EndChild();
+}
+
+static void draw_debug_stream_popup(UserInterface& ui)
+{
+    ImGui::SetNextWindowPos(ImVec2(ui.window_width / 2.f, ui.window_height / 2.f),
+                            ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(200, 200), ImGuiCond_FirstUseEver);
+
+    ImGui::PushFont(ui.font);
+
+    if (ImGui::Begin("Debug Stream", 0)) {
+        for (const auto& [xkey, xstr] : s_debug_stream) {
+            StringBuffer debug_line;
+            debug_line.format("{} : {}", xkey, xstr);
+            ImGui::TextUnformatted(debug_line.data());
+        }
+    }
+
+    ImGui::PopFont();
+
+    ImGui::End();
+}
+
+__attribute__((flatten)) void draw(Application& app)
+{
+    // TODO: maybe count a few milliseconds after resuming before displaying thread/stack/etc
+    // information to avoid reading in invalid/suspended LLDB state
+
+    auto& session = app.session;
+    auto& ui = app.ui;
+    auto& open_files = app.open_files;
+
+    ImGui::SetNextWindowPos(ImVec2(0.f, 0.f), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(ui.window_width, ui.window_height), ImGuiCond_Always);
+
+    static constexpr auto main_window_flags =
+        ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoResize |
+        ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings |
+        ImGuiWindowFlags_NoTitleBar;
+
+    ImGui::Begin("lldbg", 0, main_window_flags);
+    ImGui::PushFont(ui.font);
+
+    {
+        Splitter("##S1", true, 3.0f, &ui.file_browser_width, &ui.file_viewer_width,
+                 0.05 * ui.window_width, 0.05 * ui.window_width, ui.window_height);
+
+        ImGui::BeginGroup();
+        ImGui::BeginChild("ControlBarAndFileBrowser", ImVec2(ui.file_browser_width, 0));
+        draw_control_bar(session);
+        ImGui::Separator();
+        draw_file_browser(app, app.file_browser.get(), 0);
+        ImGui::EndChild();
+        ImGui::EndGroup();
+    }
+
+    ImGui::SameLine();
+
+    {
+        Splitter("##S2", false, 3.0f, &ui.file_viewer_height, &ui.console_height,
+                 0.1 * ui.window_height, 0.1 * ui.window_height, ui.file_viewer_width);
+
+        ImGui::BeginGroup();
+        draw_file_viewer(app);
+        ImGui::Spacing();
+        draw_console(app);
+        ImGui::EndGroup();
+    }
+
+    ImGui::SameLine();
+
+    ImGui::BeginGroup();
+
+    // TODO: let locals tab have all the expanded space
+    const float stack_height = (ui.window_height - 2 * ImGui::GetFrameHeightWithSpacing()) / 4;
+
+    draw_threads(ui, session.find_process(), stack_height);
+    draw_stack_trace(ui, open_files, session.find_process(), stack_height);
+    draw_locals_and_registers(ui, session.find_process(), stack_height);
+    draw_breakpoints_and_watchpoints(ui, open_files, session.find_target(), session.find_process(),
+                                     stack_height);
+
     ImGui::EndGroup();
+
     ImGui::PopFont();
     ImGui::End();
 
-    {
-        ImGui::SetNextWindowPos(ImVec2(ui.window_width / 2.f, ui.window_height / 2.f),
-                                ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowSize(ImVec2(200, 200), ImGuiCond_FirstUseEver);
-        ImGui::PushFont(app.ui.font);
-        if (ImGui::Begin("Debug Stream", 0)) {
-            for (const auto& [xkey, xstr] : s_debug_stream) {
-                StringBuffer debug_line;
-                debug_line.format("{} : {}", xkey, xstr);
-                ImGui::TextUnformatted(debug_line.data());
-            }
-            ImGui::PopFont();
-        }
-        ImGui::End();
-    }
+    draw_debug_stream_popup(ui);
 }  // namespace lldbg
 
 static void tick(Application& app)
 {
-    // process all queued LLDB events before drawing each frame
+    // TODO: handle events at application level
     app.session.handle_lldb_events();
 
     // std::optional<int> line_clicked = app.text_editor.line_clicked_this_frame;
     // if (line_clicked) {
     //     add_breakpoint_to_viewed_file(app, *line_clicked);
     // }
+
+    UserInterface& ui = app.ui;
+    DEBUG_STREAM(ui.window_width);
+    DEBUG_STREAM(ui.window_height);
+    DEBUG_STREAM(ui.file_browser_width);
+    DEBUG_STREAM(ui.file_viewer_width);
+    DEBUG_STREAM(ui.file_viewer_height);
+    DEBUG_STREAM(ui.console_height);
+    DEBUG_STREAM(app.fps_timer.current_fps());
 
     draw(app);
 }
