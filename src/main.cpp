@@ -101,5 +101,7 @@ int main(int argc, char** argv)
         }
     }
 
+    app.session.run_lldb_command("breakpoint set --file test.cpp --line 20");
+
     return app.main_loop();
 }

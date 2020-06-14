@@ -15,7 +15,7 @@ int foo(int x) { return bar(x) * 1234; }
 
 int main(void)
 {
-    const std::vector<int> v = {1, 2, 3, 4, 5, 6};
+    const std::vector<std::vector<int>> v = {{1, 2, 3, 4, 5, 6}, {7, 8, 9, 10}};
 
     const int x = foo(1);
     const int y = foo(-1);
@@ -24,7 +24,7 @@ int main(void)
 
     std::cout << "x = " << x << std::endl;
     std::cout << "y = " << y << std::endl;
-    std::cout << "v[0] = " << v[0] << std::endl;
+    std::cout << "v[0][0] = " << v[0][0] << std::endl;
     std::cout << "thing.x = " << thing.x << std::endl;
 
     return x + y;

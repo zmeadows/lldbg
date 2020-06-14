@@ -649,6 +649,57 @@ static void draw_stack_trace(UserInterface& ui, OpenFiles& open_files,
     ImGui::EndChild();
 }
 
+// TODO: add max depth?
+static void draw_local_recursive(lldb::SBValue local)
+{
+    const char* local_type = local.GetDisplayTypeName();
+    const char* local_name = local.GetName();
+    const char* local_value = local.GetValue();
+
+    if (!local_type || !local_name) {
+        return;
+    }
+
+    StringBuffer children_node_label;
+    children_node_label.format("{}##Children_{}", local_name, local.GetID());
+
+    if (local.MightHaveChildren()) {
+        if (ImGui::TreeNode(children_node_label.data())) {
+            ImGui::NextColumn();
+            ImGui::TextUnformatted(local_type);
+            ImGui::NextColumn();
+            ImGui::TextUnformatted("...");
+            ImGui::NextColumn();
+
+            // TODO: figure out best way to handle very long children list
+            for (uint32_t i = 0; i < local.GetNumChildren(100); i++) {
+                draw_local_recursive(local.GetChildAtIndex(i));
+            }
+            ImGui::TreePop();
+        }
+        else {
+            ImGui::NextColumn();
+            ImGui::TextUnformatted(local_type);
+            ImGui::NextColumn();
+            ImGui::TextUnformatted("...");
+            ImGui::NextColumn();
+        }
+    }
+    else {
+        ImGui::TextUnformatted(local_name);
+        ImGui::NextColumn();
+        ImGui::TextUnformatted(local_type);
+        ImGui::NextColumn();
+        if (local_value) {
+            ImGui::TextUnformatted(local_value);
+        }
+        else {
+            ImGui::TextUnformatted("unknown");
+        }
+        ImGui::NextColumn();
+    }
+}
+
 static void draw_locals_and_registers(UserInterface& ui, std::optional<lldb::SBProcess> process,
                                       float stack_height)
 {
@@ -672,66 +723,8 @@ static void draw_locals_and_registers(UserInterface& ui, std::optional<lldb::SBP
                 lldb::SBValueList locals = frame.GetVariables(true, true, true, true);
 
                 // TODO: select entire row like in stack trace
-
                 for (uint32_t i = 0; i < locals.GetSize(); i++) {
-                    lldb::SBValue local = locals.GetValueAtIndex(i);
-
-                    if (local.IsRuntimeSupportValue()) continue;
-
-                    const char* local_type = local.GetDisplayTypeName();
-                    const char* local_name = local.GetName();
-                    const char* local_value = local.GetValue();
-
-                    if (!local_type || !local_name) {
-                        continue;
-                    }
-
-                    // TODO: break this out into a recursive function to load children of
-                    // children and so on
-                    // TODO: double click on any entry to open a more detailed view in a pop
-                    // out window
-                    // TODO: create helper lambda that writes UNKNOWN if passed null char*
-                    if (local.MightHaveChildren()) {
-                        StringBuffer children_node_label;
-                        children_node_label.format("{}##Children", local_name);
-
-                        if (ImGui::TreeNode(children_node_label.data())) {
-                            ImGui::NextColumn();
-                            ImGui::TextUnformatted(local_type);
-                            ImGui::NextColumn();
-                            ImGui::TextUnformatted("...");
-                            ImGui::NextColumn();
-                            for (uint32_t i = 0; i < local.GetNumChildren(100); i++) {
-                                lldb::SBValue child = local.GetChildAtIndex(i);
-                                const char* child_type = child.GetTypeName();
-                                const char* child_name = child.GetName();
-                                const char* child_value = child.GetValue();
-
-                                ImGui::TextUnformatted(child_name);
-                                ImGui::NextColumn();
-                                ImGui::TextUnformatted(child_type);
-                                ImGui::NextColumn();
-                                ImGui::TextUnformatted(child_value);
-                                ImGui::NextColumn();
-                            }
-                            ImGui::TreePop();
-                        }
-                        else {
-                            ImGui::NextColumn();
-                            ImGui::TextUnformatted(local_type);
-                            ImGui::NextColumn();
-                            ImGui::TextUnformatted("...");
-                            ImGui::NextColumn();
-                        }
-                    }
-                    else {
-                        ImGui::TextUnformatted(local_name);
-                        ImGui::NextColumn();
-                        ImGui::TextUnformatted(local_type);
-                        ImGui::NextColumn();
-                        if (local_value) ImGui::TextUnformatted(local_value);
-                        ImGui::NextColumn();
-                    }
+                    draw_local_recursive(locals.GetValueAtIndex(i));
                 }
 
                 ImGui::Columns(1);
@@ -1126,7 +1119,8 @@ Application::~Application()
     glfwTerminate();
 }
 
-// TODO: if workdir doesn't exist, don't change, unless no workdir set already then change to $HOME
+// TODO: if workdir doesn't exist, don't change, unless no workdir set already then change to
+// $HOME
 void Application::set_workdir(const std::string& workdir)
 {
     if (fs::exists(workdir) && fs::is_directory(workdir)) {
