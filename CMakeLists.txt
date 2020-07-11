@@ -33,7 +33,7 @@ add_definitions(-DLLDBG_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets/")
 target_include_directories(lldbgui PUBLIC "${CMAKE_SOURCE_DIR}/src/")
 target_include_directories(lldbgui PUBLIC "${CMAKE_SOURCE_DIR}/third_party/")
 
-find_library(LLDB_LIBRARY lldb PATHS "/Applications/Xcode.app/Contents/SharedFrameworks/")
+find_library(LLDB_LIBRARY NAMES lldb liblldb PATHS "/Applications/Xcode.app/Contents/SharedFrameworks/" "/usr/lib/x86_64-linux-gnu/")
 target_link_libraries(lldbgui ${LLDB_LIBRARY})
 if (NOT LLDB_LIBRARY)
     message(FATAL_ERROR "LLDB not found")
