@@ -1,3 +1,5 @@
+![](https://github.com/zmeadows/lldbg/workflows/build-linux/badge.svg)
+
 This is an alpha-stage native GUI for lldb. It is currently about 50% down the path towards usable.
 The basic goal is to provide vim/emacs users with a lightweight, cross-platform, easy-to-compile, easy-to-use likeness of what you would see in a full-featured IDE debugger interface.
 
