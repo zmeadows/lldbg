@@ -22,11 +22,8 @@ add_definitions(-DLLDBG_TESTS_DIR="${CMAKE_SOURCE_DIR}/test/")
 add_executable(lldbgui ${CMAKE_SOURCE_DIR}/src/main.cpp ${LLDBGUI_SOURCES})
 
 # turn on most warnings and treat all warnings as errors
-if (MSVC)
-    target_compile_options(lldbgui PUBLIC /W4 /WX)
-else()
-    target_compile_options(lldbgui PUBLIC -Wall -Wextra -pedantic -Werror)
-endif()
+target_compile_options(lldbgui PUBLIC -Wall -Wextra -pedantic -Werror -lstdc++fs)
+
 
 add_definitions(-DLLDBG_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets/")
 
