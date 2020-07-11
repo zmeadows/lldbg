@@ -14,8 +14,8 @@ jobs:
     # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
     - uses: actions/checkout@v2
 
-    - name: install-lldb
-      run: sudo apt-get install liblldb-9-dev && /sbin/ldconfig -p | grep lldb
+    - name: install-libs
+      run: sudo apt-get install liblldb-9-dev mesa-utils
     - name: configure
       run: mkdir ${GITHUB_WORKSPACE}/build && cd ${GITHUB_WORKSPACE}/build && cmake ..
     - name: build
