@@ -15,7 +15,7 @@ jobs:
     - uses: actions/checkout@v2
 
     - name: install-libs
-      run: sudo apt-get install liblldb-9-dev mesa-utils
+      run: sudo apt-get install liblldb-9-dev libgl1-mesa-dev
     - name: configure
       run: mkdir ${GITHUB_WORKSPACE}/build && cd ${GITHUB_WORKSPACE}/build && cmake ..
     - name: build
