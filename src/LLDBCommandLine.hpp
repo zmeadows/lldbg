@@ -1,11 +1,13 @@
 #pragma once
 
+#include <optional>
 #include <string>
 #include <vector>
 
 #include "lldb/API/LLDB.h"
 
-// TODO: convert to variant to represent either user command, stdout, sterr, or log message
+// TODO: convert to variant to represent either user command, stdout, sterr, or log
+// message
 struct CommandLineEntry {
     std::string input;
     std::string output;
@@ -20,7 +22,8 @@ class LLDBCommandLine {
 public:
     LLDBCommandLine(lldb::SBDebugger& debugger);
 
-    lldb::SBCommandReturnObject run_command(const char* command, bool hide_from_history = false);
+    lldb::SBCommandReturnObject run_command(const char* command,
+                                            bool hide_from_history = false);
     std::optional<std::string> expand_and_unalias_command(const char* command);
 
     // TODO: for_each_history_entry
