@@ -1,0 +1,20 @@
+name: C++ Build/CMake CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+
+    steps:
+    # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+    - uses: actions/checkout@v2
+
+    - name: configure
+      run: mkdir ${GITHUB_WORKSPACE}/build && cd ${GITHUB_WORKSPACE}/build && cmake ..
+    - name: build
+      run: cmake --build ${GITHUB_WORKSPACE}/build
