@@ -17,6 +17,6 @@ jobs:
     - name: install-libs
       run: sudo apt-get install liblldb-9-dev libgl1-mesa-dev libglu1-mesa-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
     - name: configure
-      run: mkdir ${GITHUB_WORKSPACE}/build && cd ${GITHUB_WORKSPACE}/build && cmake ..
+      run: export CC=/usr/bin/clang && export CXX=/usr/bin/clang++ && mkdir ${GITHUB_WORKSPACE}/build && cd ${GITHUB_WORKSPACE}/build && cmake ..
     - name: build
       run: cmake --build ${GITHUB_WORKSPACE}/build -v
