@@ -12,6 +12,10 @@ Primary goals are:
 ## Build
 
 ```
+# Tell cmake to use clang as the compiler
+export CC=/usr/bin/clang
+export CXX=/usr/bin/clang++
+
 cd lldbg
 mkdir build
 cd build
