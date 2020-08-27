@@ -1,6 +1,7 @@
 ![](https://github.com/zmeadows/lldbg/workflows/build-linux/badge.svg) ![](https://github.com/zmeadows/lldbg/workflows/build-macos/badge.svg)
 
 This is an alpha-stage native GUI for lldb. It is currently about 50% down the path towards usable.
+Right now you probably shouldn't attempt to use it unless you want to contribute to the development in some way, either directly or by submitting issues.
 The basic goal is to provide vim/emacs users on linux/macOS with a lightweight, easy-to-compile, easy-to-use likeness of what you would see in a full-featured IDE debugger interface.
 
 Primary goals are:
@@ -12,6 +13,10 @@ Primary goals are:
 ## Build
 
 ```
+# Tell cmake to use clang as the compiler
+export CC=/usr/bin/clang
+export CXX=/usr/bin/clang++
+
 cd lldbg
 mkdir build
 cd build
