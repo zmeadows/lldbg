@@ -58,9 +58,9 @@ struct Application {
     BreakPointSet
         breakpoints;  // TODO: move to TextEditor, as this is just for visual marking purposes
     std::unique_ptr<FileBrowserNode>
-        file_browser;  // TODO convert to non-pointer with default constructor in cwd
-    UserInterface ui;  // TODO use UserInterface constructor to initializer graphics
-    FileViewer text_editor;
+        file_browser;        // TODO convert to non-pointer with default constructor in cwd
+    UserInterface ui;        // TODO use UserInterface constructor to initializer graphics
+    FileViewer text_editor;  // TODO: rename this to file_viewer
     FPSTimer fps_timer;
 
     int main_loop(void);

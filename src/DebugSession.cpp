@@ -367,8 +367,15 @@ void DebugSession::handle_lldb_process_event(lldb::SBEvent& event)
     }
 }
 
-void DebugSession::handle_lldb_target_event(lldb::SBEvent&) { LOG(Debug) << "Found target event"; }
+void DebugSession::handle_lldb_target_event(lldb::SBEvent& event)
+{
+    lldb::SBStream stm;
+    event.GetDescription(stm);
 
+    LOG(Debug) << "Found target event with description: " << stm.GetData();
+}
+
+// TODO: move to Application
 void DebugSession::handle_lldb_events(void)
 {
     while (true) {
@@ -394,28 +401,6 @@ void DebugSession::handle_lldb_events(void)
             // TODO: print event description
             LOG(Debug) << "Found non-target/process event";
         }
-
-        // if (lldb::SBProcess::EventIsProcessEvent(event)) {
-        //     handle_lldb_process_event(event);
-        // }
-        // else if (lldb::SBTarget::EventIsTargetEvent(event)) {
-        //     handle_lldb_target_event(event);
-        // }
-        // else {
-        //     // TODO: print event description
-        //     LOG(Debug) << "Found non-target/process event";
-        // }
-
-        // if (new_state == lldb::eStateCrashed || new_state == lldb::eStateDetached ||
-        //     new_state == lldb::eStateExited) {
-        //     auto process = find_process();
-        //     if (process.has_value()) {
-        //         m_listener.stop(*process);
-        //     }
-        //     else {
-        //         LOG(Warning) << "Tried handling lldb event while process doesn't exist!";
-        //     }
-        // }
     }
 }
 
