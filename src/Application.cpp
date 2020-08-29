@@ -502,7 +502,7 @@ static void draw_console(Application& app)
                     }
                 }
                 ImGui::SameLine();
-                ImGui::TextUnformatted(msg);
+                ImGui::TextWrapped("%s", msg);
             });
             ImGui::SetScrollHere(1.0f);
             ImGui::EndChild();
@@ -963,7 +963,7 @@ __attribute__((flatten)) void draw(Application& app)
     draw_debug_stream_popup(ui);
 }
 
-__attribute__((flatten)) static void tick(Application& app)
+static void tick(Application& app)
 {
     // TODO: handle events at application level
     app.session.handle_lldb_events();
@@ -993,7 +993,6 @@ static void update_window_dimensions(UserInterface& ui)
     glfwGetFramebufferSize(ui.window, &new_width, &new_height);
     assert(new_width > 0 && new_height > 0);
 
-    // TODO: use fabs with delta to compare. delta == 1.f?
     ui.window_resized_last_frame = new_width != ui.window_width || new_height != ui.window_height;
 
     if (ui.window_resized_last_frame) {
@@ -1013,7 +1012,7 @@ int Application::main_loop()
     while (!glfwWindowShouldClose(ui.window)) {
         glfwPollEvents();
 
-        // TODO: switch to OpenGL 3
+        // TODO: switch to OpenGL 3 for performance
         ImGui_ImplOpenGL2_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
