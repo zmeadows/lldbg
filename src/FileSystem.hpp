@@ -22,14 +22,14 @@ namespace fs = std::filesystem;
 class FileHandle {
     size_t m_hash;
 
-    // TODO: record last file read/access time in separate static map
+    // TODO: possibly record last file read/access time in separate static map
     // so that file contents can be dynamically reloaded when they change.
     // This will involve inotify on linux and kqueue on macos.
 
     static std::map<size_t, std::string> s_filepath_cache;
     static std::map<size_t, std::string> s_filename_cache;
     static std::map<size_t, std::vector<std::string>> s_contents_cache;
-    static std::mutex s_mutex;
+    static std::mutex s_mutex;  // all static std::map access must be thread-safe
 
     FileHandle(size_t h) : m_hash(h) {}
 
@@ -77,6 +77,8 @@ public:
 
     enum class Action { Nothing, ChangeFocusTo, Close };
 
+    // Beyond simply looping over the open files, the supplied Callable can optionally return an
+    // 'Action' to be applied to each specific file, as defined above.
     template <typename Callable>
     void for_each_open_file(Callable&& f)
     {
