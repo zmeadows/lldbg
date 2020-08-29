@@ -282,20 +282,6 @@ static void draw_file_browser(Application& app, FileBrowserNode* node_to_draw, s
     }
 }
 
-// static void run_lldb_command(Application& app, const char* command)
-// {
-//     app.session->run_lldb_command(command);
-//
-//     // TODO: do this upon breakpoint events for target
-//     // if (num_breakpoints_before != num_breakpoints_after) {
-//     //    app.breakpoints.synchronize(app.session->get_target());
-//
-//     //    if (auto handle = app.open_files.focus(); handle.has_value()) {
-//     //        app.text_editor.set_breakpoints(app.breakpoints.Get(*handle));
-//     //    }
-//     //}
-// }
-
 static void draw_control_bar(DebugSession& session)
 {
     auto target = session.find_target();
@@ -972,6 +958,7 @@ static void tick(Application& app)
     auto stop_info = app.session.handle_lldb_events();
     if (stop_info.has_value()) {
         manually_open_and_or_focus_file(app.ui, app.open_files, stop_info->filepath.c_str());
+        app.text_editor.highlighted_line = stop_info->line_number;
     }
 
     // TODO: let user set breakpoints by clicking line in file viewer

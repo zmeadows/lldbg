@@ -19,13 +19,11 @@ public:
         }
     }
 
-    inline void set_highlighted_line(int line_number) { m_highlighted_line = line_number; }
-    inline void unset_highlighted_line(void) { m_highlighted_line = {}; }
-
     void render(void);
 
+    std::optional<int> highlighted_line = {};
+
 private:
-    std::optional<int> m_highlighted_line = {};
     std::unordered_set<int> m_breakpoints = {};
     std::vector<std::string> m_lines = {};
 };
