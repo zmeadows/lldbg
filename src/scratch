@@ -1,0 +1,107 @@
+// https://lists.llvm.org/pipermail/lldb-dev/2016-January/009454.html
+// std::unique_ptr<DebugSession>
+// DebugSession::create(const std::string& exe_path,
+//                                                    const std::vector<std::string>& exe_args,
+//                                                    uint32_t launch_flags)
+// {
+//     const fs::path full_exe_path = fs::canonical(exe_path);
+//
+//     if (!fs::exists(full_exe_path)) {  // TODO: check if regular file and executable, etc
+//         LOG(Error) << "Requested executable does not exist: " << full_exe_path;
+//         return nullptr;
+//     }
+//
+//     lldb::SBDebugger debugger = lldb::SBDebugger::Create();
+//     debugger.SetUseColor(false);
+//     debugger.SetAsync(true);
+//
+//     lldb::SBError lldb_error;
+//     lldb::SBTarget target =
+//         debugger.CreateTarget(full_exe_path.c_str(), nullptr, nullptr, true, lldb_error);
+//
+//     if (lldb_error.Success() && target.IsValid() && debugger.IsValid()) {
+//         LOG(Debug) << "Succesfully created/selected target for executable: " << full_exe_path;
+//         lldb_error.Clear();
+//     }
+//     else {
+//         auto lldb_error_cstr = lldb_error.GetCString();
+//         LOG(Error) << (lldb_error_cstr ? lldb_error_cstr : "Unknown target creation error.");
+//         lldb::SBDebugger::Destroy(debugger);
+//         return nullptr;
+//     }
+//
+//     return std::unique_ptr<DebugSession>(
+//         new DebugSession(debugger, full_exe_path, exe_args, launch_flags));
+// }
+
+// bool DebugSession::start_process(std::optional<uint32_t> new_launch_flags)
+// {
+//     if (get_process().has_value()) {
+//         LOG(Warning) << "Process already started.";
+//         return false;
+//     }
+//
+//     lldb::SBTarget target = get_target();
+//
+//     if (!target.IsValid()) {
+//         LOG(Error) << "Invalid target encountered in DebugSession::start";
+//         return false;
+//     }
+//
+//     std::vector<const char*> argv_cstr;
+//     argv_cstr.reserve(m_argv.size());
+//     for (const auto& arg : m_argv) {
+//         argv_cstr.push_back(arg.c_str());
+//     }
+//
+//     lldb::SBLaunchInfo launch_info(argv_cstr.data());
+//     assert(launch_info.GetNumArguments() == argv_cstr.size());
+//
+//     if (new_launch_flags.has_value()) {
+//         m_launch_flags = *new_launch_flags;
+//     }
+//     // launch_info.SetLaunchFlags(lldb::eLaunchFlagStopAtEntry);
+//     launch_info.SetLaunchFlags(m_launch_flags);
+//
+//     lldb::SBError lldb_error;
+//     lldb::SBProcess process = target.Launch(launch_info, lldb_error);
+//
+//     if (lldb_error.Success() && process.IsValid()) {
+//         LOG(Debug) << "Succesfully launched target process for executable: " << m_exe_path;
+//         lldb_error.Clear();
+//     }
+//     else {
+//         const char* lldb_error_cstr = lldb_error.GetCString();
+//         LOG(Error) << (lldb_error_cstr ? lldb_error_cstr : "Unknown target launch error!");
+//         return false;
+//     }
+//
+//     size_t ms_attaching = 0;
+//     while (process.GetState() == lldb::eStateAttaching) {
+//         LOG(Debug) << "Attaching to new process...";
+//         std::this_thread::sleep_for(std::chrono::milliseconds(100));
+//         ms_attaching += 100;
+//         if (ms_attaching / 1000 > 5) {
+//             LOG(Error) << "Attach timeout after launching target process.";
+//             return false;
+//         }
+//     }
+//
+//     LOG(Debug) << "Succesfully attached to target process for executable: " << m_exe_path;
+//
+//     std::cout << "process state: " << lldb::SBDebugger::StateAsCString(process.GetState())
+//               << std::endl;
+//
+//     static char input_buf[2048];
+//     for (uint32_t i = 0; i < process.GetNumThreads(); i++) {
+//         auto thread = process.GetThreadAtIndex(i);
+//         std::cout << "thread " << i << " StopReason: " << thread.GetStopReason() << std::endl;
+//
+//         thread.GetStopDescription(input_buf, 2048);
+//         std::cout << "thread " << i << " stop description: " << input_buf << std::endl;
+//     }
+//
+//     m_listener.start(process);
+//     return true;
+// }
+
