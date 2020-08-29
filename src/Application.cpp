@@ -415,14 +415,14 @@ static void draw_console(Application& app)
 
             for (const CommandLineEntry& entry : app.session.get_lldb_command_history()) {
                 ImGui::TextColored(ImVec4(255, 0, 0, 255), "> %s", entry.input.c_str());
-                if (entry.succeeded) {
-                    ImGui::TextUnformatted(entry.output.c_str());
-                }
-                else {
+                if (!entry.succeeded) {
                     ImGui::Text("error: %s is not a valid command.", entry.input.c_str());
+                    continue;
                 }
 
-                ImGui::TextUnformatted("\n");
+                if (entry.output.size() > 0) {
+                    ImGui::TextUnformatted(entry.output.c_str());
+                }
             }
 
             // always scroll to the bottom of the command history after running a command
