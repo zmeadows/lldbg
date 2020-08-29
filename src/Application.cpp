@@ -969,9 +969,12 @@ __attribute__((flatten)) void draw(Application& app)
 
 static void tick(Application& app)
 {
-    // TODO: handle events at application level
-    app.session.handle_lldb_events();
+    auto stop_info = app.session.handle_lldb_events();
+    if (stop_info.has_value()) {
+        manually_open_and_or_focus_file(app.ui, app.open_files, stop_info->filepath.c_str());
+    }
 
+    // TODO: let user set breakpoints by clicking line in file viewer
     // std::optional<int> line_clicked = app.text_editor.line_clicked_this_frame;
     // if (line_clicked) {
     //     add_breakpoint_to_viewed_file(app, *line_clicked);

@@ -1,5 +1,8 @@
 #pragma once
 
+#include <filesystem>
+namespace fs = std::filesystem;
+
 #include "EventListener.hpp"
 #include "LLDBCommandLine.hpp"
 #include "StreamBuffer.hpp"
@@ -10,14 +13,19 @@ void continue_process(lldb::SBProcess&);
 void kill_process(lldb::SBProcess&);
 bool process_is_running(lldb::SBProcess&);
 bool process_is_stopped(lldb::SBProcess&);
+
+// TODO: refactor with struct instead of pair<bool,bool>
 std::pair<bool, bool> process_is_finished(lldb::SBProcess&);
+
+struct StopInfo {
+    fs::path filepath;
+    uint32_t line_number;
+};
 
 class DebugSession {
 public:
     std::optional<lldb::SBTarget> find_target();
     std::optional<lldb::SBProcess> find_process();
-
-    bool launch_process(std::optional<uint32_t> launch_flags = {});
 
     lldb::SBCommandReturnObject run_lldb_command(const char* command,
                                                  bool hide_from_history = false);
@@ -39,7 +47,7 @@ public:
 
     State get_state(void);
 
-    void handle_lldb_events(void);
+    std::optional<StopInfo> handle_lldb_events(void);
 
     // TODO: combine console, log, stdout/stderr into just a single console
     void read_stream_buffers(void);
@@ -58,7 +66,4 @@ private:
     LLDBEventListenerThread m_listener;
     StreamBuffer m_stdout;
     StreamBuffer m_stderr;
-
-    void handle_lldb_target_event(lldb::SBEvent& event);
-    void handle_lldb_process_event(lldb::SBEvent& event);
 };

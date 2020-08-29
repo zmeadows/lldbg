@@ -36,113 +36,6 @@ DebugSession::~DebugSession(void)
     }
 }
 
-// https://lists.llvm.org/pipermail/lldb-dev/2016-January/009454.html
-// std::unique_ptr<DebugSession>
-// DebugSession::create(const std::string& exe_path,
-//                                                    const std::vector<std::string>& exe_args,
-//                                                    uint32_t launch_flags)
-// {
-//     const fs::path full_exe_path = fs::canonical(exe_path);
-//
-//     if (!fs::exists(full_exe_path)) {  // TODO: check if regular file and executable, etc
-//         LOG(Error) << "Requested executable does not exist: " << full_exe_path;
-//         return nullptr;
-//     }
-//
-//     lldb::SBDebugger debugger = lldb::SBDebugger::Create();
-//     debugger.SetUseColor(false);
-//     debugger.SetAsync(true);
-//
-//     lldb::SBError lldb_error;
-//     lldb::SBTarget target =
-//         debugger.CreateTarget(full_exe_path.c_str(), nullptr, nullptr, true, lldb_error);
-//
-//     if (lldb_error.Success() && target.IsValid() && debugger.IsValid()) {
-//         LOG(Debug) << "Succesfully created/selected target for executable: " << full_exe_path;
-//         lldb_error.Clear();
-//     }
-//     else {
-//         auto lldb_error_cstr = lldb_error.GetCString();
-//         LOG(Error) << (lldb_error_cstr ? lldb_error_cstr : "Unknown target creation error.");
-//         lldb::SBDebugger::Destroy(debugger);
-//         return nullptr;
-//     }
-//
-//     return std::unique_ptr<DebugSession>(
-//         new DebugSession(debugger, full_exe_path, exe_args, launch_flags));
-// }
-
-// bool DebugSession::start_process(std::optional<uint32_t> new_launch_flags)
-// {
-//     if (get_process().has_value()) {
-//         LOG(Warning) << "Process already started.";
-//         return false;
-//     }
-//
-//     lldb::SBTarget target = get_target();
-//
-//     if (!target.IsValid()) {
-//         LOG(Error) << "Invalid target encountered in DebugSession::start";
-//         return false;
-//     }
-//
-//     std::vector<const char*> argv_cstr;
-//     argv_cstr.reserve(m_argv.size());
-//     for (const auto& arg : m_argv) {
-//         argv_cstr.push_back(arg.c_str());
-//     }
-//
-//     lldb::SBLaunchInfo launch_info(argv_cstr.data());
-//     assert(launch_info.GetNumArguments() == argv_cstr.size());
-//
-//     if (new_launch_flags.has_value()) {
-//         m_launch_flags = *new_launch_flags;
-//     }
-//     // launch_info.SetLaunchFlags(lldb::eLaunchFlagStopAtEntry);
-//     launch_info.SetLaunchFlags(m_launch_flags);
-//
-//     lldb::SBError lldb_error;
-//     lldb::SBProcess process = target.Launch(launch_info, lldb_error);
-//
-//     if (lldb_error.Success() && process.IsValid()) {
-//         LOG(Debug) << "Succesfully launched target process for executable: " << m_exe_path;
-//         lldb_error.Clear();
-//     }
-//     else {
-//         const char* lldb_error_cstr = lldb_error.GetCString();
-//         LOG(Error) << (lldb_error_cstr ? lldb_error_cstr : "Unknown target launch error!");
-//         return false;
-//     }
-//
-//     size_t ms_attaching = 0;
-//     while (process.GetState() == lldb::eStateAttaching) {
-//         LOG(Debug) << "Attaching to new process...";
-//         std::this_thread::sleep_for(std::chrono::milliseconds(100));
-//         ms_attaching += 100;
-//         if (ms_attaching / 1000 > 5) {
-//             LOG(Error) << "Attach timeout after launching target process.";
-//             return false;
-//         }
-//     }
-//
-//     LOG(Debug) << "Succesfully attached to target process for executable: " << m_exe_path;
-//
-//     std::cout << "process state: " << lldb::SBDebugger::StateAsCString(process.GetState())
-//               << std::endl;
-//
-//     static char input_buf[2048];
-//     for (uint32_t i = 0; i < process.GetNumThreads(); i++) {
-//         auto thread = process.GetThreadAtIndex(i);
-//         std::cout << "thread " << i << " StopReason: " << thread.GetStopReason() << std::endl;
-//
-//         thread.GetStopDescription(input_buf, 2048);
-//         std::cout << "thread " << i << " stop description: " << input_buf << std::endl;
-//     }
-//
-//     m_listener.start(process);
-//     return true;
-// }
-
 std::optional<lldb::SBTarget> DebugSession::find_target()
 {
     if (m_debugger.GetNumTargets() > 0) {
@@ -275,7 +168,6 @@ lldb::SBCommandReturnObject DebugSession::run_lldb_command(const char* command,
         unaliased_cmd.has_value()) {
         LOG(Debug) << "Unaliased command: " << *unaliased_cmd;
     }
-
     auto target_before = find_target();
 
     lldb::SBCommandReturnObject ret = m_cmdline.run_command(command, hide_from_history);
@@ -285,6 +177,7 @@ lldb::SBCommandReturnObject DebugSession::run_lldb_command(const char* command,
     // TODO: need to think a bit about handling multiple targets
     if ((!target_before && target_after) ||
         (target_before && target_after && (*target_before != *target_after))) {
+        LOG(Debug) << "added listener to new target";
         target_after->GetBroadcaster().AddListener(
             m_listener.get_lldb_listener(), lldb::SBTarget::eBroadcastBitBreakpointChanged |
                                                 lldb::SBTarget::eBroadcastBitWatchpointChanged);
@@ -316,7 +209,7 @@ lldb::SBCommandReturnObject DebugSession::run_lldb_command(const char* command,
             LOG(Debug) << "eReturnStatusQuit";
             break;
         default:
-            LOG(Debug) << "unknown lldd command return status encountered.";
+            LOG(Debug) << "unknown lldb command return status encountered.";
             break;
     }
 
@@ -358,26 +251,10 @@ const std::vector<CommandLineEntry>& DebugSession::get_lldb_command_history() co
     return m_cmdline.get_history();
 }
 
-void DebugSession::handle_lldb_process_event(lldb::SBEvent& event)
+std::optional<StopInfo> DebugSession::handle_lldb_events(void)
 {
-    const lldb::StateType new_state = lldb::SBProcess::GetStateFromEvent(event);
-    const char* state_descr = lldb::SBDebugger::StateAsCString(new_state);
-    if (state_descr) {
-        LOG(Debug) << "Found process event with new state: " << state_descr;
-    }
-}
+    std::optional<StopInfo> stop_info = {};
 
-void DebugSession::handle_lldb_target_event(lldb::SBEvent& event)
-{
-    lldb::SBStream stm;
-    event.GetDescription(stm);
-
-    LOG(Debug) << "Found target event with description: " << stm.GetData();
-}
-
-// TODO: move to Application
-void DebugSession::handle_lldb_events(void)
-{
     while (true) {
         auto maybe_event = m_listener.pop_event();
         if (!maybe_event.has_value()) break;
@@ -388,19 +265,77 @@ void DebugSession::handle_lldb_events(void)
             continue;
         }
 
-        auto process = find_process();
         auto target = find_target();
+        auto process = find_process();
+
+        lldb::SBStream event_description;
+        event.GetDescription(event_description);
 
         if (target.has_value() && event.BroadcasterMatchesRef(target->GetBroadcaster())) {
-            handle_lldb_target_event(event);
+            LOG(Debug) << "Found target event";
         }
         else if (process.has_value() && event.BroadcasterMatchesRef(process->GetBroadcaster())) {
-            handle_lldb_process_event(event);
+            const lldb::StateType new_state = lldb::SBProcess::GetStateFromEvent(event);
+            const char* state_descr = lldb::SBDebugger::StateAsCString(new_state);
+
+            if (state_descr) {
+                LOG(Debug) << "Found process event with new state: " << state_descr;
+            }
+
+            // For now we find the first (if any) stopped thread and construct a StopInfo.
+            if (new_state == lldb::eStateStopped && process_is_stopped(*process)) {
+                const uint32_t nthreads = process->GetNumThreads();
+                for (uint32_t i = 0; i < nthreads; i++) {
+                    lldb::SBThread th = process->GetThreadAtIndex(i);
+                    switch (th.GetStopReason()) {
+                        case lldb::eStopReasonBreakpoint: {
+                            // https://lldb.llvm.org/cpp_reference/classlldb_1_1SBThread.html#af284261156e100f8d63704162f19ba76
+                            assert(th.GetStopReasonDataCount() == 2);
+                            lldb::break_id_t breakpoint_id = th.GetStopReasonDataAtIndex(0);
+                            lldb::SBBreakpoint breakpoint =
+                                target->FindBreakpointByID(breakpoint_id);
+
+                            lldb::break_id_t location_id = th.GetStopReasonDataAtIndex(1);
+                            lldb::SBBreakpointLocation location =
+                                breakpoint.FindLocationByID(location_id);
+
+                            // TODO: factor out, as this same sequence is also used in
+                            // drawing the breakpoints within draw_breakpoints_and_watchpoints
+                            lldb::SBAddress address = location.GetAddress();
+                            lldb::SBLineEntry line_entry = address.GetLineEntry();
+                            const char* filename = line_entry.GetFileSpec().GetFilename();
+                            const char* directory = line_entry.GetFileSpec().GetDirectory();
+
+                            fs::path breakpoint_filepath;
+                            if (filename == nullptr || directory == nullptr) {
+                                LOG(Error)
+                                    << "Failed to read breakpoint location after thread halted";
+                                continue;
+                            }
+                            else {
+                                stop_info = {fs::path(directory) / fs::path(filename),
+                                             line_entry.GetLine()};
+                            }
+                        }
+                        default: {
+                            continue;
+                        }
+                    }
+                }
+            }
+
+            // TODO: if stop reason is breakpoint, identify file/line and pass back to
+            // Application so that it may change viewer focus to that file/line.
+            // USE GetStopReasonDataAtIndex(uint32_t idx)
         }
         else {
             // TODO: print event description
             LOG(Debug) << "Found non-target/process event";
         }
+
+        LOG(Debug) << "    " << event_description.GetData();
     }
+
+    return stop_info;
 }
 
