@@ -4,7 +4,7 @@
 #include <vector>
 
 // TODO: remove un-used includes
-// TODO: created Forward.hpp as in SerenityOS
+// TODO: create Forward.hpp as in SerenityOS
 #include "Application.hpp"
 #include "Defer.hpp"
 #include "FileSystem.hpp"
@@ -101,7 +101,7 @@ int main(int argc, char** argv)
         }
     }
 
-    app.session.run_lldb_command("breakpoint set --file test.cpp --line 20");
+    app.session.run_lldb_command("breakpoint set --file test.cpp --line 24");
 
     return app.main_loop();
 }
