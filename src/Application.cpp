@@ -425,12 +425,13 @@ static void draw_console(Application& app)
                 }
             }
 
-            // always scroll to the bottom of the command history after running a command
+            // later in this method we scroll to the bottom of the command history if
+            // a command was run last frame, so that the user can immediately see the output.
             const bool should_auto_scroll_command_window =
                 app.ui.ran_command_last_frame || app.ui.window_resized_last_frame;
 
             auto command_input_callback = [](ImGuiTextEditCallbackData*) -> int {
-                return 0;  // TODO: command line history
+                return 0;  // TODO: scroll command line history with up/down arrows
             };
 
             const ImGuiInputTextFlags command_input_flags = ImGuiInputTextFlags_EnterReturnsTrue;
@@ -451,10 +452,13 @@ static void draw_console(Application& app)
                 app.ui.ran_command_last_frame = true;
             }
 
-            // Keep auto focus on the input box
-            if (ImGui::IsItemHovered() || (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootWindow) &&
-                                           !ImGui::IsAnyItemActive() && !ImGui::IsMouseClicked(0)))
+            // Always keep keyboard input focused on the lldb console input box unless
+            // some other disrupting action is occuring
+            if (ImGui::IsItemHovered() ||
+                (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootWindow) &&
+                 !ImGui::IsAnyItemActive() && !ImGui::IsMouseClicked(0))) {
                 ImGui::SetKeyboardFocusHere(-1);  // Auto focus previous widget
+            }
 
             if (should_auto_scroll_command_window) {
                 ImGui::SetScrollHere(1.0f);
