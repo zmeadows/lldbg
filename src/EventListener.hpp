@@ -35,7 +35,7 @@ public:
     ~LLDBEventListenerThread();
 
     std::optional<lldb::SBEvent> pop_event(void) { return m_events.pop(); }
-    const lldb::SBListener& get_lldb_listener(void) { return m_listener; };
+    const lldb::SBListener& get_lldb_listener(void) const { return m_listener; };
 
     // TODO: write macros for these
     LLDBEventListenerThread() = delete;

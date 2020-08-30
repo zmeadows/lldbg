@@ -71,7 +71,7 @@ int main(int argc, char** argv)
         auto handle = FileHandle::create(source_path);
         if (handle.has_value()) {
             for (const std::string& line : handle->contents()) {
-                auto ret = app.session.run_lldb_command(line.c_str());
+                auto ret = run_lldb_command(app, line.c_str());
                 if (!ret.IsValid()) {
                     LOG(Error) << "Error parsing source file line: " << line;
                     break;
@@ -88,7 +88,7 @@ int main(int argc, char** argv)
         // TODO: detect and open main file of specified executable
         StringBuffer target_set_cmd;
         target_set_cmd.format("file {}", result["file"].as<std::string>());
-        app.session.run_lldb_command(target_set_cmd.data());
+        run_lldb_command(app, target_set_cmd.data());
 
         if (result.count("positional")) {
             StringBuffer argset_command;
@@ -97,11 +97,11 @@ int main(int argc, char** argv)
                 argset_command.format_("{} ", arg);
             }
             argset_command.format_("{}", '\0');
-            app.session.run_lldb_command(argset_command.data());
+            run_lldb_command(app, argset_command.data());
         }
     }
 
-    app.session.run_lldb_command("breakpoint set --file test.cpp --line 24");
+    run_lldb_command(app, "breakpoint set --file test.cpp --line 24");
 
     return app.main_loop();
 }

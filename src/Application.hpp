@@ -5,7 +5,6 @@
 #include <cassert>
 #include <iostream>
 
-#include "DebugSession.hpp"
 #include "EventListener.hpp"
 #include "FPSTimer.hpp"
 #include "FileSystem.hpp"
@@ -53,7 +52,12 @@ private:
 };
 
 struct Application {
-    DebugSession session;
+    lldb::SBDebugger debugger;
+    LLDBCommandLine cmdline;
+    LLDBEventListenerThread listener;
+    StreamBuffer _stdout;
+    StreamBuffer _stderr;
+
     OpenFiles open_files;
     BreakPointSet
         breakpoints;  // TODO: move to TextEditor, as this is just for visual marking purposes
@@ -74,3 +78,6 @@ struct Application {
     Application& operator=(const Application&) = delete;
     Application& operator=(Application&&) = delete;
 };
+
+lldb::SBCommandReturnObject run_lldb_command(Application& app, const char* command,
+                                             bool hide_from_history = false);
