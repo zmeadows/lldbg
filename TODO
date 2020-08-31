@@ -20,3 +20,4 @@
 - adjust formatting of LOG output from individual events so that they can be easily visually grouped
 - synchronize breakpoints with file-viewer on target event
 - un-highlight breakpoint line in file viewer at appropriate times
+- fix auto-scrolling in log console
