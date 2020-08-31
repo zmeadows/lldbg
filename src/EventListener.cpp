@@ -60,14 +60,14 @@ void LLDBEventListenerThread::poll_events()
 {
     LOG(Debug) << "Launched LLDBEventListenerThread.";
 
+    lldb::SBEvent event;
+
     while (m_continue.load()) {
-        lldb::SBEvent event;
         if (m_listener.WaitForEvent(1, event)) {
             if (!event.IsValid()) {
                 LOG(Warning) << "Invalid LLDB event encountered, skipping...";
                 continue;
             }
-            // TODO: log event description using event.GetDescription(stream)
 
             m_events.push(event);
 

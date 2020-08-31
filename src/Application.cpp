@@ -32,6 +32,23 @@ static std::map<std::string, std::string> s_debug_stream;
         }                                              \
     }
 
+static std::pair<fs::path, int> resolve_breakpoint(lldb::SBBreakpointLocation location)
+{
+    lldb::SBAddress address = location.GetAddress();
+    lldb::SBLineEntry line_entry = address.GetLineEntry();
+    const char* filename = line_entry.GetFileSpec().GetFilename();
+    const char* directory = line_entry.GetFileSpec().GetDirectory();
+
+    fs::path breakpoint_filepath;
+    if (filename == nullptr || directory == nullptr) {
+        LOG(Error) << "Failed to read breakpoint location after thread halted";
+        return {fs::path(), -1};
+    }
+    else {
+        return {fs::path(directory) / fs::path(filename), line_entry.GetLine()};
+    }
+}
+
 static std::pair<bool, bool> process_is_finished(lldb::SBProcess& process)
 {
     if (!process.IsValid()) {
@@ -1074,6 +1091,9 @@ __attribute__((flatten)) static void draw(Application& app)
 static void handle_lldb_events(lldb::SBDebugger& debugger, LLDBEventListenerThread& listener,
                                UserInterface& ui, OpenFiles& open_files, FileViewer& file_viewer)
 {
+    auto target = find_target(debugger);
+    auto process = find_process(debugger);
+
     while (true) {
         auto maybe_event = listener.pop_event();
         if (!maybe_event.has_value()) break;
@@ -1084,11 +1104,9 @@ static void handle_lldb_events(lldb::SBDebugger& debugger, LLDBEventListenerThre
             continue;
         }
 
-        auto target = find_target(debugger);
-        auto process = find_process(debugger);
-
         lldb::SBStream event_description;
         event.GetDescription(event_description);
+        LOG(Verbose) << "Event Description => " << event_description.GetData();
 
         if (target.has_value() && event.BroadcasterMatchesRef(target->GetBroadcaster())) {
             LOG(Debug) << "Found target event";
@@ -1102,7 +1120,7 @@ static void handle_lldb_events(lldb::SBDebugger& debugger, LLDBEventListenerThre
             }
 
             // For now we find the first (if any) stopped thread and construct a StopInfo.
-            if (new_state == lldb::eStateStopped && process_is_stopped(*process)) {
+            if (new_state == lldb::eStateStopped) {
                 const uint32_t nthreads = process->GetNumThreads();
                 for (uint32_t i = 0; i < nthreads; i++) {
                     lldb::SBThread th = process->GetThreadAtIndex(i);
@@ -1118,25 +1136,10 @@ static void handle_lldb_events(lldb::SBDebugger& debugger, LLDBEventListenerThre
                             lldb::SBBreakpointLocation location =
                                 breakpoint.FindLocationByID(location_id);
 
-                            // TODO: factor out, as this same sequence is also used in
-                            // drawing the breakpoints within draw_breakpoints_and_watchpoints
-                            lldb::SBAddress address = location.GetAddress();
-                            lldb::SBLineEntry line_entry = address.GetLineEntry();
-                            const char* filename = line_entry.GetFileSpec().GetFilename();
-                            const char* directory = line_entry.GetFileSpec().GetDirectory();
-
-                            fs::path breakpoint_filepath;
-                            if (filename == nullptr || directory == nullptr) {
-                                LOG(Error)
-                                    << "Failed to read breakpoint location after thread halted";
-                                continue;
-                            }
-                            else {
-                                const fs::path filepath = fs::path(directory) / fs::path(filename);
-
-                                manually_open_and_or_focus_file(ui, open_files, filepath.c_str());
-                                file_viewer.highlighted_line = line_entry.GetLine();
-                            }
+                            const auto [filepath, linum] = resolve_breakpoint(location);
+                            manually_open_and_or_focus_file(ui, open_files, filepath.c_str());
+                            file_viewer.highlighted_line = linum;
+                            break;
                         }
                         default: {
                             continue;
@@ -1144,13 +1147,14 @@ static void handle_lldb_events(lldb::SBDebugger& debugger, LLDBEventListenerThre
                     }
                 }
             }
+            else if (new_state == lldb::eStateRunning) {
+                file_viewer.highlighted_line = {};
+            }
         }
         else {
             // TODO: print event description
             LOG(Debug) << "Found non-target/process event";
         }
-
-        LOG(Debug) << "    " << event_description.GetData();
     }
 }
 
