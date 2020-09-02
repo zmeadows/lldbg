@@ -371,7 +371,7 @@ static std::optional<lldb::SBProcess> find_process(lldb::SBDebugger& debugger)
 
 static lldb::SBCommandReturnObject run_lldb_command(lldb::SBDebugger& debugger,
                                                     LLDBCommandLine& cmdline,
-                                                    const LLDBEventListenerThread& listener,
+                                                    const lldb::SBListener& listener,
                                                     const char* command,
                                                     bool hide_from_history = false)
 {
@@ -390,8 +390,7 @@ static lldb::SBCommandReturnObject run_lldb_command(lldb::SBDebugger& debugger,
     if (added_new_target || switched_target) {
         constexpr auto target_listen_flags = lldb::SBTarget::eBroadcastBitBreakpointChanged |
                                              lldb::SBTarget::eBroadcastBitWatchpointChanged;
-        target_after->GetBroadcaster().AddListener(listener.get_lldb_listener(),
-                                                   target_listen_flags);
+        target_after->GetBroadcaster().AddListener(listener, target_listen_flags);
     }
 
     switch (ret.GetStatus()) {
@@ -434,7 +433,7 @@ lldb::SBCommandReturnObject run_lldb_command(Application& app, const char* comma
 }
 
 static void draw_control_bar(lldb::SBDebugger& debugger, LLDBCommandLine& cmdline,
-                             const LLDBEventListenerThread& listener)
+                             const lldb::SBListener& listener)
 {
     auto target = find_target(debugger);
     if (target.has_value()) {
@@ -1088,16 +1087,16 @@ __attribute__((flatten)) static void draw(Application& app)
     draw_debug_stream_popup(ui);
 }
 
-static void handle_lldb_events(lldb::SBDebugger& debugger, LLDBEventListenerThread& listener,
+static void handle_lldb_events(lldb::SBDebugger& debugger, lldb::SBListener& listener,
                                UserInterface& ui, OpenFiles& open_files, FileViewer& file_viewer)
 {
     auto target = find_target(debugger);
     auto process = find_process(debugger);
 
+    lldb::SBEvent event;
     while (true) {
-        auto maybe_event = listener.pop_event();
-        if (!maybe_event.has_value()) break;
-        auto event = *maybe_event;
+        const bool event_found = listener.GetNextEvent(event);
+        if (!event_found) break;
 
         if (!event.IsValid()) {
             LOG(Warning) << "Invalid event found.";
@@ -1307,8 +1306,8 @@ std::optional<UserInterface> UserInterface::init(void)
 
 Application::Application(UserInterface&& ui_)
     : debugger(lldb::SBDebugger::Create()),
+      listener(debugger.GetListener()),
       cmdline(debugger),
-      listener(debugger),
       _stdout(StreamBuffer::StreamSource::StdOut),
       _stderr(StreamBuffer::StreamSource::StdErr),
       ui(std::move(ui_))

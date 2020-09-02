@@ -53,8 +53,8 @@ private:
 
 struct Application {
     lldb::SBDebugger debugger;
+    lldb::SBListener listener;
     LLDBCommandLine cmdline;
-    LLDBEventListenerThread listener;
     StreamBuffer _stdout;
     StreamBuffer _stderr;
 
