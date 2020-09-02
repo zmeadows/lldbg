@@ -5,7 +5,6 @@
 #include <cassert>
 #include <iostream>
 
-#include "EventListener.hpp"
 #include "FPSTimer.hpp"
 #include "FileSystem.hpp"
 #include "FileViewer.hpp"
