@@ -70,7 +70,8 @@ static bool process_is_running(lldb::SBProcess& process)
 
 static bool process_is_stopped(lldb::SBProcess& process)
 {
-    return process.IsValid() && process.GetState() == lldb::eStateStopped;
+    const auto state = process.GetState();
+    return process.IsValid() && (state == lldb::eStateStopped || state == lldb::eStateUnloaded);
 }
 
 static void stop_process(lldb::SBProcess& process)
@@ -907,7 +908,6 @@ static void draw_locals_and_registers(UserInterface& ui, std::optional<lldb::SBP
 
 static void draw_breakpoints_and_watchpoints(UserInterface& ui, OpenFiles& open_files,
                                              std::optional<lldb::SBTarget> target,
-                                             std::optional<lldb::SBProcess> process,
                                              float stack_height)
 {
     ImGui::BeginChild("#BreakWatchPointChild", ImVec2(0, stack_height));
@@ -918,7 +918,7 @@ static void draw_breakpoints_and_watchpoints(UserInterface& ui, OpenFiles& open_
             Defer(ImGui::EndTabItem());
 
             // TODO: show hit count and column number as well
-            if (target.has_value() && process.has_value() && process_is_stopped(*process)) {
+            if (target.has_value()) {
                 ImGui::Columns(2);
                 ImGui::Separator();
                 ImGui::Text("FILE");
@@ -1075,8 +1075,7 @@ __attribute__((flatten)) static void draw(Application& app)
         draw_threads(ui, find_process(app.debugger), stack_height);
         draw_stack_trace(ui, open_files, find_process(app.debugger), stack_height);
         draw_locals_and_registers(ui, find_process(app.debugger), stack_height);
-        draw_breakpoints_and_watchpoints(ui, open_files, find_target(app.debugger),
-                                         find_process(app.debugger), stack_height);
+        draw_breakpoints_and_watchpoints(ui, open_files, find_target(app.debugger), stack_height);
 
         ImGui::EndGroup();
     }
