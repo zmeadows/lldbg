@@ -258,8 +258,7 @@ static void draw_open_files(Application& app)
         auto tab_flags = ImGuiTabItemFlags_None;
         if (app.ui.request_manual_tab_change && is_focused) {
             tab_flags = ImGuiTabItemFlags_SetSelected;
-            app.text_editor.set_lines(handle.contents());
-            app.text_editor.set_breakpoints(app.breakpoints.Get(handle));
+            app.text_editor.show(handle);
         }
 
         bool keep_tab_open = true;
@@ -268,8 +267,7 @@ static void draw_open_files(Application& app)
             if (!app.ui.request_manual_tab_change && !is_focused) {
                 // user selected tab directly with mouse
                 action = OpenFiles::Action::ChangeFocusTo;
-                app.text_editor.set_lines(handle.contents());
-                app.text_editor.set_breakpoints(app.breakpoints.Get(handle));
+                app.text_editor.show(handle);
             }
             app.text_editor.render();
             ImGui::EndChild();
@@ -287,9 +285,13 @@ static void draw_open_files(Application& app)
     app.ui.request_manual_tab_change = false;
 
     if (closed_tab && app.open_files.size() > 0) {
-        FileHandle handle = *app.open_files.focus();
-        app.text_editor.set_lines(handle.contents());
-        app.text_editor.set_breakpoints(app.breakpoints.Get(handle));
+        auto focus_handle = app.open_files.focus();
+        if (!focus_handle.has_value()) {
+            LOG(Error) << "Invalid logic encountered when user requested tab close.";
+        }
+        else {
+            app.text_editor.show(*focus_handle);
+        }
     }
 }
 
@@ -1108,6 +1110,7 @@ static void handle_lldb_events(lldb::SBDebugger& debugger, lldb::SBListener& lis
 
         if (target.has_value() && event.BroadcasterMatchesRef(target->GetBroadcaster())) {
             LOG(Debug) << "Found target event";
+            file_viewer.synchronize_breakpoint_cache(*target);
         }
         else if (process.has_value() && event.BroadcasterMatchesRef(process->GetBroadcaster())) {
             const lldb::StateType new_state = lldb::SBProcess::GetStateFromEvent(event);
@@ -1159,12 +1162,6 @@ static void handle_lldb_events(lldb::SBDebugger& debugger, lldb::SBListener& lis
 static void tick(Application& app)
 {
     handle_lldb_events(app.debugger, app.listener, app.ui, app.open_files, app.text_editor);
-
-    // TODO: let user set breakpoints by clicking line in file viewer
-    // std::optional<int> line_clicked = app.text_editor.line_clicked_this_frame;
-    // if (line_clicked) {
-    //     add_breakpoint_to_viewed_file(app, *line_clicked);
-    // }
 
     UserInterface& ui = app.ui;
     DEBUG_STREAM(ui.window_width);

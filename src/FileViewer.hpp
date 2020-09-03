@@ -5,26 +5,18 @@
 #include <unordered_set>
 #include <vector>
 
+#include "FileSystem.hpp"
+
 class FileViewer {
+    std::vector<std::string> m_lines = {};
+    std::map<FileHandle, std::unordered_set<int>> m_breakpoint_cache;
+    std::optional<decltype(m_breakpoint_cache)::iterator> m_breakpoints;
+
 public:
-    inline void set_lines(const std::vector<std::string>& new_lines) { m_lines = new_lines; }
-
-    inline void set_breakpoints(const std::unordered_set<int>* new_breakpoints)
-    {
-        if (new_breakpoints != nullptr) {
-            m_breakpoints = *new_breakpoints;
-        }
-        else {
-            m_breakpoints = {};
-        }
-    }
-
+    void show(FileHandle handle);
     void render(void);
+    void synchronize_breakpoint_cache(lldb::SBTarget target);
 
     std::optional<int> highlighted_line = {};
-
-private:
-    std::unordered_set<int> m_breakpoints = {};
-    std::vector<std::string> m_lines = {};
 };
 

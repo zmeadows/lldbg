@@ -110,18 +110,6 @@ public:
     }
 };
 
-// TODO: move BreakPointSet to TextEditor module
-class BreakPointSet {
-    std::map<FileHandle, std::unordered_set<int>> m_cache;
-
-public:
-    // void add(FileHandle handle, int line);
-    // void remove(FileHandle handle, int line);
-    void synchronize(lldb::SBTarget target);
-
-    const std::unordered_set<int>* Get(FileHandle handle);
-};
-
 class FileBrowserNode {
     fs::path m_filepath;
     fs::path m_filename;

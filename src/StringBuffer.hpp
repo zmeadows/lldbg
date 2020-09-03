@@ -27,4 +27,6 @@ public:
     inline const char* data(void) { return m_buffer.data(); }
 
     inline void clear(void) { m_buffer.clear(); }
+
+    inline void push_back(char c) { m_buffer.push_back(c); }
 };

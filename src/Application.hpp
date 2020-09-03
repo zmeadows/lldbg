@@ -58,8 +58,6 @@ struct Application {
     StreamBuffer _stderr;
 
     OpenFiles open_files;
-    BreakPointSet
-        breakpoints;  // TODO: move to TextEditor, as this is just for visual marking purposes
     std::unique_ptr<FileBrowserNode>
         file_browser;        // TODO convert to non-pointer with default constructor in cwd
     UserInterface ui;        // TODO use UserInterface constructor to initializer graphics
