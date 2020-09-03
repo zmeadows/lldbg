@@ -18,14 +18,14 @@ void FileViewer::render(void)
     for (size_t i = 0; i < m_lines.size(); i++) {
         const size_t line_number = i + 1;
 
-        if (bps != nullptr && bps->find(i) != bps->end()) {
+        if (bps != nullptr && bps->find(line_number) != bps->end()) {
             line_buffer.format(" X {}  {}\n", line_number, m_lines[i]);
         }
         else {
             line_buffer.format("   {}  {}\n", line_number, m_lines[i]);
         }
 
-        if (highlighted_line.has_value() && i == static_cast<size_t>(*highlighted_line)) {
+        if (highlighted_line.has_value() && line_number == static_cast<size_t>(*highlighted_line)) {
             ImGuiContext& g = *GImGui;
             ImGuiWindow* window = g.CurrentWindow;
 
@@ -39,12 +39,20 @@ void FileViewer::render(void)
 
             window->DrawList->AddRectFilled(bb.Min, bb.Max,
                                             ImGui::GetColorU32(ImGuiCol_HeaderActive));
-            ImGui::TextUnformatted(line_buffer.data());
+
+            if (ImGui::Selectable(line_buffer.data())) {
+                if (ImGui::IsItemClicked()) {
+                    LOG(Verbose) << "clicked line: " << i;
+                }
+            }
 
             ImGui::SetScrollHere();
         }
         else {
-            ImGui::TextUnformatted(line_buffer.data());
+            ImGui::Selectable(line_buffer.data());
+            if (ImGui::IsItemClicked()) {
+                LOG(Verbose) << "clicked line: " << i;
+            }
         }
 
         line_buffer.clear();
