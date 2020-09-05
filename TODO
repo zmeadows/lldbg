@@ -1,6 +1,4 @@
 ### TODO
-- use spdlog instead of custom logger class from Log.hpp/Log.cpp
-- show program status: running or stopped (with stop reason)
 - show watchpoint list
 - adjustable splitters between each main UI element
 - adjustable font family
@@ -21,3 +19,6 @@
 - synchronize breakpoints with file-viewer on target event
 - un-highlight breakpoint line in file viewer at appropriate times
 - fix auto-scrolling in log console
+- Add threads to test example
+- add button to move up to parent directory in file browser
+- check return codes of all run_lldb_command calls in main
