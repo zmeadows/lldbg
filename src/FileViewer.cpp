@@ -25,7 +25,8 @@ void FileViewer::render(void)
             line_buffer.format("   {}  {}\n", line_number, m_lines[i]);
         }
 
-        if (highlighted_line.has_value() && line_number == static_cast<size_t>(*highlighted_line)) {
+        if (m_highlighted_line.has_value() &&
+            line_number == static_cast<size_t>(*m_highlighted_line)) {
             ImGuiContext& g = *GImGui;
             ImGuiWindow* window = g.CurrentWindow;
 
@@ -46,7 +47,10 @@ void FileViewer::render(void)
                 }
             }
 
-            ImGui::SetScrollHere();
+            if (m_highlight_line_needs_focus) {
+                ImGui::SetScrollHere();
+                m_highlight_line_needs_focus = false;
+            }
         }
         else {
             ImGui::Selectable(line_buffer.data());

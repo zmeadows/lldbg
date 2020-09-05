@@ -1150,7 +1150,7 @@ static void handle_lldb_events(lldb::SBDebugger& debugger, lldb::SBListener& lis
 
                             const auto [filepath, linum] = resolve_breakpoint(location);
                             manually_open_and_or_focus_file(ui, open_files, filepath.c_str());
-                            file_viewer.highlighted_line = linum;
+                            file_viewer.set_highlight_line(linum);
                             break;
                         }
                         default: {
@@ -1160,7 +1160,7 @@ static void handle_lldb_events(lldb::SBDebugger& debugger, lldb::SBListener& lis
                 }
             }
             else if (new_state == lldb::eStateRunning) {
-                file_viewer.highlighted_line = {};
+                file_viewer.unset_highlight_line();
             }
         }
         else {
