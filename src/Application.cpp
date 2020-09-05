@@ -1297,13 +1297,14 @@ std::optional<UserInterface> UserInterface::init(void)
     // ImGui::StyleColorsClassic();
 
     // disable all 'rounding' of corners in the UI
-    ImGui::GetStyle().WindowRounding = 0.0f;
-    ImGui::GetStyle().ChildRounding = 0.0f;
-    ImGui::GetStyle().FrameRounding = 0.0f;
-    ImGui::GetStyle().GrabRounding = 0.0f;
-    ImGui::GetStyle().PopupRounding = 0.0f;
-    ImGui::GetStyle().ScrollbarRounding = 0.0f;
-    ImGui::GetStyle().TabRounding = 0.0f;
+    ImGuiStyle& style = ImGui::GetStyle();
+    style.WindowRounding = 0.0f;
+    style.ChildRounding = 0.0f;
+    style.FrameRounding = 0.0f;
+    style.GrabRounding = 0.0f;
+    style.PopupRounding = 0.0f;
+    style.ScrollbarRounding = 0.0f;
+    style.TabRounding = 0.0f;
 
     ImGui_ImplGlfw_InitForOpenGL(ui.window, true);
     ImGui_ImplOpenGL2_Init();

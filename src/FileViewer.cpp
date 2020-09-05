@@ -9,27 +9,34 @@
 
 void FileViewer::render(void)
 {
-    const std::unordered_set<int>* bps =
+    const std::unordered_set<int>* const bps =
         (m_breakpoints.has_value() && m_breakpoints != m_breakpoint_cache.end())
             ? &(*m_breakpoints)->second
             : nullptr;
+
+    // style.Colors[ImGuiCol_HeaderHovered] = ImVec4(1.f, 0.00f, 0.00f, 1.00f);
+    // ImGui::PushStyleColor(ImGuiCol_ChildBg, IM_COL32(255, 0, 0, 100));
+
+    ImGuiContext& g = *GImGui;
+    ImGuiWindow* window = g.CurrentWindow;
 
     StringBuffer line_buffer;
     for (size_t i = 0; i < m_lines.size(); i++) {
         const size_t line_number = i + 1;
 
+        line_buffer.format("   {}  {}\n", line_number, m_lines[i]);
+
         if (bps != nullptr && bps->find(line_number) != bps->end()) {
-            line_buffer.format(" X {}  {}\n", line_number, m_lines[i]);
-        }
-        else {
-            line_buffer.format("   {}  {}\n", line_number, m_lines[i]);
+            ImVec2 pos = window->DC.CursorPos;
+            ImVec2 txt = ImGui::CalcTextSize("X");
+            float radius = txt.y / 2.5f;
+            pos.x += 1.5 * txt.x;
+            pos.y += txt.y / 2.f;
+            window->DrawList->AddCircleFilled(pos, radius, IM_COL32(255, 0, 0, 255));
         }
 
         if (m_highlighted_line.has_value() &&
             line_number == static_cast<size_t>(*m_highlighted_line)) {
-            ImGuiContext& g = *GImGui;
-            ImGuiWindow* window = g.CurrentWindow;
-
             ImVec2 pos = window->DC.CursorPos;
             ImVec2 txt = ImGui::CalcTextSize(line_buffer.data());
 
@@ -38,25 +45,17 @@ void FileViewer::render(void)
 
             ImRect bb(pos, ImVec2(vMax.x, pos.y + txt.y));
 
-            window->DrawList->AddRectFilled(bb.Min, bb.Max,
-                                            ImGui::GetColorU32(ImGuiCol_HeaderActive));
-
-            if (ImGui::Selectable(line_buffer.data())) {
-                if (ImGui::IsItemClicked()) {
-                    LOG(Verbose) << "clicked line: " << line_number;
-                }
-            }
+            window->DrawList->AddRectFilled(bb.Min, bb.Max, IM_COL32(125, 125, 125, 100));
 
             if (m_highlight_line_needs_focus) {
                 ImGui::SetScrollHere();
                 m_highlight_line_needs_focus = false;
             }
         }
-        else {
-            ImGui::Selectable(line_buffer.data());
-            if (ImGui::IsItemClicked()) {
-                LOG(Verbose) << "clicked line: " << line_number;
-            }
+
+        ImGui::Selectable(line_buffer.data());
+        if (ImGui::IsItemClicked()) {
+            LOG(Verbose) << "clicked line: " << line_number;
         }
 
         line_buffer.clear();
