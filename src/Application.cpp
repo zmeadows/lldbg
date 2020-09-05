@@ -634,7 +634,15 @@ static void draw_console(Application& app)
                 ImGui::SameLine();
                 ImGui::TextWrapped("%s", msg);
             });
-            ImGui::SetScrollHere(1.0f);
+
+            static size_t last_seen_messages = 0;
+
+            const size_t seen_messages = Logger::get_instance()->message_count();
+            if (seen_messages > last_seen_messages) {
+                last_seen_messages = seen_messages;
+                ImGui::SetScrollHere(1.0f);
+            }
+
             ImGui::EndChild();
             ImGui::EndTabItem();
         }

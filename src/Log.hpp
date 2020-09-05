@@ -53,6 +53,12 @@ public:
             f(message);
         }
     }
+
+    inline size_t message_count()
+    {
+        std::unique_lock<std::mutex> lock(s_mutex);
+        return m_messages.size();
+    }
 };
 
 class LogMessageStream {
