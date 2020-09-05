@@ -128,7 +128,7 @@ class FileBrowserNode {
     }
 
 public:
-    static std::unique_ptr<FileBrowserNode> create(const fs::path& relative_path);
+    static std::unique_ptr<FileBrowserNode> create(std::optional<fs::path> path_request);
 
     const char* filepath() const { return m_filepath.c_str(); }
     const char* filename() const { return m_filename.c_str(); }

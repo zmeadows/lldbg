@@ -55,15 +55,19 @@ int main(int argc, char** argv)
 
     auto ui = UserInterface::init();
     if (!ui.has_value()) {
+        LOG(Error) << "Failed to initialize graphics/UI.\n Exiting...";
         return EXIT_FAILURE;
     }
 
-    Application app(std::move(*ui));
-
+    std::optional<fs::path> workdir = {};
     if (result.count("workdir")) {
-        const std::string workdir = result["workdir"].as<std::string>();
-        app.set_workdir(workdir.c_str());
+        fs::path workdir_request = fs::path(result["workdir"].as<std::string>());
+        if (fs::exists(workdir_request) && fs::is_directory(workdir_request)) {
+            workdir = workdir_request;
+        }
     }
+
+    Application app(*ui, workdir);
 
     // TODO: test this
     if (result.count("source-before-file")) {
@@ -103,5 +107,5 @@ int main(int argc, char** argv)
 
     run_lldb_command(app, "breakpoint set --file test.cpp --line 24");
 
-    return app.main_loop();
+    return main_loop(app);
 }

@@ -42,7 +42,7 @@ void FileViewer::render(void)
 
             if (ImGui::Selectable(line_buffer.data())) {
                 if (ImGui::IsItemClicked()) {
-                    LOG(Verbose) << "clicked line: " << i;
+                    LOG(Verbose) << "clicked line: " << line_number;
                 }
             }
 
@@ -51,7 +51,7 @@ void FileViewer::render(void)
         else {
             ImGui::Selectable(line_buffer.data());
             if (ImGui::IsItemClicked()) {
-                LOG(Verbose) << "clicked line: " << i;
+                LOG(Verbose) << "clicked line: " << line_number;
             }
         }
 

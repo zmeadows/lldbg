@@ -39,7 +39,6 @@ static std::pair<fs::path, int> resolve_breakpoint(lldb::SBBreakpointLocation lo
     const char* filename = line_entry.GetFileSpec().GetFilename();
     const char* directory = line_entry.GetFileSpec().GetDirectory();
 
-    fs::path breakpoint_filepath;
     if (filename == nullptr || directory == nullptr) {
         LOG(Error) << "Failed to read breakpoint location after thread halted";
         return {fs::path(), -1};
@@ -56,7 +55,6 @@ static std::pair<bool, bool> process_is_finished(lldb::SBProcess& process)
     }
 
     const lldb::StateType state = process.GetState();
-
     const bool exited = state == lldb::eStateExited;
     const bool failed = state == lldb::eStateCrashed;
 
@@ -258,7 +256,7 @@ static void draw_open_files(Application& app)
         auto tab_flags = ImGuiTabItemFlags_None;
         if (app.ui.request_manual_tab_change && is_focused) {
             tab_flags = ImGuiTabItemFlags_SetSelected;
-            app.text_editor.show(handle);
+            app.file_viewer.show(handle);
         }
 
         bool keep_tab_open = true;
@@ -267,9 +265,9 @@ static void draw_open_files(Application& app)
             if (!app.ui.request_manual_tab_change && !is_focused) {
                 // user selected tab directly with mouse
                 action = OpenFiles::Action::ChangeFocusTo;
-                app.text_editor.show(handle);
+                app.file_viewer.show(handle);
             }
-            app.text_editor.render();
+            app.file_viewer.render();
             ImGui::EndChild();
             ImGui::EndTabItem();
         }
@@ -290,7 +288,7 @@ static void draw_open_files(Application& app)
             LOG(Error) << "Invalid logic encountered when user requested tab close.";
         }
         else {
-            app.text_editor.show(*focus_handle);
+            app.file_viewer.show(*focus_handle);
         }
     }
 }
@@ -436,7 +434,7 @@ lldb::SBCommandReturnObject run_lldb_command(Application& app, const char* comma
 }
 
 static void draw_control_bar(lldb::SBDebugger& debugger, LLDBCommandLine& cmdline,
-                             const lldb::SBListener& listener)
+                             const lldb::SBListener& listener, const UserInterface& ui)
 {
     auto target = find_target(debugger);
     if (target.has_value()) {
@@ -483,7 +481,11 @@ static void draw_control_bar(lldb::SBDebugger& debugger, LLDBCommandLine& cmdlin
         }
         ImGui::SameLine();
         if (ImGui::Button("step over")) {
-            LOG(Warning) << "Step over unimplemented";
+            const uint32_t nthreads = process->GetNumThreads();
+            if (ui.viewed_thread_index < nthreads) {
+                lldb::SBThread th = process->GetThreadAtIndex(ui.viewed_thread_index);
+                th.StepOver();
+            }
         }
         if (ImGui::Button("step into")) {
             LOG(Warning) << "Step over unimplemented";
@@ -1046,7 +1048,7 @@ __attribute__((flatten)) static void draw(Application& app)
 
         ImGui::BeginGroup();
         ImGui::BeginChild("ControlBarAndFileBrowser", ImVec2(ui.file_browser_width, 0));
-        draw_control_bar(app.debugger, app.cmdline, app.listener);
+        draw_control_bar(app.debugger, app.cmdline, app.listener, app.ui);
         ImGui::Separator();
         draw_file_browser(app, app.file_browser.get(), 0);
         ImGui::EndChild();
@@ -1091,10 +1093,8 @@ __attribute__((flatten)) static void draw(Application& app)
 static void handle_lldb_events(lldb::SBDebugger& debugger, lldb::SBListener& listener,
                                UserInterface& ui, OpenFiles& open_files, FileViewer& file_viewer)
 {
-    auto target = find_target(debugger);
-    auto process = find_process(debugger);
-
     lldb::SBEvent event;
+
     while (true) {
         const bool event_found = listener.GetNextEvent(event);
         if (!event_found) break;
@@ -1107,6 +1107,9 @@ static void handle_lldb_events(lldb::SBDebugger& debugger, lldb::SBListener& lis
         lldb::SBStream event_description;
         event.GetDescription(event_description);
         LOG(Verbose) << "Event Description => " << event_description.GetData();
+
+        auto target = find_target(debugger);
+        auto process = find_process(debugger);
 
         if (target.has_value() && event.BroadcasterMatchesRef(target->GetBroadcaster())) {
             LOG(Debug) << "Found target event";
@@ -1161,7 +1164,7 @@ static void handle_lldb_events(lldb::SBDebugger& debugger, lldb::SBListener& lis
 
 static void tick(Application& app)
 {
-    handle_lldb_events(app.debugger, app.listener, app.ui, app.open_files, app.text_editor);
+    handle_lldb_events(app.debugger, app.listener, app.ui, app.open_files, app.file_viewer);
 
     UserInterface& ui = app.ui;
     DEBUG_STREAM(ui.window_width);
@@ -1197,9 +1200,9 @@ static void update_window_dimensions(UserInterface& ui)
     }
 }
 
-int Application::main_loop()
+int main_loop(Application& app)
 {
-    while (!glfwWindowShouldClose(ui.window)) {
+    while (!glfwWindowShouldClose(app.ui.window)) {
         glfwPollEvents();
 
         // TODO: switch to OpenGL 3 for performance
@@ -1207,10 +1210,10 @@ int Application::main_loop()
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        tick(*this);
+        tick(app);
 
         ImGui::Render();
-        glViewport(0, 0, ui.window_width, ui.window_height);
+        glViewport(0, 0, app.ui.window_width, app.ui.window_height);
         static const ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
         glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
         glClear(GL_COLOR_BUFFER_BIT);
@@ -1218,22 +1221,22 @@ int Application::main_loop()
 
         glFinish();
 
-        glfwSwapBuffers(ui.window);
+        glfwSwapBuffers(app.ui.window);
 
         // TODO: develop bettery strategy for when to read stdout,
         // possible upon receiving certain types of LLDBEvent?
-        if (ui.frames_rendered % 10 == 0) {
-            if (auto process = find_process(debugger); process.has_value()) {
-                _stdout.update(*process);
-                _stderr.update(*process);
+        if (app.ui.frames_rendered % 10 == 0) {
+            if (auto process = find_process(app.debugger); process.has_value()) {
+                app._stdout.update(*process);
+                app._stderr.update(*process);
             }
         }
 
-        update_window_dimensions(ui);
+        update_window_dimensions(app.ui);
 
-        this->fps_timer.wait_for_frame_duration(1.75 * 16666);
-        this->fps_timer.frame_end();
-        ui.frames_rendered++;
+        app.fps_timer.wait_for_frame_duration(1.75 * 16666);
+        app.fps_timer.frame_end();
+        app.ui.frames_rendered++;
     }
 
     return EXIT_SUCCESS;
@@ -1259,7 +1262,7 @@ std::optional<UserInterface> UserInterface::init(void)
 
     ui.window_width = 1920.f;
     ui.window_height = 1080.f;
-    ui.file_browser_width = ui.window_width * 0.2f;
+    ui.file_browser_width = ui.window_width * 0.15f;
     ui.file_viewer_width = ui.window_width * 0.52f;
     ui.file_viewer_height = ui.window_height * 0.6f;
     ui.console_height = ui.window_height * 0.4f;
@@ -1300,25 +1303,26 @@ std::optional<UserInterface> UserInterface::init(void)
     return ui;
 }
 
-Application::Application(UserInterface&& ui_)
+Application::Application(const UserInterface& ui_, std::optional<fs::path> workdir)
     : debugger(lldb::SBDebugger::Create()),
       listener(debugger.GetListener()),
       cmdline(debugger),
       _stdout(StreamBuffer::StreamSource::StdOut),
       _stderr(StreamBuffer::StreamSource::StdErr),
-      ui(std::move(ui_))
+      file_browser(FileBrowserNode::create(workdir)),
+      ui(ui_)
 {
 }
 
 Application::~Application()
 {
     if (auto process = find_process(this->debugger); process.has_value() && process->IsValid()) {
-        LOG(Warning) << "Found active process while destructing DebugSession.";
+        LOG(Warning) << "Found active process while closing Application.";
         kill_process(*process);
     }
 
     if (auto target = find_target(this->debugger); target.has_value() && target->IsValid()) {
-        LOG(Warning) << "Found active target while destructing DebugSession.";
+        LOG(Warning) << "Found active target while closing Application.";
         this->debugger.DeleteTarget(*target);
     }
 
@@ -1327,7 +1331,7 @@ Application::~Application()
         this->debugger.Clear();
     }
     else {
-        LOG(Warning) << "Found invalid lldb::SBDebugger while destructing DebugSession.";
+        LOG(Warning) << "Found invalid lldb::SBDebugger while closing Application.";
     }
 
     ImGui_ImplOpenGL2_Shutdown();
@@ -1337,15 +1341,3 @@ Application::~Application()
     glfwTerminate();
 }
 
-// TODO: if workdir doesn't exist, don't change, unless no workdir set already then change to
-// $HOME
-void Application::set_workdir(const std::string& workdir)
-{
-    if (fs::exists(workdir) && fs::is_directory(workdir)) {
-        this->file_browser = FileBrowserNode::create(workdir);
-    }
-    else {
-        LOG(Error) << "Attempted to set working directory to non-existant path: " << workdir;
-        this->file_browser = FileBrowserNode::create(fs::current_path());
-    }
-}

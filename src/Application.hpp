@@ -22,6 +22,7 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
+// TODO: this struct doesn't need to be publically exposed
 struct UserInterface {
     uint32_t viewed_thread_index = 0;
     uint32_t viewed_frame_index = 0;
@@ -58,16 +59,12 @@ struct Application {
     StreamBuffer _stderr;
 
     OpenFiles open_files;
-    std::unique_ptr<FileBrowserNode>
-        file_browser;        // TODO convert to non-pointer with default constructor in cwd
-    UserInterface ui;        // TODO use UserInterface constructor to initializer graphics
-    FileViewer text_editor;  // TODO: rename this to file_viewer
+    std::unique_ptr<FileBrowserNode> file_browser;
+    UserInterface ui;
+    FileViewer file_viewer;
     FPSTimer fps_timer;
 
-    int main_loop(void);
-    void set_workdir(const std::string& workdir);
-
-    Application(UserInterface&&);
+    Application(const UserInterface&, std::optional<fs::path>);
     ~Application();
 
     Application() = delete;
@@ -76,5 +73,8 @@ struct Application {
     Application& operator=(Application&&) = delete;
 };
 
+int main_loop(Application& app);
+
 lldb::SBCommandReturnObject run_lldb_command(Application& app, const char* command,
                                              bool hide_from_history = false);
+

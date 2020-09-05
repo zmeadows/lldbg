@@ -92,11 +92,27 @@ const std::string& FileHandle::filename(void)
     return it->second;
 }
 
-std::unique_ptr<FileBrowserNode> FileBrowserNode::create(const fs::path& relative_path)
+std::unique_ptr<FileBrowserNode> FileBrowserNode::create(std::optional<fs::path> path_request)
 {
+    auto fallback = [](bool show_warning) {
+        if (show_warning) {
+            LOG(Warning)
+                << "Invalid path argument to FileBrowserNode::create, Falling back to current "
+                   "working directory";
+        }
+        const fs::path wd = fs::current_path();
+        return std::unique_ptr<FileBrowserNode>(new FileBrowserNode(wd));
+    };
+
+    if (!path_request.has_value()) {
+        return fallback(false);
+    }
+
+    const fs::path relative_path = *path_request;
+
     if (!fs::exists(relative_path)) {
         LOG(Error) << "FileBrowser attempted to load non-existent file:" << relative_path;
-        return nullptr;
+        return fallback(true);
     }
 
     const fs::path canonical_path = fs::canonical(relative_path);
@@ -104,12 +120,12 @@ std::unique_ptr<FileBrowserNode> FileBrowserNode::create(const fs::path& relativ
     if (!fs::is_directory(canonical_path) && !fs::is_regular_file(canonical_path)) {
         LOG(Error) << "Attemped to load a path (" << canonical_path
                    << ") that wasn't a directory or regular file!";
-        return nullptr;
+        return fallback(true);
     }
 
     if (!canonical_path.has_filename()) {
         LOG(Error) << "No filename for file: " << canonical_path;
-        return nullptr;
+        return fallback(true);
     }
 
     return std::unique_ptr<FileBrowserNode>(new FileBrowserNode(canonical_path));
