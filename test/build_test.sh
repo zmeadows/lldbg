@@ -1,1 +1,1 @@
-clang++ -g -Og -std=c++17 test.cpp -o test
+clang++ -g -Og -std=c++17 test.cpp -pthread -o test
