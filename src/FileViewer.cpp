@@ -1,5 +1,6 @@
 #include "FileViewer.hpp"
 
+#include "Defer.hpp"
 #include "StringBuffer.hpp"
 
 // clang-format off
@@ -7,18 +8,23 @@
 #include "imgui_internal.h"
 // clang-format on
 
-void FileViewer::render(void)
+std::optional<int> FileViewer::render(void)
 {
     const std::unordered_set<int>* const bps =
         (m_breakpoints.has_value() && m_breakpoints != m_breakpoint_cache.end())
             ? &(*m_breakpoints)->second
             : nullptr;
 
-    // style.Colors[ImGuiCol_HeaderHovered] = ImVec4(1.f, 0.00f, 0.00f, 1.00f);
-    // ImGui::PushStyleColor(ImGuiCol_ChildBg, IM_COL32(255, 0, 0, 100));
-
     ImGuiContext& g = *GImGui;
+    auto& style = g.Style;
     ImGuiWindow* window = g.CurrentWindow;
+
+    ImGui::PushStyleColor(ImGuiCol_HeaderHovered, style.Colors[ImGuiCol_TitleBg]);
+    Defer(ImGui::PopStyleColor());
+    ImGui::PushStyleColor(ImGuiCol_HeaderActive, style.Colors[ImGuiCol_TitleBg]);
+    Defer(ImGui::PopStyleColor());
+
+    std::optional<int> clicked_line = {};
 
     StringBuffer line_buffer;
     for (size_t i = 0; i < m_lines.size(); i++) {
@@ -26,40 +32,34 @@ void FileViewer::render(void)
 
         line_buffer.format("   {}  {}\n", line_number, m_lines[i]);
 
-        if (bps != nullptr && bps->find(line_number) != bps->end()) {
-            ImVec2 pos = window->DC.CursorPos;
-            ImVec2 txt = ImGui::CalcTextSize("X");
-            float radius = txt.y / 2.5f;
-            pos.x += 1.5 * txt.x;
-            pos.y += txt.y / 2.f;
-            window->DrawList->AddCircleFilled(pos, radius, IM_COL32(255, 0, 0, 255));
-        }
-
+        bool selected = false;
         if (m_highlighted_line.has_value() &&
             line_number == static_cast<size_t>(*m_highlighted_line)) {
-            ImVec2 pos = window->DC.CursorPos;
-            ImVec2 txt = ImGui::CalcTextSize(line_buffer.data());
-
-            ImVec2 vMax = ImGui::GetWindowContentRegionMax();
-            vMax.x += ImGui::GetWindowPos().x;
-
-            ImRect bb(pos, ImVec2(vMax.x, pos.y + txt.y));
-
-            window->DrawList->AddRectFilled(bb.Min, bb.Max, IM_COL32(125, 125, 125, 100));
-
+            selected = true;
             if (m_highlight_line_needs_focus) {
                 ImGui::SetScrollHere();
                 m_highlight_line_needs_focus = false;
             }
         }
 
-        ImGui::Selectable(line_buffer.data());
+        ImGui::Selectable(line_buffer.data(), selected);
         if (ImGui::IsItemClicked()) {
-            LOG(Verbose) << "clicked line: " << line_number;
+            clicked_line = line_number;
+        }
+
+        if (bps != nullptr && bps->find(line_number) != bps->end()) {
+            ImVec2 pad = style.FramePadding;
+            ImVec2 pos = window->DC.CursorPos;
+            ImVec2 txt = ImGui::CalcTextSize("X");
+            pos.x += 1.3f * txt.x;
+            pos.y -= (txt.y + 2.f * pad.y) / 2.f;
+            window->DrawList->AddCircleFilled(pos, txt.y / 3.f, IM_COL32(255, 0, 0, 255));
         }
 
         line_buffer.clear();
     }
+
+    return clicked_line;
 }
 
 void FileViewer::synchronize_breakpoint_cache(lldb::SBTarget target)

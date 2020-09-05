@@ -267,7 +267,17 @@ static void draw_open_files(Application& app)
                 action = OpenFiles::Action::ChangeFocusTo;
                 app.file_viewer.show(handle);
             }
-            app.file_viewer.render();
+            std::optional<int> clicked_line = app.file_viewer.render();
+            if (clicked_line.has_value()) {
+                std::optional<FileHandle> focus_handle = app.open_files.focus();
+                if (focus_handle.has_value()) {
+                    const fs::path filepath = focus_handle->filepath();
+                    StringBuffer breakpoint_command;
+                    breakpoint_command.format("breakpoint set --file {} --line {}",
+                                              filepath.c_str(), *clicked_line);
+                    run_lldb_command(app, breakpoint_command.data());
+                }
+            }
             ImGui::EndChild();
             ImGui::EndTabItem();
         }
