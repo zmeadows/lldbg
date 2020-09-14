@@ -2,7 +2,7 @@
 - show watchpoint list
 - adjustable splitters between each main UI element
 - adjustable font family
-- adjustable font size
+- adjustable font size / zoom
 - automatically scale based on DPI of display
 - add user-selectable color themes
 - auto-generated local config file for recording user-specified font family/size, color theme, etc
@@ -12,13 +12,12 @@
 - keyboard shortcut to focus to console keyboard input
 - menu option to output log to file
 - menu option to enable/disable logging (disabled by default)
-- disallow allow duplicate breakpoints (why does lldb allow this...?)
 - mouse over message in debug log causes filepath and line number of LOG call to be displayed
 - expand test example setup to include list of breakpoints (in txt file) to set at startup
 - adjust formatting of LOG output from individual events so that they can be easily visually grouped
-- synchronize breakpoints with file-viewer on target event
-- un-highlight breakpoint line in file viewer at appropriate times
 - fix auto-scrolling in log console
-- Add threads to test example
 - add button to move up to parent directory in file browser
 - check return codes of all run_lldb_command calls in main
+- bugfix: closing tab focused furthest right tab instead of adjacent tab
+- cleanup continue/step buttons and include stop/kill button
+- disable log and debug stream when not in debug mode
