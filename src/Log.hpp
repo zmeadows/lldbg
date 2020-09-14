@@ -4,6 +4,7 @@
 #include <memory>
 #include <mutex>
 #include <sstream>
+#include <unordered_map>
 #include <vector>
 
 // TODO: modify to include file/function/line information?
@@ -21,6 +22,7 @@ struct LogMessage {
 
 class Logger {
     std::vector<LogMessage> m_messages;
+    std::unordered_map<size_t, size_t> m_hashed_counts;
 
     static std::unique_ptr<Logger> s_instance;
     static std::mutex s_mutex;
@@ -42,7 +44,23 @@ public:
     {
         // TODO: compute hash for log message and don't add if it has occurred 10+ times
         std::unique_lock<std::mutex> lock(s_mutex);
-        m_messages.emplace_back(level, message);
+        const size_t strhash = std::hash<std::string>{}(message);
+        auto it = m_hashed_counts.find(strhash);
+
+        if (it != m_hashed_counts.end()) {
+            if (it->second <= 3) {
+                m_messages.emplace_back(level, message);
+                it->second++;
+            }
+            else if (it->second == 4) {
+                m_messages.emplace_back(LogLevel::Info, "Silencing repeating message...");
+                it->second++;
+            }
+        }
+        else {
+            m_hashed_counts.emplace(strhash, 1);
+            m_messages.emplace_back(level, message);
+        }
     };
 
     template <typename MessageHandlerFunc>

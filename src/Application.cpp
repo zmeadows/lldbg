@@ -957,15 +957,20 @@ static void draw_breakpoints_and_watchpoints(UserInterface& ui, OpenFiles& open_
 
                 for (uint32_t i = 0; i < nbreakpoints; i++) {
                     lldb::SBBreakpoint breakpoint = target->GetBreakpointAtIndex(i);
-                    if (!breakpoint.IsValid()) {
-                        LOG(Error) << "Invalid breakpoint encountered!";
+
+                    if (!breakpoint.IsValid() || breakpoint.GetNumLocations() == 0) {
+                        lldb::SBStream stm;
+                        breakpoint.GetDescription(stm);
+                        LOG(Error) << "Invalid breakpoint encountered with description:\n"
+                                   << stm.GetData();
                         continue;
                     }
 
                     lldb::SBBreakpointLocation location = breakpoint.GetLocationAtIndex(0);
 
                     if (!location.IsValid()) {
-                        LOG(Error) << "Invalid breakpoint location encountered!";
+                        LOG(Error) << "Invalid breakpoint location encountered with "
+                                   << breakpoint.GetNumLocations() << " locations!";
                         continue;
                     }
 

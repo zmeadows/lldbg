@@ -77,10 +77,17 @@ void FileViewer::synchronize_breakpoint_cache(lldb::SBTarget target)
         lldb::SBAddress address = location.GetAddress();
 
         if (!address.IsValid()) {
-            LOG(Error) << "Invalid lldb::SBAddress for breakpoint encountered by LLDB.";
+            LOG(Error) << "Invalid lldb::SBAddress for breakpoint encountered.";
         }
 
         lldb::SBLineEntry line_entry = address.GetLineEntry();
+
+        if (!line_entry.IsValid()) {
+            LOG(Error) << "Invalid lldb::SBLineEntry for breakpoint encountered.";
+            continue;
+        }
+
+        // auto file_spec = line_entry.GetFileSpec();
 
         const std::string bp_filepath =
             fmt::format("{}/{}", line_entry.GetFileSpec().GetDirectory(),
