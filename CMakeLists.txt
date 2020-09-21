@@ -37,7 +37,7 @@ if (NOT LLDB_LIBRARY)
 endif()
 target_include_directories(lldbgui PUBLIC "third_party/llvm-10.0.0/lldb/include")
 
- set(OpenGL_GL_PREFERENCE "GLVND")
+set(OpenGL_GL_PREFERENCE "GLVND")
 find_package(OpenGL REQUIRED)
 
 target_include_directories(lldbgui PUBLIC "third_party/glew-2.1.0/include")

@@ -498,7 +498,11 @@ static void draw_control_bar(lldb::SBDebugger& debugger, LLDBCommandLine& cmdlin
             }
         }
         if (ImGui::Button("step into")) {
-            LOG(Warning) << "Step over unimplemented";
+            const uint32_t nthreads = process->GetNumThreads();
+            if (ui.viewed_thread_index < nthreads) {
+                lldb::SBThread th = process->GetThreadAtIndex(ui.viewed_thread_index);
+                th.StepInto();
+            }
         }
         ImGui::SameLine();
         if (ImGui::Button("step instr.")) {
