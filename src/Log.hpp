@@ -27,9 +27,6 @@ class Logger {
     static std::unique_ptr<Logger> s_instance;
     static std::mutex s_mutex;
 
-    // TODO: use static methods for 'log' and 'for_each_message' which themselves
-    // access the s_instance variable
-
 public:
     static Logger* get_instance(void)
     {
@@ -42,7 +39,6 @@ public:
 
     void log(LogLevel level, const std::string& message)
     {
-        // TODO: compute hash for log message and don't add if it has occurred 10+ times
         std::unique_lock<std::mutex> lock(s_mutex);
         const size_t strhash = std::hash<std::string>{}(message);
         auto it = m_hashed_counts.find(strhash);
