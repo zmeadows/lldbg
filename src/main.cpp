@@ -75,6 +75,9 @@ int main(int argc, char** argv)
         auto handle = FileHandle::create(source_path);
         if (handle.has_value()) {
             for (const std::string& line : handle->contents()) {
+                if (line.empty()) {
+                    continue;
+                }
                 auto ret = run_lldb_command(app, line.c_str());
             }
             LOG(Verbose) << "Successfully executed commands in source file: " << source_path;
@@ -106,6 +109,9 @@ int main(int argc, char** argv)
         auto handle = FileHandle::create(source_path);
         if (handle.has_value()) {
             for (const std::string& line : handle->contents()) {
+                if (line.empty()) {
+                    continue;
+                }
                 auto ret = run_lldb_command(app, line.c_str());
             }
             LOG(Verbose) << "Successfully executed commands in source file: " << source_path;
