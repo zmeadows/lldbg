@@ -35,7 +35,7 @@ target_link_libraries(lldbgui ${LLDB_LIBRARY})
 if (NOT LLDB_LIBRARY)
     message(FATAL_ERROR "LLDB not found")
 endif()
-target_include_directories(lldbgui PUBLIC "third_party/llvm-10.0.0/lldb/include")
+target_include_directories(lldbgui PUBLIC "third_party/llvm-18.1.0/lldb/include")
 
 set(OpenGL_GL_PREFERENCE "GLVND")
 find_package(OpenGL REQUIRED)
