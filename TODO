@@ -1,4 +1,5 @@
 ### TODO
+- track line after stepping/continuing
 - show watchpoint list
 - adjustable splitters between each main UI element
 - adjustable font size (or UI zoom)
