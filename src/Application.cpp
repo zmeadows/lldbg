@@ -13,6 +13,7 @@
 #include "Log.hpp"
 #include "StringBuffer.hpp"
 #include "fmt/format.h"
+#include "ImGuiFileDialog.h"
 
 namespace fs = std::filesystem;
 
@@ -477,8 +478,26 @@ static void draw_control_bar(lldb::SBDebugger& debugger, LLDBCommandLine& cmdlin
     if (!target.has_value()) {
         if (ImGui::Button("choose target")) {
             // TODO: use https://github.com/aiekick/ImGuiFileDialog
-            LOG(Warning) << "choose target button not yet implemented";
+            IGFD::FileDialogConfig config;
+            config.path = ".";
+            ImGuiFileDialog::Instance()->OpenDialog("ChooseFileDlgKey", "Choose File", "((.*))", config);
         }
+
+        std::string filePathName;
+
+        if (ImGuiFileDialog::Instance()->Display("ChooseFileDlgKey")) {
+            if (ImGuiFileDialog::Instance()->IsOk()) {
+                filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
+                LOG(Info) << "Selected File Path Name: " << filePathName;
+
+                //TODO: Check if the file is an executable
+                run_lldb_command(debugger, cmdline, listener, std::string("target create " + filePathName).c_str());
+
+            }
+
+            ImGuiFileDialog::Instance()->Close();
+        }
+
     }
     else if (!process.has_value()) {
         if (ImGui::Button("run")) {
@@ -507,6 +526,11 @@ static void draw_control_bar(lldb::SBDebugger& debugger, LLDBCommandLine& cmdlin
         ImGui::SameLine();
         if (ImGui::Button("step instr.")) {
             LOG(Warning) << "Step over unimplemented";
+        }
+
+        if (ImGui::Button("restart")) {
+            stop_process(*process);
+            run_lldb_command(debugger, cmdline, listener, "run");
         }
     }
     else if (process_is_running(*process)) {
@@ -570,7 +594,7 @@ static void draw_console(Application& app)
             const bool should_auto_scroll_command_window =
                 app.ui.ran_command_last_frame || app.ui.window_resized_last_frame;
 
-            auto command_input_callback = [](ImGuiTextEditCallbackData*) -> int {
+            auto command_input_callback = [](ImGuiInputTextCallbackData*) -> int {
                 return 0;  // TODO: scroll command line history with up/down arrows
             };
 
@@ -601,7 +625,7 @@ static void draw_console(Application& app)
             }
 
             if (should_auto_scroll_command_window) {
-                ImGui::SetScrollHere(1.0f);
+                ImGui::SetScrollHereY(1.0f);
                 app.ui.ran_command_last_frame = false;
             }
 
@@ -654,7 +678,7 @@ static void draw_console(Application& app)
             const size_t seen_messages = Logger::get_instance()->message_count();
             if (seen_messages > last_seen_messages) {
                 last_seen_messages = seen_messages;
-                ImGui::SetScrollHere(1.0f);
+                ImGui::SetScrollHereY(1.0f);
             }
 
             ImGui::EndChild();
@@ -671,7 +695,7 @@ static void draw_console(Application& app)
 
             ImGui::TextUnformatted(app._stdout.get());
             if (app._stdout.size() > last_stdout_size) {
-                ImGui::SetScrollHere(1.0f);
+                ImGui::SetScrollHereY(1.0f);
             }
             last_stdout_size = app._stdout.size();
 
@@ -683,7 +707,7 @@ static void draw_console(Application& app)
             ImGui::BeginChild("StdERREntries");
             ImGui::TextUnformatted(app._stderr.get());
             if (app._stderr.size() > last_stderr_size) {
-                ImGui::SetScrollHere(1.0f);
+                ImGui::SetScrollHereY(1.0f);
             }
             last_stderr_size = app._stderr.size();
             ImGui::EndChild();

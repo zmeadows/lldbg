@@ -37,7 +37,7 @@ std::optional<int> FileViewer::render(void)
             line_number == static_cast<size_t>(*m_highlighted_line)) {
             selected = true;
             if (m_highlight_line_needs_focus) {
-                ImGui::SetScrollHere();
+                ImGui::SetScrollHereY();
                 m_highlight_line_needs_focus = false;
             }
         }
@@ -113,6 +113,7 @@ void FileViewer::synchronize_breakpoint_cache(lldb::SBTarget target)
 void FileViewer::show(FileHandle handle)
 {
     m_lines = handle.contents();
+    LOG(Warning) << "Showing file: " << handle.filepath();
 
     if (const auto it = m_breakpoint_cache.find(handle); it != m_breakpoint_cache.end()) {
         m_breakpoints = it;

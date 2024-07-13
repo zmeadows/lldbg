@@ -14,7 +14,7 @@ set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 file(GLOB LLDBGUI_SOURCES
     "${CMAKE_SOURCE_DIR}/src/*.cpp"
     "${CMAKE_SOURCE_DIR}/src/*/*.cpp"
-    "${CMAKE_SOURCE_DIR}/third_party/imgui-1.75/*.cpp"
+    "${CMAKE_SOURCE_DIR}/third_party/imgui-1.90.9/*.cpp"
     )
 
 add_definitions(-DLLDBG_TESTS_DIR="${CMAKE_SOURCE_DIR}/test/")
@@ -49,7 +49,7 @@ target_include_directories(lldbgui PUBLIC "third_party/fmt-11.0.1/include")
 add_subdirectory(./third_party/fmt-11.0.1/)
 target_link_libraries(lldbgui fmt)
 
-target_include_directories(lldbgui PUBLIC "third_party/glfw-3.3.2/include")
+target_include_directories(lldbgui PUBLIC "third_party/glfw-3.4/include")
 set( ENKITS_BUILD_EXAMPLES OFF CACHE BOOL "Build basic example applications" )
 set( GLFW_BUILD_EXAMPLES OFF CACHE BOOL  "GLFW lib only" )
 set( GLFW_BUILD_TESTS OFF CACHE BOOL  "GLFW lib only" )
@@ -63,5 +63,8 @@ target_include_directories(lldbgui PUBLIC "third_party/cxxopts-2.2.0/include")
 target_include_directories(lldbgui PUBLIC "third_party/GSL-3.1.0/include/")
 
 add_definitions(-DIMGUI_DEFINE_MATH_OPERATORS)
-target_include_directories(lldbgui PUBLIC "third_party/imgui-1.75/")
+target_include_directories(lldbgui PUBLIC "third_party/imgui-1.90.9")
 
+target_include_directories(lldbgui PUBLIC "third_party/ImGuiFileDialog/")
+add_subdirectory(./third_party/ImGuiFileDialog/)
+target_link_libraries(lldbgui ImGuiFileDialog)
