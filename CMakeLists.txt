@@ -63,7 +63,7 @@ target_include_directories(lldbgui PUBLIC "third_party/cxxopts-2.2.0/include")
 target_include_directories(lldbgui PUBLIC "third_party/GSL-3.1.0/include/")
 
 add_definitions(-DIMGUI_DEFINE_MATH_OPERATORS)
-target_include_directories(lldbgui PUBLIC "third_party/imgui-1.90.9")
+target_include_directories(lldbgui PUBLIC "third_party/imgui-1.90.9/")
 
 target_include_directories(lldbgui PUBLIC "third_party/ImGuiFileDialog/")
 add_subdirectory(./third_party/ImGuiFileDialog/)
