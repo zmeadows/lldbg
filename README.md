@@ -1,5 +1,17 @@
-![](https://github.com/zmeadows/lldbg/workflows/build-linux/badge.svg) ![](https://github.com/zmeadows/lldbg/workflows/build-macos/badge.svg)
 
+What Implemented so far by myself;
+
+* Choose Target section
+* Passing empty lines in .lldb files
+* Updated `lib` versions
+
+What I am working currently;
+
+* Line highligt after every step-instruction
+* Track cursor, and set scroll to corresponding line (currently doesnt work quite right)
+* Better FileTree (Left Side of the screen)
+
+---
 This is an alpha-stage native GUI for lldb which is currently about 60% usable.
 Right now you probably shouldn't attempt to use it unless you want to contribute to the development in some way, either directly or by submitting issues.
 The basic goal is to provide vim/emacs users on linux/macOS with a lightweight, easy-to-compile, easy-to-use likeness of what you would see in a full-featured IDE debugger interface.
