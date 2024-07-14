@@ -1,4 +1,3 @@
-
 What Implemented so far by myself;
 
 * Choose Target section
@@ -14,9 +13,7 @@ What Implemented so far by myself;
 * ***HiDPI*** support!
 * Threads/Stack Trace tab adjustable
 
-What I am working currently;
-
-* Better FileTree (Left Side of the screen)
+---
 
 ![](https://github.com/yigithanyigit/lldbg/workflows/build-linux/badge.svg) ![](https://github.com/yigithanyigit/lldbg/workflows/build-macos/badge.svg)
 
