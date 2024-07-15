@@ -33,6 +33,21 @@ static std::map<std::string, std::string> s_debug_stream;
         }                                              \
     }
 
+static std::pair<fs::path, int> get_stop_location_from_frame(lldb::SBFrame frame)
+{
+    lldb::SBFileSpec spec = frame.GetLineEntry().GetFileSpec();
+    const char * filename = spec.GetFilename();
+    const char * directory = spec.GetDirectory();
+
+    if (!fs::exists(directory)) {
+        LOG(Warning) << "Directory specified by lldb stack frame doesn't exist: " << directory;
+        LOG(Warning) << "Filepath specified: " << filename;
+        return {fs::path(), -1};
+    }
+
+    return {fs::path(directory) / fs::path(filename), (int)frame.GetLineEntry().GetLine()};
+}
+
 static std::pair<fs::path, int> resolve_breakpoint(lldb::SBBreakpointLocation location)
 {
     lldb::SBAddress address = location.GetAddress();
@@ -1196,6 +1211,17 @@ static void handle_lldb_events(lldb::SBDebugger& debugger, lldb::SBListener& lis
                             file_viewer.set_highlight_line(linum);
                             break;
                         }
+                        //TODO: it should highlight line by line
+                        case lldb::eStopReasonPlanComplete: {
+                            // Check is the current ui of stack frame is open
+                            // IF yes highligh the line
+                            // else do Nothing
+                            lldb::SBFrame frame = th.GetSelectedFrame();
+                            const auto [filepath, linum] = get_stop_location_from_frame(frame);
+                            manually_open_and_or_focus_file(ui, open_files, filepath.c_str());
+                            file_viewer.set_highlight_line(linum);
+                            break;
+                        }
                         default: {
                             continue;
                         }
@@ -1204,6 +1230,12 @@ static void handle_lldb_events(lldb::SBDebugger& debugger, lldb::SBListener& lis
             }
             else if (new_state == lldb::eStateRunning) {
                 file_viewer.unset_highlight_line();
+            }
+            else if (new_state == lldb::eStateStepping) {
+                LOG(Debug) << "Thread is stepping";
+            }
+            else {
+                LOG(Debug) << "Unhandled process state encountered: " << new_state;
             }
         }
         else {
