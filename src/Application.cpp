@@ -14,6 +14,7 @@
 #include "StringBuffer.hpp"
 #include "fmt/format.h"
 #include "ImGuiFileDialog.h"
+#include "lldb/lldb-enumerations.h"
 
 namespace fs = std::filesystem;
 
@@ -542,7 +543,14 @@ static void draw_control_bar(lldb::SBDebugger& debugger, LLDBCommandLine& cmdlin
         if (ImGui::Button("step instr.")) {
             LOG(Warning) << "Step over unimplemented";
         }
-
+        ImGui::SameLine();
+        if (ImGui::Button("step out")) {
+            const uint32_t nthreads = process->GetNumThreads();
+            if (ui.viewed_thread_index < nthreads) {
+                lldb::SBThread th = process->GetThreadAtIndex(ui.viewed_thread_index);
+                th.StepOut();
+            }
+        }
         if (ImGui::Button("restart")) {
             stop_process(*process);
             run_lldb_command(debugger, cmdline, listener, "run");
