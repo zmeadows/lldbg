@@ -1,9 +1,9 @@
 name: build-macos
 on:
   push:
-    branches: [ master ]
+    branches: [ dev-v1 ]
   pull_request:
-    branches: [ master ]
+    branches: [ dev-v1 ]
 
 jobs:
   build-macos:
