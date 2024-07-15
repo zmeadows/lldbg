@@ -2,9 +2,9 @@ name: build-linux
 
 on:
   push:
-    branches: [ master ]
+    branches: [ dev-v1 ]
   pull_request:
-    branches: [ master ]
+    branches: [ dev-v1 ]
 
 jobs:
   build-linux:
@@ -14,9 +14,32 @@ jobs:
     # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
     - uses: actions/checkout@v2
 
-    - name: install-libs
-      run: sudo sed -i 's/azure\.//' /etc/apt/sources.list && sudo apt-get update && sudo apt-get install liblldb-9-dev libgl1-mesa-dev libglu1-mesa-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
-    - name: configure
-      run: export CC=/usr/bin/clang && export CXX=/usr/bin/clang++ && mkdir ${GITHUB_WORKSPACE}/build && cd ${GITHUB_WORKSPACE}/build && cmake ..
-    - name: build
-      run: cmake --build ${GITHUB_WORKSPACE}/build -v
+    - name: Set up Clang
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang
+
+    - name: Add LLVM repository and install libraries
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y wget software-properties-common
+        wget https://apt.llvm.org/llvm.sh
+        chmod +x llvm.sh
+        sudo ./llvm.sh 18
+        sudo sed -i 's/azure\.//' /etc/apt/sources.list
+        sudo apt-get update
+        sudo apt-get install -y liblldb-18-dev libgl1-mesa-dev libglu1-mesa-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxkbcommon-dev
+
+    - name: Install Wayland dependencies
+      run: sudo apt-get install -y wayland-protocols libwayland-dev libwayland-bin
+
+    - name: Configure
+      run: |
+        export CC=/usr/bin/clang
+        export CXX=/usr/bin/clang++
+        mkdir ${GITHUB_WORKSPACE}/build
+        cd ${GITHUB_WORKSPACE}/build
+        cmake -DCMAKE_BUILD_TYPE=Release ..
+
+    - name: Build
+      run: cmake --build ${GITHUB_WORKSPACE}/build --parallel $(nproc) -v
