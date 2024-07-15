@@ -113,7 +113,7 @@ void FileViewer::synchronize_breakpoint_cache(lldb::SBTarget target)
 void FileViewer::show(FileHandle handle)
 {
     m_lines = handle.contents();
-    LOG(Warning) << "Showing file: " << handle.filepath();
+    LOG(Debug) << "Showing file: " << handle.filepath();
 
     if (const auto it = m_breakpoint_cache.find(handle); it != m_breakpoint_cache.end()) {
         m_breakpoints = it;
