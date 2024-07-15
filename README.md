@@ -7,6 +7,7 @@ What Implemented so far by myself;
 * Line highligt after every step-instruction
 * Track cursor, and set scroll to corresponding line (currently doesnt work quite right)
 * Step-out stack frame
+* Added `--loglevel` option
 
 What I am working currently;
 
