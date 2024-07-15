@@ -32,6 +32,7 @@ int main(int argc, char** argv)
         ("S,source-before-file", "Tells the debugger to read in and execute the lldb  commands  in the given file, before any file has been loaded.", cxxopts::value<std::string>())
         ("s,source", "Tells the debugger to read in and execute the lldb commands in the given file, after any file has been loaded.", cxxopts::value<std::string>())
         ("workdir", "Specify base directory of file explorer tree", cxxopts::value<std::string>())
+        ("loglevel", "Set the log level (debug, verbose, info, warning, error)", cxxopts::value<std::string>())
         ("h,help", "Print out usage information.")
         ("positional", "Positional arguments: these are the arguments that are entered without an option", cxxopts::value<std::vector<std::string>>())
         ;
@@ -44,6 +45,30 @@ int main(int argc, char** argv)
     if (result.count("help")) {
         std::cout << options.help() << std::endl;
         return EXIT_SUCCESS;
+    }
+
+    if (result.count("loglevel")) {
+        const std::string loglevel = result["loglevel"].as<std::string>();
+        if (loglevel == "debug") {
+            Logger::get_instance()->set_log_level((int)LogLevel::Debug);
+        }
+        else if (loglevel == "verbose") {
+            Logger::get_instance()->set_log_level((int)LogLevel::Verbose);
+        }
+        else if (loglevel == "info") {
+            Logger::get_instance()->set_log_level((int)LogLevel::Info);
+        }
+        else if (loglevel == "warning") {
+            Logger::get_instance()->set_log_level((int)LogLevel::Warning);
+        }
+        else if (loglevel == "error") {
+            Logger::get_instance()->set_log_level((int)LogLevel::Error);
+        }
+        else {
+            LOG(Error) << "Invalid log level specified: " << loglevel;
+            return EXIT_FAILURE;
+        }
+        LOG(Verbose) << "Setting log level to: " << loglevel;
     }
 
     if (auto lldb_error = lldb::SBDebugger::InitializeWithErrorHandling(); !lldb_error.Success()) {
