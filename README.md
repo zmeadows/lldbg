@@ -13,6 +13,8 @@ What I am working currently;
 
 * Better FileTree (Left Side of the screen)
 
+![](https://github.com/yigithanyigit/lldbg/workflows/build-linux/badge.svg) ![](https://github.com/yigithanyigit/lldbg/workflows/build-macos/badge.svg)
+
 ---
 This is an alpha-stage native GUI for lldb which is currently about 60% usable.
 Right now you probably shouldn't attempt to use it unless you want to contribute to the development in some way, either directly or by submitting issues.
