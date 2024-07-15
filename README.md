@@ -4,11 +4,12 @@ What Implemented so far by myself;
 * Choose Target section
 * Passing empty lines in .lldb files
 * Updated `lib` versions
+* Line highligt after every step-instruction
+* Track cursor, and set scroll to corresponding line (currently doesnt work quite right)
+* Step-out stack frame
 
 What I am working currently;
 
-* Line highligt after every step-instruction
-* Track cursor, and set scroll to corresponding line (currently doesnt work quite right)
 * Better FileTree (Left Side of the screen)
 
 ---
