@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <optional>
 
 #include "Log.hpp"
 #include "fmt/format.h"
@@ -187,15 +188,23 @@ void OpenFiles::open(FileHandle handle)
     }
 
     m_files.push_back(handle);
+    m_files_linum.push_back(std::make_optional<size_t>(0));
     m_focus = m_files.size() - 1;
 
     LOG(Verbose) << "Successfully opened new file: " << handle.filepath();
     LOG(Verbose) << "Number of currently open files: " << m_files.size();
 }
 
+void OpenFiles::open(FileHandle handle, size_t linum)
+{
+   open(handle);
+   m_files_linum[m_focus.value()] = std::make_optional<size_t>(linum);
+}
+
 void OpenFiles::close(size_t tab_index)
 {
     m_files.erase(m_files.begin() + tab_index);
+    m_files_linum.erase(m_files_linum.begin() + tab_index);
 
     if (m_files.empty()) {
         m_focus = {};

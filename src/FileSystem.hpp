@@ -56,12 +56,14 @@ public:
 class OpenFiles {
     std::vector<FileHandle> m_files;
     std::optional<size_t> m_focus;
+    std::vector<std::optional<size_t>> m_files_linum;
 
     void close(size_t tab_index);
 
 public:
     bool open(const std::string& filepath);
     void open(FileHandle handle);
+    void open(FileHandle handle, size_t linum);
 
     inline size_t size() const { return m_files.size(); }
 
@@ -72,6 +74,29 @@ public:
         }
         else {
             return {};
+        }
+    }
+
+    inline std::pair<std::optional<FileHandle>, std::optional<size_t>> focus_line()
+    {
+        auto file = focus();
+        if (file) {
+            return {file, m_files_linum[*m_focus]};
+        }
+        else {
+            return {};
+        }
+    }
+
+    inline void update_focus_line(FileHandle handle, size_t linum)
+    {
+        auto it = std::find(m_files.begin(), m_files.end(), handle);
+        if (it != m_files.end())
+        {
+            m_files_linum[it - m_files.begin()] = std::make_optional<size_t>(linum);
+        }
+        else {
+            LOG(Error) << "There is no file in opened files! Try Open thme first";
         }
     }
 

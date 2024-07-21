@@ -1,5 +1,6 @@
 #include <fstream>
 #include <iostream>
+#include <ostream>
 #include <string>
 #include <vector>
 
@@ -15,6 +16,7 @@
 #include "fmt/format.h"
 #include "imgui.h"
 #include "lldb/API/LLDB.h"
+#include "ConfigParser.hpp"
 
 int main(int argc, char** argv)
 {
