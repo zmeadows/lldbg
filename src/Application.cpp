@@ -10,6 +10,7 @@
 #include <unordered_set>
 
 #include "Defer.hpp"
+#include "FileSystem.hpp"
 #include "Log.hpp"
 #include "StringBuffer.hpp"
 #include "fmt/format.h"
@@ -34,15 +35,14 @@ static std::map<std::string, std::string> s_debug_stream;
         }                                              \
     }
 
-static std::pair<fs::path, int> get_stop_location_from_frame(lldb::SBFrame frame)
+static std::pair<fs::path, size_t> get_stop_location_from_frame(lldb::SBFrame frame)
 {
     lldb::SBFileSpec spec = frame.GetLineEntry().GetFileSpec();
     const char * filename = spec.GetFilename();
     const char * directory = spec.GetDirectory();
 
     if (!fs::exists(directory)) {
-        LOG(Warning) << "Directory specified by lldb stack frame doesn't exist: " << directory;
-        LOG(Warning) << "Filepath specified: " << filename;
+        LOG(Warning) << "Unable to open file, no file";
         return {fs::path(), -1};
     }
 
@@ -321,21 +321,22 @@ static void draw_open_files(Application& app)
 }
 
 static void manually_open_and_or_focus_file(UserInterface& ui, OpenFiles& open_files,
-                                            FileHandle handle)
+                                            FileHandle handle, size_t linum = 0)
 {
     if (auto focus = open_files.focus(); focus.has_value() && (*focus == handle)) {
+        open_files.update_focus_line(handle, linum);
         return;  // already focused
     }
 
-    open_files.open(handle);
+    open_files.open(handle, linum);
     ui.request_manual_tab_change = true;
 }
 
 static void manually_open_and_or_focus_file(UserInterface& ui, OpenFiles& open_files,
-                                            const char* filepath)
+                                            const char* filepath, size_t linum = 0)
 {
     if (auto handle = FileHandle::create(filepath); handle.has_value()) {
-        manually_open_and_or_focus_file(ui, open_files, *handle);
+        manually_open_and_or_focus_file(ui, open_files, *handle, linum);
     }
     else {
         LOG(Warning) << "Failed to switch focus to file because it could not be located: "
@@ -825,8 +826,11 @@ static void draw_stack_trace(UserInterface& ui, OpenFiles& open_files,
 
                     if (ImGui::Selectable(frame->function_name.c_str(), i == ui.viewed_frame_index,
                                           ImGuiSelectableFlags_SpanAllColumns)) {
-                        manually_open_and_or_focus_file(ui, open_files, frame->file_handle);
+                        const auto [_, linum] = get_stop_location_from_frame(viewed_thread.GetFrameAtIndex(i));
+                        manually_open_and_or_focus_file(ui, open_files, frame->file_handle, linum);
                         ui.viewed_frame_index = i;
+                        LOG(Verbose) << "Stack Trace: " << linum;
+
                     }
                     ImGui::NextColumn();
 
@@ -1158,6 +1162,14 @@ __attribute__((flatten)) static void draw(Application& app)
         ImGui::EndGroup();
     }
 
+    // Handle highlighted lines
+    {
+        // Dont focus in every tick
+        const auto [file, linum] = open_files.focus_line();
+        if (linum.has_value() && (*(app.file_viewer.get_highlight_line()) != (int)*linum))
+            app.file_viewer.set_highlight_line(*linum);
+    }
+
     ImGui::PopFont();
     ImGui::End();
 
@@ -1205,6 +1217,8 @@ static void handle_lldb_events(lldb::SBDebugger& debugger, lldb::SBListener& lis
                     switch (th.GetStopReason()) {
                         case lldb::eStopReasonBreakpoint: {
                             // https://lldb.llvm.org/cpp_reference/classlldb_1_1SBThread.html#af284261156e100f8d63704162f19ba76
+                            if(th.GetStopReasonDataCount() != 2)
+                                LOG(Debug) << "Stop Reason Data Count" << th.GetStopReasonDataCount();
                             assert(th.GetStopReasonDataCount() == 2);
                             lldb::break_id_t breakpoint_id = th.GetStopReasonDataAtIndex(0);
                             lldb::SBBreakpoint breakpoint =
@@ -1215,8 +1229,8 @@ static void handle_lldb_events(lldb::SBDebugger& debugger, lldb::SBListener& lis
                                 breakpoint.FindLocationByID(location_id);
 
                             const auto [filepath, linum] = resolve_breakpoint(location);
-                            manually_open_and_or_focus_file(ui, open_files, filepath.c_str());
-                            file_viewer.set_highlight_line(linum);
+                            manually_open_and_or_focus_file(ui, open_files, filepath.c_str(), linum);
+                            //file_viewer.set_highlight_line(linum);
                             break;
                         }
                         //TODO: it should highlight line by line
@@ -1226,8 +1240,7 @@ static void handle_lldb_events(lldb::SBDebugger& debugger, lldb::SBListener& lis
                             // else do Nothing
                             lldb::SBFrame frame = th.GetSelectedFrame();
                             const auto [filepath, linum] = get_stop_location_from_frame(frame);
-                            manually_open_and_or_focus_file(ui, open_files, filepath.c_str());
-                            file_viewer.set_highlight_line(linum);
+                            manually_open_and_or_focus_file(ui, open_files, filepath.c_str(), linum);
                             break;
                         }
                         default: {

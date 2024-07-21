@@ -26,10 +26,21 @@ public:
         m_highlight_line_needs_focus = true;
     }
 
+    inline void set_highlight_line_without_focus(int line)
+    {
+        m_highlighted_line = line;
+        m_highlight_line_needs_focus = false;
+    }
+
     inline void unset_highlight_line()
     {
         m_highlighted_line = {};
         m_highlight_line_needs_focus = false;
+    }
+
+    inline std::optional<int> get_highlight_line()
+    {
+        return m_highlighted_line;
     }
 };
 
