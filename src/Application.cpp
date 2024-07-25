@@ -15,6 +15,7 @@
 #include "StringBuffer.hpp"
 #include "fmt/format.h"
 #include "ImGuiFileDialog.h"
+#include "imgui_impl_glfw.h"
 #include "lldb/lldb-enumerations.h"
 
 namespace fs = std::filesystem;
@@ -1282,6 +1283,7 @@ static void tick(Application& app)
     draw(app);
 }
 
+
 static void update_window_dimensions(UserInterface& ui)
 {
     int new_width = -1;
@@ -1289,8 +1291,6 @@ static void update_window_dimensions(UserInterface& ui)
 
     glfwGetFramebufferSize(ui.window, &new_width, &new_height);
     assert(new_width > 0 && new_height > 0);
-
-    ui.window_resized_last_frame = new_width != ui.window_width || new_height != ui.window_height;
 
     if (ui.window_resized_last_frame) {
 
@@ -1308,13 +1308,14 @@ static void update_window_dimensions(UserInterface& ui)
     }
 }
 
+
 int main_loop(Application& app)
 {
     while (!glfwWindowShouldClose(app.ui.window)) {
         glfwPollEvents();
 
-        // TODO: switch to OpenGL 3 for performance
-        ImGui_ImplOpenGL2_NewFrame();
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
@@ -1325,7 +1326,7 @@ int main_loop(Application& app)
         static const ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
         glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
         glClear(GL_COLOR_BUFFER_BIT);
-        ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
         glFinish();
 
@@ -1359,6 +1360,13 @@ std::optional<UserInterface> UserInterface::init(void)
     if (glfwInit() != GLFW_TRUE) {
         return {};
     }
+
+    #ifdef __APPLE__
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+    glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GLFW_TRUE);
+    #endif
 
     // TODO: use function to choose initial window resolution based on display resolution
     ui.window = glfwCreateWindow(1920, 1080, "lldbg", nullptr, nullptr);
@@ -1407,7 +1415,7 @@ std::optional<UserInterface> UserInterface::init(void)
     style.TabRounding = 0.0f;
 
     ImGui_ImplGlfw_InitForOpenGL(ui.window, true);
-    ImGui_ImplOpenGL2_Init();
+    ImGui_ImplOpenGL3_Init("#version 150");
 
     return ui;
 }
@@ -1443,7 +1451,7 @@ Application::~Application()
         LOG(Warning) << "Found invalid lldb::SBDebugger while closing Application.";
     }
 
-    ImGui_ImplOpenGL2_Shutdown();
+    ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
     glfwDestroyWindow(this->ui.window);
