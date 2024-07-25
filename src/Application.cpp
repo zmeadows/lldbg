@@ -1293,14 +1293,18 @@ static void update_window_dimensions(UserInterface& ui)
     ui.window_resized_last_frame = new_width != ui.window_width || new_height != ui.window_height;
 
     if (ui.window_resized_last_frame) {
-        // re-scale the size of the invididual panels to account for window resize
-        ui.file_browser_width *= new_width / ui.window_width;
-        ui.file_viewer_width *= new_width / ui.window_width;
-        ui.file_viewer_height *= new_height / ui.window_height;
-        ui.console_height *= new_height / ui.window_height;
 
-        ui.window_width = new_width;
-        ui.window_height = new_height;
+        int window_width = -1;
+        int window_height = -1;
+        glfwGetWindowSize(ui.window, &window_width, &window_height);
+        assert(window_width > 0 && window_height > 0);
+
+        const float scale = (float)new_width / (float)window_width;
+
+        ui.file_browser_width *= scale;
+        ui.file_viewer_width *= scale;
+        ui.file_viewer_height *= scale;
+        ui.console_height *= scale;
     }
 }
 
