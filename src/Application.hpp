@@ -30,11 +30,15 @@ struct UserInterface {
 
     float window_width = -1.f;   // in pixels
     float window_height = -1.f;  // in pixels
+    float dpi_scale = 1.f;
 
     float file_browser_width = -1.f;
     float file_viewer_width = -1.f;
     float file_viewer_height = -1.f;
+    float stack_trace_width = -1.f;
     float console_height = -1.f;
+
+    float a = 0.f;
 
     bool request_manual_tab_change = false;
     bool ran_command_last_frame = false;
