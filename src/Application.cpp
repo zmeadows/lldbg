@@ -246,15 +246,17 @@ static bool FileTreeNode(const char* label)
 }
 
 static bool Splitter(const char* name, bool split_vertically, float thickness, float* size1,
-                     float* size2, float min_size1, float min_size2, float splitter_long_axis_size)
+                     float* size2, float min_size1, float min_size2, float splitter_long_axis_size,
+                     bool reset_cursor_pos, ImVec2 offset)
 {
     using namespace ImGui;
     ImGuiContext& g = *GImGui;
     ImGuiWindow* window = g.CurrentWindow;
     ImGuiID id = window->GetID(name);
     ImRect bb;
+    ImVec2 cursor_pos = (reset_cursor_pos ?  ImVec2(0,0) : window->DC.CursorPos) + offset;
     bb.Min =
-        window->DC.CursorPos + (split_vertically ? ImVec2(*size1, 0.0f) : ImVec2(0.0f, *size1));
+        cursor_pos + (split_vertically ? ImVec2(*size1, 0.0f) : ImVec2(0.0f, *size1));
     bb.Max = bb.Min + CalcItemSize(split_vertically ? ImVec2(thickness, splitter_long_axis_size)
                                                     : ImVec2(splitter_long_axis_size, thickness),
                                    0.0f, 0.0f);
@@ -749,7 +751,8 @@ static void draw_threads(UserInterface& ui, std::optional<lldb::SBProcess> proce
 {
     ImGui::BeginChild(
         "#ThreadsChild",
-        ImVec2(ui.window_width - ui.file_browser_width - ui.file_viewer_width, stack_height));
+        //ImVec2(ui.window_width - ui.file_browser_width - ui.file_viewer_width, stack_height));
+        ImVec2(ui.stack_trace_width, stack_height));
 
     Defer(ImGui::EndChild());
 
@@ -766,7 +769,7 @@ static void draw_threads(UserInterface& ui, std::optional<lldb::SBProcess> proce
                     ui.viewed_thread_index = nthreads - 1;
                     LOG(Warning) << "detected/fixed overflow of ui.viewed_thread_index";
                 }
-
+                std::cout << "Number of threads: " << nthreads << std::endl;
                 StringBuffer thread_label;
                 for (uint32_t i = 0; i < nthreads; i++) {
                     lldb::SBThread th = process->GetThreadAtIndex(i);
@@ -787,6 +790,7 @@ static void draw_threads(UserInterface& ui, std::optional<lldb::SBProcess> proce
                     if (ImGui::Selectable(thread_label.data(), i == ui.viewed_thread_index)) {
                         ui.viewed_thread_index = i;
                     }
+                    std::cout << "Thread: " << thread_label.data() << std::endl;
 
                     thread_label.clear();
                 }
@@ -1107,9 +1111,9 @@ static void draw_debug_stream_popup(UserInterface& ui)
 
 __attribute__((flatten)) static void draw(Application& app)
 {
-    auto& ui = app.ui;
-    auto& open_files = app.open_files;
 
+    UserInterface& ui = app.ui;
+    auto& open_files = app.open_files;
     ImGui::SetNextWindowPos(ImVec2(0.f, 0.f), ImGuiCond_Always);
     ImGui::SetNextWindowSize(ImVec2(ui.window_width, ui.window_height), ImGuiCond_Always);
 
@@ -1123,7 +1127,7 @@ __attribute__((flatten)) static void draw(Application& app)
 
     {
         Splitter("##S1", true, 3.0f, &ui.file_browser_width, &ui.file_viewer_width,
-                 0.05 * ui.window_width, 0.05 * ui.window_width, ui.window_height);
+                 0.05 * ui.window_width, 0.05 * ui.window_width, ui.window_height, false, ImVec2(0,0));
 
         ImGui::BeginGroup();
         ImGui::BeginChild("ControlBarAndFileBrowser", ImVec2(ui.file_browser_width, 0));
@@ -1138,7 +1142,7 @@ __attribute__((flatten)) static void draw(Application& app)
 
     {
         Splitter("##S2", false, 3.0f, &ui.file_viewer_height, &ui.console_height,
-                 0.1 * ui.window_height, 0.1 * ui.window_height, ui.file_viewer_width);
+                 0.1 * ui.window_height, 0.1 * ui.window_height, ui.file_viewer_width, false, ImVec2(0,0));
 
         ImGui::BeginGroup();
         draw_file_viewer(app);
@@ -1150,10 +1154,16 @@ __attribute__((flatten)) static void draw(Application& app)
     ImGui::SameLine();
 
     {
+        float stack_height = (ui.window_height * ui.dpi_scale - 2 * ImGui::GetFrameHeightWithSpacing()) / 4;
+
         ImGui::BeginGroup();
 
+        // 1.05 for exact split
+        Splitter("##S3", true, 3.0f, &ui.file_viewer_width, &ui.stack_trace_width,
+                 0.05 * ui.window_width, 0.2 * ui.window_width, ui.window_height, 
+                 true, ImVec2(ui.file_browser_width * 1.05, 0));
+
         // TODO: let locals tab have all the expanded space
-        const float stack_height = (ui.window_height - 2 * ImGui::GetFrameHeightWithSpacing()) / 4;
 
         draw_threads(ui, find_process(app.debugger), stack_height);
         draw_stack_trace(ui, open_files, find_process(app.debugger), stack_height);
@@ -1220,6 +1230,7 @@ static void handle_lldb_events(lldb::SBDebugger& debugger, lldb::SBListener& lis
                             // https://lldb.llvm.org/cpp_reference/classlldb_1_1SBThread.html#af284261156e100f8d63704162f19ba76
                             if(th.GetStopReasonDataCount() != 2)
                                 LOG(Debug) << "Stop Reason Data Count" << th.GetStopReasonDataCount();
+                            // TODO Handle the cane stop reason data count > 2
                             assert(th.GetStopReasonDataCount() == 2);
                             lldb::break_id_t breakpoint_id = th.GetStopReasonDataAtIndex(0);
                             lldb::SBBreakpoint breakpoint =
@@ -1236,9 +1247,6 @@ static void handle_lldb_events(lldb::SBDebugger& debugger, lldb::SBListener& lis
                         }
                         //TODO: it should highlight line by line
                         case lldb::eStopReasonPlanComplete: {
-                            // Check is the current ui of stack frame is open
-                            // IF yes highligh the line
-                            // else do Nothing
                             lldb::SBFrame frame = th.GetSelectedFrame();
                             const auto [filepath, linum] = get_stop_location_from_frame(frame);
                             manually_open_and_or_focus_file(ui, open_files, filepath.c_str(), linum);
@@ -1271,6 +1279,7 @@ static void tick(Application& app)
 {
     handle_lldb_events(app.debugger, app.listener, app.ui, app.open_files, app.file_viewer);
 
+    #ifdef DEBUG
     UserInterface& ui = app.ui;
     DEBUG_STREAM(ui.window_width);
     DEBUG_STREAM(ui.window_height);
@@ -1278,7 +1287,9 @@ static void tick(Application& app)
     DEBUG_STREAM(ui.file_viewer_width);
     DEBUG_STREAM(ui.file_viewer_height);
     DEBUG_STREAM(ui.console_height);
+    DEBUG_STREAM(ui.stack_trace_width);
     DEBUG_STREAM(app.fps_timer.current_fps());
+    #endif
 
     draw(app);
 }
@@ -1292,21 +1303,45 @@ static void update_window_dimensions(UserInterface& ui)
     glfwGetFramebufferSize(ui.window, &new_width, &new_height);
     assert(new_width > 0 && new_height > 0);
 
+    int window_width = -1;
+    int window_height = -1;
+    glfwGetWindowSize(ui.window, &window_width, &window_height);
+
+    float dpi_scale_factor = (float)std::max(window_width, window_height) / (float)std::max(new_width, new_height);
+
+    ui.window_resized_last_frame = new_width != ui.window_width || new_height != ui.window_height || dpi_scale_factor != ui.dpi_scale;
+
     if (ui.window_resized_last_frame) {
+        // re-scale the size of the invididual panels to account for window resize
+        const float scale_factor_width = new_width / ui.window_width;
+        const float scale_factor_height = new_height / ui.window_height;
 
-        int window_width = -1;
-        int window_height = -1;
-        glfwGetWindowSize(ui.window, &window_width, &window_height);
-        assert(window_width > 0 && window_height > 0);
+        DEBUG_STREAM(new_width);
+        DEBUG_STREAM(new_height);
+        DEBUG_STREAM(window_width);
+        DEBUG_STREAM(window_height);
+        DEBUG_STREAM(scale_factor_width);
+        DEBUG_STREAM(scale_factor_height);
+        DEBUG_STREAM(dpi_scale_factor);
 
-        const float scale = (float)new_width / (float)window_width;
+        if (dpi_scale_factor < ui.dpi_scale) {
+            ui.dpi_scale = dpi_scale_factor;
+        } else {
+            ui.dpi_scale = 1.f / ui.dpi_scale;
+        }
 
-        ui.file_browser_width *= scale;
-        ui.file_viewer_width *= scale;
-        ui.file_viewer_height *= scale;
-        ui.console_height *= scale;
+        ui.file_browser_width *= scale_factor_width * ui.dpi_scale;
+        ui.file_viewer_width *= scale_factor_width * ui.dpi_scale;
+        ui.file_viewer_height *= scale_factor_height * ui.dpi_scale;
+        ui.console_height *= scale_factor_height * ui.dpi_scale;
+        ui.stack_trace_width *= scale_factor_width * ui.dpi_scale;
+
+
+        ui.window_width = new_width;
+        ui.window_height = new_height;
     }
 }
+
 
 
 int main_loop(Application& app)
@@ -1382,6 +1417,7 @@ std::optional<UserInterface> UserInterface::init(void)
     ui.file_viewer_width = ui.window_width * 0.52f;
     ui.file_viewer_height = ui.window_height * 0.6f;
     ui.console_height = ui.window_height * 0.4f;
+    ui.stack_trace_width = ui.window_width * 0.33f;
 
     glfwMakeContextCurrent(ui.window);
     glfwSwapInterval(0);  // disable vsync
