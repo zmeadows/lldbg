@@ -769,7 +769,7 @@ static void draw_threads(UserInterface& ui, std::optional<lldb::SBProcess> proce
                     ui.viewed_thread_index = nthreads - 1;
                     LOG(Warning) << "detected/fixed overflow of ui.viewed_thread_index";
                 }
-                std::cout << "Number of threads: " << nthreads << std::endl;
+
                 StringBuffer thread_label;
                 for (uint32_t i = 0; i < nthreads; i++) {
                     lldb::SBThread th = process->GetThreadAtIndex(i);
@@ -782,10 +782,10 @@ static void draw_threads(UserInterface& ui, std::optional<lldb::SBProcess> proce
                     const char* thread_name = th.GetName();
                     if (thread_name == nullptr) {
                         LOG(Warning) << "Skipping thread with null name";
-                        continue;
+                        //continue;
                     }
 
-                    thread_label.format("Thread {}: {}", i, th.GetName());
+                    thread_label.format("Thread {}", i);
 
                     if (ImGui::Selectable(thread_label.data(), i == ui.viewed_thread_index)) {
                         ui.viewed_thread_index = i;
