@@ -773,7 +773,6 @@ static void draw_threads(UserInterface& ui, std::optional<lldb::SBProcess> proce
                 StringBuffer thread_label;
                 for (uint32_t i = 0; i < nthreads; i++) {
                     lldb::SBThread th = process->GetThreadAtIndex(i);
-
                     if (!th.IsValid()) {
                         LOG(Warning) << "Encountered invalid thread";
                         continue;
