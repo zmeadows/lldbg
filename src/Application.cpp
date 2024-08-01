@@ -531,15 +531,27 @@ static void draw_control_bar(lldb::SBDebugger& debugger, LLDBCommandLine& cmdlin
         ImGui::SameLine();
         if (ImGui::Button("step over")) {
             const uint32_t nthreads = process->GetNumThreads();
+            /*
             if (ui.viewed_thread_index < nthreads) {
                 lldb::SBThread th = process->GetThreadAtIndex(ui.viewed_thread_index);
+                th.StepOver();
+            }
+            */
+            if (ui.stopped_thread_index < nthreads) {
+                lldb::SBThread th = process->GetThreadAtIndex(ui.stopped_thread_index);
                 th.StepOver();
             }
         }
         if (ImGui::Button("step into")) {
             const uint32_t nthreads = process->GetNumThreads();
+            /*
             if (ui.viewed_thread_index < nthreads) {
                 lldb::SBThread th = process->GetThreadAtIndex(ui.viewed_thread_index);
+                th.StepInto();
+            }
+            */
+            if (ui.stopped_thread_index < nthreads) {
+                lldb::SBThread th = process->GetThreadAtIndex(ui.stopped_thread_index);
                 th.StepInto();
             }
         }
@@ -746,7 +758,7 @@ static void draw_console(Application& app)
     ImGui::EndChild();
 }
 
-static void draw_threads(UserInterface& ui, std::optional<lldb::SBProcess> process,
+    static void draw_threads(UserInterface& ui, std::optional<lldb::SBProcess> process,
                          float stack_height)
 {
     ImGui::BeginChild(
@@ -1241,6 +1253,7 @@ static void handle_lldb_events(lldb::SBDebugger& debugger, lldb::SBListener& lis
 
                             const auto [filepath, linum] = resolve_breakpoint(location);
                             manually_open_and_or_focus_file(ui, open_files, filepath.c_str(), linum);
+                            ui.stopped_thread_index = i;
                             //file_viewer.set_highlight_line(linum);
                             break;
                         }
