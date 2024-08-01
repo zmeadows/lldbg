@@ -28,6 +28,8 @@ struct UserInterface {
     uint32_t viewed_frame_index = 0;
     uint32_t viewed_breakpoint_index = 0;
 
+    uint32_t stopped_thread_index = 0;
+
     float window_width = -1.f;   // in pixels
     float window_height = -1.f;  // in pixels
     float dpi_scale = 1.f;
