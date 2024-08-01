@@ -8,6 +8,10 @@ What Implemented so far by myself;
 * Track cursor, and set scroll to corresponding line (currently doesnt work quite right)
 * Step-out stack frame
 * Added `--loglevel` option
+* Updated `threads` panel
+* Various bugfixes
+* Updated from OpenGL2 to OpenGL3
+* `***HiDPI***` support!
 
 What I am working currently;
 
