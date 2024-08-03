@@ -11,7 +11,8 @@ What Implemented so far by myself;
 * Updated `threads` panel
 * Various bugfixes
 * Updated from OpenGL2 to OpenGL3
-* `***HiDPI***` support!
+* ***HiDPI*** support!
+* Threads/Stack Trace tab adjustable
 
 What I am working currently;
 
