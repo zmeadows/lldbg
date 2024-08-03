@@ -4,8 +4,9 @@
 - Multiple breakpoints on the same line cause assertion on Application.cpp:1208
 - [DONE] While Running state, disable step-over/in/out options otherwise gives segv
 - [DONE] When Select a file from stack trace doesnt focus that line. highlight the corresponding line
-- Locals are not showing sometimes.
+- [DONE] Locals are not showing sometimes.
 - [DONE] Threads are not showing.
+- [DONE] Threads/Stack trace tab adjustable width.
 - Local variables are not showing. Set them top of the stack trace by default.
 - Second click the breakpoint should remove the breakpoint from list/line
 ---

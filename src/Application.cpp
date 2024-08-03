@@ -79,6 +79,12 @@ static std::pair<bool, bool> process_is_finished(lldb::SBProcess& process)
     return {exited || failed, !failed};
 }
 
+static void set_thread_indices(UserInterface& ui, uint32_t thread_index, uint32_t frame_index)
+{
+    ui.viewed_thread_index = thread_index;
+    ui.viewed_frame_index = frame_index;
+}
+
 static bool process_is_running(lldb::SBProcess& process)
 {
     return process.IsValid() && process.GetState() == lldb::eStateRunning;
@@ -801,7 +807,7 @@ static void draw_console(Application& app)
                     if (ImGui::Selectable(thread_label.data(), i == ui.viewed_thread_index)) {
                         ui.viewed_thread_index = i;
                     }
-                    std::cout << "Thread: " << thread_label.data() << std::endl;
+                    //std::cout << "Thread: " << thread_label.data() << std::endl;
 
                     thread_label.clear();
                 }
@@ -845,8 +851,6 @@ static void draw_stack_trace(UserInterface& ui, OpenFiles& open_files,
                         const auto [_, linum] = get_stop_location_from_frame(viewed_thread.GetFrameAtIndex(i));
                         manually_open_and_or_focus_file(ui, open_files, frame->file_handle, linum);
                         ui.viewed_frame_index = i;
-                        LOG(Verbose) << "Stack Trace: " << linum;
-
                     }
                     ImGui::NextColumn();
 
@@ -1253,7 +1257,8 @@ static void handle_lldb_events(lldb::SBDebugger& debugger, lldb::SBListener& lis
 
                             const auto [filepath, linum] = resolve_breakpoint(location);
                             manually_open_and_or_focus_file(ui, open_files, filepath.c_str(), linum);
-                            ui.stopped_thread_index = i;
+                            set_thread_indices(ui, i, i);
+                            //ui.stopped_thread_index = i;
                             //file_viewer.set_highlight_line(linum);
                             break;
                         }
@@ -1262,7 +1267,7 @@ static void handle_lldb_events(lldb::SBDebugger& debugger, lldb::SBListener& lis
                             lldb::SBFrame frame = th.GetSelectedFrame();
                             const auto [filepath, linum] = get_stop_location_from_frame(frame);
                             manually_open_and_or_focus_file(ui, open_files, filepath.c_str(), linum);
-                            break;
+                            set_thread_indices(ui, i, i);
                         }
                         default: {
                             continue;
