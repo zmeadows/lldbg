@@ -38,7 +38,13 @@ export CXX=/usr/bin/clang++
 cd lldbg
 mkdir build
 cd build
+
+// For debug
 cmake ..
+
+// For Release
+cmake .. -DCMAKE_BUILD_TYPE=Release
+
 cmake --build . --parallel N (where N = # of CPU cores to use)
 ```
 
