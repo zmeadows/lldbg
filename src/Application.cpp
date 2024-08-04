@@ -20,6 +20,7 @@
 
 namespace fs = std::filesystem;
 
+#ifdef DEBUG
 static std::map<std::string, std::string> s_debug_stream;
 
 // NOTE: remember this is updated once per frame and currently variables are never removed
@@ -35,6 +36,10 @@ static std::map<std::string, std::string> s_debug_stream;
             s_debug_stream[xkey] = xstr;               \
         }                                              \
     }
+#else 
+#define DEBUG_STREAM(x)                                \
+        void(x);
+#endif
 
 static std::pair<fs::path, size_t> get_stop_location_from_frame(lldb::SBFrame frame)
 {
@@ -137,6 +142,38 @@ static void continue_process(lldb::SBProcess& process)
     }
 }
 */
+
+static std::optional<lldb::SBTarget> find_target(lldb::SBDebugger& debugger)
+{
+    if (debugger.GetNumTargets() > 0) {
+        auto target = debugger.GetSelectedTarget();
+        if (!target.IsValid()) {
+            LOG(Warning) << "Selected target is invalid";
+            return {};
+        }
+        else {
+            return target;
+        }
+    }
+    else {
+        return {};
+    }
+}
+
+static std::optional<lldb::SBProcess> find_process(lldb::SBDebugger& debugger)
+{
+    auto target = find_target(debugger);
+    if (!target.has_value()) return {};
+
+    lldb::SBProcess process = target->GetProcess();
+
+    if (process.IsValid()) {
+        return process;
+    }
+    else {
+        return {};
+    }
+}
 
 static void kill_process(lldb::SBProcess& process)
 {
@@ -301,7 +338,36 @@ static void draw_open_files(Application& app)
                     StringBuffer breakpoint_command;
                     breakpoint_command.format("breakpoint set --file {} --line {}",
                                               filepath.c_str(), *clicked_line);
-                    run_lldb_command(app, breakpoint_command.data());
+
+                    // Check if the breakpoint already exists
+                    lldb::SBTarget target = find_target(app.debugger).value();
+                    const uint32_t num_breakpoints = target.GetNumBreakpoints();
+                    bool breakpoint_exists = false;
+                    uint32_t breakpoint_id = 0;
+
+                    for (uint32_t i = 0; i < num_breakpoints; i++) {
+                        lldb::SBBreakpoint breakpoint = target.GetBreakpointAtIndex(i);
+                        if (!breakpoint.IsValid() || breakpoint.GetNumLocations() == 0) {
+                            continue;
+                        }
+
+                        lldb::SBBreakpointLocation location = breakpoint.GetLocationAtIndex(0);
+
+                        auto [location_filepath, location_line] = resolve_breakpoint(location);
+                        if (location_filepath == filepath && location_line == *clicked_line) {
+                            breakpoint_exists = true;
+                            breakpoint_id = breakpoint.GetID();
+                            break;
+                        }
+                    }
+
+                    if (!breakpoint_exists) 
+                        run_lldb_command(app, breakpoint_command.data());
+                    else {
+                        breakpoint_command.clear();
+                        breakpoint_command.format("breakpoint delete {}", breakpoint_id);
+                        run_lldb_command(app, breakpoint_command.data());
+                    }
                 }
             }
             ImGui::EndChild();
@@ -372,38 +438,6 @@ static void draw_file_browser(Application& app, FileBrowserNode* node_to_draw, s
         if (ImGui::Selectable(node_to_draw->filename())) {
             manually_open_and_or_focus_file(app.ui, app.open_files, node_to_draw->filepath());
         }
-    }
-}
-
-static std::optional<lldb::SBTarget> find_target(lldb::SBDebugger& debugger)
-{
-    if (debugger.GetNumTargets() > 0) {
-        auto target = debugger.GetSelectedTarget();
-        if (!target.IsValid()) {
-            LOG(Warning) << "Selected target is invalid";
-            return {};
-        }
-        else {
-            return target;
-        }
-    }
-    else {
-        return {};
-    }
-}
-
-static std::optional<lldb::SBProcess> find_process(lldb::SBDebugger& debugger)
-{
-    auto target = find_target(debugger);
-    if (!target.has_value()) return {};
-
-    lldb::SBProcess process = target->GetProcess();
-
-    if (process.IsValid()) {
-        return process;
-    }
-    else {
-        return {};
     }
 }
 
@@ -1103,6 +1137,7 @@ static void draw_breakpoints_and_watchpoints(UserInterface& ui, OpenFiles& open_
     ImGui::EndChild();
 }
 
+#ifdef DEBUG
 static void draw_debug_stream_popup(UserInterface& ui)
 {
     ImGui::SetNextWindowPos(ImVec2(ui.window_width / 2.f, ui.window_height / 2.f),
@@ -1123,6 +1158,7 @@ static void draw_debug_stream_popup(UserInterface& ui)
 
     ImGui::End();
 }
+#endif
 
 __attribute__((flatten)) static void draw(Application& app)
 {
@@ -1199,7 +1235,9 @@ __attribute__((flatten)) static void draw(Application& app)
     ImGui::PopFont();
     ImGui::End();
 
+    #ifdef DEBUG
     draw_debug_stream_popup(ui);
+    #endif
 }
 
 static void handle_lldb_events(lldb::SBDebugger& debugger, lldb::SBListener& listener,
@@ -1296,7 +1334,6 @@ static void tick(Application& app)
 {
     handle_lldb_events(app.debugger, app.listener, app.ui, app.open_files, app.file_viewer);
 
-    #ifdef DEBUG
     UserInterface& ui = app.ui;
     DEBUG_STREAM(ui.window_width);
     DEBUG_STREAM(ui.window_height);
@@ -1306,7 +1343,6 @@ static void tick(Application& app)
     DEBUG_STREAM(ui.console_height);
     DEBUG_STREAM(ui.stack_trace_width);
     DEBUG_STREAM(app.fps_timer.current_fps());
-    #endif
 
     draw(app);
 }
@@ -1333,6 +1369,7 @@ static void update_window_dimensions(UserInterface& ui)
         const float scale_factor_width = new_width / ui.window_width;
         const float scale_factor_height = new_height / ui.window_height;
 
+        #ifdef DEBUG
         DEBUG_STREAM(new_width);
         DEBUG_STREAM(new_height);
         DEBUG_STREAM(window_width);
@@ -1340,6 +1377,7 @@ static void update_window_dimensions(UserInterface& ui)
         DEBUG_STREAM(scale_factor_width);
         DEBUG_STREAM(scale_factor_height);
         DEBUG_STREAM(dpi_scale_factor);
+        #endif
 
         if (dpi_scale_factor < ui.dpi_scale) {
             ui.dpi_scale = dpi_scale_factor;
