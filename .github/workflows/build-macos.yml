@@ -1,9 +1,9 @@
 name: build-macos
 on:
   push:
-    branches: [ dev-v1 ]
+    branches: [ master ]
   pull_request:
-    branches: [ dev-v1 ]
+    branches: [ master ]
 
 jobs:
   build-macos:
@@ -11,7 +11,7 @@ jobs:
 
     steps:
     # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
     #- name: install-libs
     #  run: sudo apt-get install liblldb-9-dev libgl1-mesa-dev libglu1-mesa-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
