@@ -61,7 +61,7 @@ target_include_directories(lldbgui_lib PUBLIC "${CMAKE_SOURCE_DIR}/third_party/"
 target_include_directories(lldbgui PUBLIC "${CMAKE_SOURCE_DIR}/src/")
 target_include_directories(lldbgui PUBLIC "${CMAKE_SOURCE_DIR}/third_party/")
 
-find_library(LLDB_LIBRARY NAMES lldb liblldb lldb-18 PATHS "/Applications/Xcode.app/Contents/SharedFrameworks/" "/usr/lib/x86_64-linux-gnu/")
+find_library(LLDB_LIBRARY NAMES lldb liblldb lldb-18 PATHS "/Applications/Xcode.app/Contents/SharedFrameworks/" "/usr/lib/x86_64-linux-gnu/" "/Applications/Xcode15.0.1/Xcode.app/Contents/SharedFrameworks/")
 target_link_libraries(lldbgui_lib ${LLDB_LIBRARY})
 if (NOT LLDB_LIBRARY)
     message(FATAL_ERROR "LLDB not found")
