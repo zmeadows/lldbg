@@ -115,21 +115,52 @@ if(NOT TARGET imgui::imgui)
     imgui URL https://github.com/ocornut/imgui/archive/refs/tags/v1.90.9.tar.gz
               DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
   FetchContent_MakeAvailable(imgui)
-  # existing
-  add_library(imgui)
-  target_sources(
-    imgui
-    PRIVATE
-      "${imgui_SOURCE_DIR}/imgui.cpp"
-      "${imgui_SOURCE_DIR}/imgui_draw.cpp"
-      "${imgui_SOURCE_DIR}/imgui_tables.cpp"
-      "${imgui_SOURCE_DIR}/imgui_widgets.cpp"
-      "${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp"
-      "${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp"
-      $<$<BOOL:${LLDBG_WITH_IMGUI_DEMO}>:"${imgui_SOURCE_DIR}/imgui_demo.cpp">)
 
-  target_include_directories(imgui SYSTEM PUBLIC "${imgui_SOURCE_DIR}"
-                                                 "${imgui_SOURCE_DIR}/backends")
+  # After FetchContent_MakeAvailable(imgui)
+  # Resolve ImGui root (handles GitHub archive with versioned subdir)
+  set(_IMGUI_DIR "${imgui_SOURCE_DIR}")
+  if(NOT EXISTS "${_IMGUI_DIR}/imgui.cpp")
+    file(
+      GLOB _IMGUI_SUBDIRS
+      LIST_DIRECTORIES TRUE
+      "${imgui_SOURCE_DIR}/*")
+    foreach(_d IN LISTS _IMGUI_SUBDIRS)
+      if(EXISTS "${_d}/imgui.cpp")
+        set(_IMGUI_DIR "${_d}")
+        break()
+      endif()
+    endforeach()
+  endif()
+  message(STATUS "[deps] ImGui root: ${_IMGUI_DIR}")
+
+  add_library(imgui)
+
+  # Core ImGui sources
+  set(IMGUI_SOURCES
+      "${_IMGUI_DIR}/imgui.cpp"
+      "${_IMGUI_DIR}/imgui_draw.cpp"
+      "${_IMGUI_DIR}/imgui_tables.cpp"
+      "${_IMGUI_DIR}/imgui_widgets.cpp"
+      "${_IMGUI_DIR}/backends/imgui_impl_glfw.cpp"
+      "${_IMGUI_DIR}/backends/imgui_impl_opengl3.cpp")
+
+  # Add demo source only when requested, and only if it actually exists
+  if(LLDBG_WITH_IMGUI_DEMO)
+    if(EXISTS "${_IMGUI_DIR}/imgui_demo.cpp")
+      list(APPEND IMGUI_SOURCES "${_IMGUI_DIR}/imgui_demo.cpp")
+    else()
+      message(
+        FATAL_ERROR
+          "LLDBG_WITH_IMGUI_DEMO=ON but '${_IMGUI_DIR}/imgui_demo.cpp"
+          "not found. Try clearing build/_deps or check the"
+          " ImGui archive layout.")
+    endif()
+  endif()
+
+  target_sources(imgui PRIVATE ${IMGUI_SOURCES})
+
+  target_include_directories(imgui SYSTEM PUBLIC "${_IMGUI_DIR}"
+                                                 "${_IMGUI_DIR}/backends")
 
   target_link_libraries(imgui PUBLIC glfw OpenGL::GL)
   target_compile_definitions(imgui PUBLIC IMGUI_DEFINE_MATH_OPERATORS)
