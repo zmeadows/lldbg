@@ -1,2 +1,0 @@
-/opt/homebrew/Cellar/bear/3.1.4_3/lib/bear/wrapper.d/ar qc libImGuiFileDialog.a CMakeFiles/ImGuiFileDialog.dir/ImGuiFileDialog.cpp.o
-/opt/homebrew/Cellar/bear/3.1.4_3/lib/bear/wrapper.d/ranlib libImGuiFileDialog.a
