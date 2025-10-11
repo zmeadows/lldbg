@@ -53,7 +53,7 @@
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
         "LLDBG_WITH_IMGUI_DEMO": "OFF",
-        "LLDBG_WARN_AS_ERRORS": "ON",
+        "LLDBG_WARN_AS_ERRORS": "OFF",
         "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "TRUE"
       },
       "environment": {

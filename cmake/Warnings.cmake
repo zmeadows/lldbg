@@ -7,11 +7,18 @@ add_library(lldbg::warnings ALIAS lldbg_warnings)
 target_compile_options(lldbg_warnings INTERFACE
   $<$<CXX_COMPILER_ID:Clang,AppleClang,GNU>:
     -Wall -Wextra -Wpedantic -Wformat=2
-    #$<$<BOOL:${LLDBG_WARN_AS_ERRORS}>:-Werror>
   >
   $<$<CXX_COMPILER_ID:MSVC>:
     /W4
-    #$<$<BOOL:${LLDBG_WARN_AS_ERRORS}>:/WX>
   >
 )
 # cmake-format: on
+
+if(LLDBG_WARN_AS_ERRORS)
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.24)
+    set(CMAKE_COMPILE_WARNING_AS_ERROR ON)
+  else()
+    add_compile_options($<$<CXX_COMPILER_ID:Clang,AppleClang,GNU>:-Werror>
+                        $<$<CXX_COMPILER_ID:MSVC>:/WX>)
+  endif()
+endif()
