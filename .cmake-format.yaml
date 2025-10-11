@@ -1,4 +1,0 @@
----
-markup:
-  enable_markup: false # turn off comment reflow/markup
-  canonicalize_hashrulers: false # don't normalize ###----- rulers
