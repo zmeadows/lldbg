@@ -1,4 +1,32 @@
 {
+  "parse": {
+    "additional_commands": {
+      "lldbg_fetchcontent_declare": {
+        "kwargs": {
+          "GIT_REPOSITORY": "*",
+          "GIT_TAG": "*",
+          "URL": "*",
+          "URL_HASH": "*"
+        }
+      }
+    }
+  },
+  "format": {
+    "command_case": "unchanged",
+    "keyword_case": "unchanged",
+    "separate_ctrl_name_with_space": false,
+    "separate_fn_name_with_space": false,
+    "dangle_parens": false,
+    "max_subgroups_hwrap": 3,
+    "max_pargs_hwrap": 3,
+    "always_wrap": [
+      "FetchContent_Declare",
+      "fetchcontent_declare",
+      "FetchContent_MakeAvailable",
+      "fetchcontent_makeavailable",
+      "lldbg_fetchcontent_declare"
+    ]
+  },
   "markup": {
     "enable_markup": false,
     "canonicalize_hashrulers": false
