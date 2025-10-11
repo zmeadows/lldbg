@@ -37,9 +37,6 @@ if(NOT TARGET fmt::fmt)
     fmt GIT_REPOSITORY https://github.com/fmtlib/fmt.git
     GIT_TAG ${LLDBG_PIN_FMT})
   FetchContent_MakeAvailable(fmt)
-endif()
-
-if(TARGET fmt::fmt) # the compiled lib target (not the header-only interface)
   target_compile_options(
     fmt PRIVATE $<$<CXX_COMPILER_ID:Clang,AppleClang>:-w>
                 $<$<CXX_COMPILER_ID:GNU>:-w> $<$<CXX_COMPILER_ID:MSVC>:/w>)
