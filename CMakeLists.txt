@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.15)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
@@ -13,54 +13,15 @@ project(
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-include(cmake/Warnings.cmake)
-include(cmake/LLDBGDeps.cmake)
-
-# ---------- LLDB discovery (prefer official package config) ----------
-# Hints for users/distros with multiple LLVMs installed:
-set(LLVM_DIR
-    ""
-    CACHE PATH
-          "Path to LLVMConfig.cmake (e.g. /usr/lib/llvm-18/lib/cmake/llvm)")
-set(LLDB_DIR
-    ""
-    CACHE PATH
-          "Path to LLDBConfig.cmake (e.g. /usr/lib/llvm-18/lib/cmake/lldb)")
-
-# 1) Try official config package first
-find_package(LLDB CONFIG QUIET)
-if(NOT LLDB_FOUND)
-  # Some platforms require LLVM to be found first
-  find_package(LLVM CONFIG QUIET)
-  find_package(LLDB CONFIG QUIET)
-endif()
-
-# 2) Fallback to our module search (supports macOS framework + Linux libs)
-if(NOT LLDB_FOUND)
-  find_package(LLDB MODULE REQUIRED)
-endif()
-
-# 3) Normalize to a single target name for the rest of the project
-if(TARGET LLDB::LLDB)
-  add_library(lldbg::lldb ALIAS LLDB::LLDB)
-elseif(TARGET LLDB::liblldb)
-  add_library(lldbg::lldb ALIAS LLDB::liblldb)
-elseif(TARGET lldb)
-  add_library(lldbg::lldb ALIAS lldb)
-elseif(TARGET LLDB)
-  add_library(lldbg::lldb ALIAS LLDB)
-elseif(TARGET lldbg::lldb)
-  # Provided by our FindLLDB.cmake fallback
-else()
-  message(FATAL_ERROR "LLDB found but no known imported target to alias.")
-endif()
-
 set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/bin)
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE "Debug")
 endif()
+
+include(cmake/Warnings.cmake)
+include(cmake/LLDBGDeps.cmake)
 
 # if(CMAKE_BUILD_TYPE MATCHES "Debug")
 #   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DDEBUG")
@@ -81,7 +42,9 @@ add_definitions(-DLLDBG_TESTS_DIR="${CMAKE_SOURCE_DIR}/test/")
 add_library(lldbgui_lib ${LLDBGUI_SOURCES})
 
 # if(CMAKE_BUILD_TYPE MATCHES "Debug")
-#   target_link_options(lldbgui_lib BEFORE PUBLIC -fsanitize=undefined PUBLIC -fsanitize=address)
+#   target_link_options(
+#       lldbgui_lib BEFORE PUBLIC -fsanitize=undefined PUBLIC -fsanitize=address
+#   )
 # endif()
 
 # Create the lldbgui executable with main.cpp
@@ -104,9 +67,9 @@ target_compile_definitions(lldbgui_lib PUBLIC IMGUI_DEFINE_MATH_OPERATORS)
 target_link_libraries(
   lldbgui_lib
   PUBLIC lldbg::lldb
-         OpenGL::GL # from find_package(OpenGL)
-         glfw # normalized target
-         GLEW::GLEW # normalized/alias target
+         OpenGL::GL
+         glfw
+         GLEW::GLEW
          fmt::fmt
          imgui::imgui
          ImGuiFileDialog::ImGuiFileDialog
