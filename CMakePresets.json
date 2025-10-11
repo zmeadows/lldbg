@@ -78,13 +78,11 @@
     {
       "name": "dev",
       "configurePreset": "dev",
-      "outputOnFailure": true,
       "execution": { "stopOnFailure": false }
     },
     {
       "name": "ci",
       "configurePreset": "ci",
-      "outputOnFailure": true,
       "execution": { "stopOnFailure": true }
     }
   ],
