@@ -1,0 +1,109 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 19, "patch": 0 },
+
+  "configurePresets": [
+    {
+      "name": "ninja-base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_CXX_STANDARD": "17",
+        "CMAKE_CXX_STANDARD_REQUIRED": "ON"
+      },
+      "vendor": {
+        "jetbrains.com/clion": { "toolchain": "Default" }
+      }
+    },
+
+    {
+      "name": "user-release",
+      "displayName": "End user (Release, LTO)",
+      "description": "Fast Release build; no dev extras.",
+      "inherits": ["ninja-base"],
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "TRUE",
+        "LLDBG_WITH_IMGUI_DEMO": "OFF",
+        "LLDBG_WARN_AS_ERRORS": "OFF"
+      }
+    },
+
+    {
+      "name": "dev",
+      "displayName": "Developer (RelWithDebInfo, compile_commands)",
+      "description": "Developer build with debug info and compile_commands.json",
+      "inherits": ["ninja-base"],
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "LLDBG_WITH_IMGUI_DEMO": "ON",
+        "LLDBG_WARN_AS_ERRORS": "OFF"
+      }
+    },
+
+    {
+      "name": "ci",
+      "displayName": "CI (Release, warnings-as-errors)",
+      "description": "Non-interactive CI build; export compile_commands; warnings-as-errors.",
+      "inherits": ["ninja-base"],
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "LLDBG_WITH_IMGUI_DEMO": "OFF",
+        "LLDBG_WARN_AS_ERRORS": "ON",
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "TRUE"
+      },
+      "environment": {
+        "CC": "/usr/bin/clang",
+        "CXX": "/usr/bin/clang++"
+      }
+    }
+  ],
+
+  "buildPresets": [
+    {
+      "name": "user-release",
+      "configurePreset": "user-release",
+      "jobs": 0,
+      "verbose": false
+    },
+    { "name": "dev", "configurePreset": "dev", "jobs": 0, "verbose": false },
+    { "name": "ci", "configurePreset": "ci", "jobs": 0, "verbose": true }
+  ],
+
+  "testPresets": [
+    {
+      "name": "dev",
+      "configurePreset": "dev",
+      "outputOnFailure": true,
+      "execution": { "stopOnFailure": false }
+    },
+    {
+      "name": "ci",
+      "configurePreset": "ci",
+      "outputOnFailure": true,
+      "execution": { "stopOnFailure": true }
+    }
+  ],
+
+  "workflowPresets": [
+    {
+      "name": "dev",
+      "steps": [
+        { "type": "configure", "name": "dev" },
+        { "type": "build", "name": "dev" },
+        { "type": "test", "name": "dev" }
+      ]
+    },
+    {
+      "name": "ci",
+      "steps": [
+        { "type": "configure", "name": "ci" },
+        { "type": "build", "name": "ci" },
+        { "type": "test", "name": "ci" }
+      ]
+    }
+  ]
+}
