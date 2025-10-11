@@ -61,7 +61,7 @@ jobs:
           export DEBIAN_FRONTEND=noninteractive
           apt-get -o Acquire::Retries=3 update
 
-          pkgs=(build-essential ninja-build pkg-config cmake zlib1g-dev)
+          pkgs=(build-essential ninja-build pkg-config cmake zlib1g-dev libfmt-dev)
           if [ "${{ matrix.compiler }}" = "clang" ]; then
             pkgs+=(clang lldb)
           fi
@@ -121,7 +121,13 @@ jobs:
           CMAKE_C_COMPILER_LAUNCHER: sccache
           CMAKE_CXX_COMPILER_LAUNCHER: sccache
         shell: bash
-        run: cmake --preset ci
+        run: |
+          set -eux
+          cmake --preset ci \
+            -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF \
+            -DCMAKE_EXE_LINKER_FLAGS="-fuse-ld=lld" \
+            -DCMAKE_SHARED_LINKER_FLAGS="-fuse-ld=lld" \
+            -DCMAKE_MODULE_LINKER_FLAGS="-fuse-ld=lld"
 
       - name: Build
         run: cmake --build --preset ci -- -j"$(nproc)"

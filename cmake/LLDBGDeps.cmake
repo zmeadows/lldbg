@@ -229,7 +229,7 @@ if(NOT TARGET imgui::imgui)
     find_package(OpenGL QUIET)
   endif()
 
-  target_link_libraries(imgui PUBLIC glfw OpenGL::GL)
+  target_link_libraries(imgui PUBLIC glfw OpenGL::GL ${CMAKE_DL_LIBS})
   target_compile_definitions(imgui PUBLIC IMGUI_DEFINE_MATH_OPERATORS)
 
   # QUIET the library's own compilation warnings (Clang/GCC/MSVC)
