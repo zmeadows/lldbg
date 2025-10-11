@@ -46,15 +46,17 @@
 
     {
       "name": "ci",
-      "displayName": "CI (Release, warnings-as-errors)",
+      "displayName": "CI",
       "description": "Non-interactive CI build; export compile_commands; warnings-as-errors.",
       "inherits": ["ninja-base"],
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
         "LLDBG_WITH_IMGUI_DEMO": "OFF",
         "LLDBG_WARN_AS_ERRORS": "OFF",
-        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "TRUE"
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "OFF",
+        "CMAKE_C_FLAGS_RELEASE": "-O2",
+        "CMAKE_CXX_FLAGS_RELEASE": "-O2"
       }
     }
   ],

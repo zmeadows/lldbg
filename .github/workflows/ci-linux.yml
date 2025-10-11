@@ -54,26 +54,23 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Base toolchain, cmake, and LLDB headers (system defaults)
       - name: Install build prerequisites
         shell: bash
         run: |
           set -euxo pipefail
           export DEBIAN_FRONTEND=noninteractive
-
-          # Update with retries to reduce transient flakes
           apt-get -o Acquire::Retries=3 update
 
-          # Core packages (cmake kept from distro unless bullseye overrides below)
-          pkgs=(build-essential ninja-build pkg-config cmake)
-
+          pkgs=(build-essential ninja-build pkg-config cmake zlib1g-dev)
           if [ "${{ matrix.compiler }}" = "clang" ]; then
-            pkgs+=(clang lldb)   # keep system clang/lldb; remove 'lldb' if not needed
+            pkgs+=(clang lldb)
           fi
+          # lld works for both gcc and clang; install unconditionally (ignore if missing)
+          pkgs+=(lld)
 
-          apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends "${pkgs[@]}"
+          apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends "${pkgs[@]}" || true
 
-          # LLDB dev headers/libs for C++ API (package name varies by distro)
+          # LLDB dev headers (name varies by distro)
           if ! apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends liblldb-dev ; then
             alt="$(apt-cache search -n '^liblldb-[0-9]+-dev$' | awk '{print $1}' | sort -V | tail -n1 || true)"
             if [ -n "$alt" ]; then
@@ -83,16 +80,14 @@ jobs:
             fi
           fi
 
-          # Prefer system GL/X11/GLFW/GLEW if available, but don't fail if not (e.g., Ubuntu 'universe' disabled)
+          # Optional GL/X11 bits (best-effort)
           if ! apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends \
                 libgl1-mesa-dev libx11-dev libxrandr-dev libxinerama-dev libxi-dev libxcursor-dev \
                 libglfw3-dev libglew-dev ; then
-            echo "Optional GL/GLFW/GLEW dev packages not available; falling back to whatever CMake finds."
+            echo "Optional GL/GLFW/GLEW not available; continuing."
           fi
 
-          # Keep containers light (optional)
-          apt-get clean
-          rm -rf /var/lib/apt/lists/*
+          apt-get clean && rm -rf /var/lib/apt/lists/*
 
       # Upgrade CMake only on bullseye (3.18 < 3.20); action adds cmake/ctest to PATH
       - name: Setup CMake (3.28.x on bullseye)
@@ -121,12 +116,18 @@ jobs:
             echo "CXX=g++" >> "$GITHUB_ENV"
           fi
 
-      # Configure / build / test via your 'ci' presets
       - name: Configure
         env:
           CMAKE_C_COMPILER_LAUNCHER: sccache
           CMAKE_CXX_COMPILER_LAUNCHER: sccache
-        run: cmake --preset ci
+        shell: bash
+        run: |
+          set -eux
+          cmake --preset ci \
+            -DCMAKE_LINKER="$(command -v ld.lld || echo /usr/bin/ld.lld)" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fuse-ld=lld" \
+            -DCMAKE_SHARED_LINKER_FLAGS="-fuse-ld=lld" \
+            -DCMAKE_MODULE_LINKER_FLAGS="-fuse-ld=lld"
 
       - name: Build
         run: cmake --build --preset ci -- -j"$(nproc)"
