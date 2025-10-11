@@ -1,45 +1,46 @@
+---
 name: build-linux
 
 on:
   push:
-    branches: [ master ]
+    branches: [master]
   pull_request:
-    branches: [ master ]
+    branches: [master]
 
 jobs:
   build-linux:
     runs-on: ubuntu-latest
 
     steps:
-    # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-    - uses: actions/checkout@v4
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v4
 
-    - name: Set up Clang
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y clang
+      - name: Set up Clang
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang
 
-    - name: Add LLVM repository and install libraries
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y wget software-properties-common
-        wget https://apt.llvm.org/llvm.sh
-        chmod +x llvm.sh
-        sudo ./llvm.sh 18
-        sudo sed -i 's/azure\.//' /etc/apt/sources.list
-        sudo apt-get update
-        sudo apt-get install -y liblldb-18-dev libgl1-mesa-dev libglu1-mesa-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxkbcommon-dev
+      - name: Add LLVM repository and install libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget software-properties-common
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 18
+          sudo sed -i 's/azure\.//' /etc/apt/sources.list
+          sudo apt-get update
+          sudo apt-get install -y liblldb-18-dev libgl1-mesa-dev libglu1-mesa-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxkbcommon-dev
 
-    - name: Install Wayland dependencies
-      run: sudo apt-get install -y wayland-protocols libwayland-dev libwayland-bin
+      - name: Install Wayland dependencies
+        run: sudo apt-get install -y wayland-protocols libwayland-dev libwayland-bin
 
-    - name: Configure
-      run: |
-        export CC=/usr/bin/clang
-        export CXX=/usr/bin/clang++
-        mkdir ${GITHUB_WORKSPACE}/build
-        cd ${GITHUB_WORKSPACE}/build
-        cmake -DCMAKE_BUILD_TYPE=Release ..
+      - name: Configure
+        run: |
+          export CC=/usr/bin/clang
+          export CXX=/usr/bin/clang++
+          mkdir ${GITHUB_WORKSPACE}/build
+          cd ${GITHUB_WORKSPACE}/build
+          cmake -DCMAKE_BUILD_TYPE=Release ..
 
-    - name: Build
-      run: cmake --build ${GITHUB_WORKSPACE}/build --parallel $(nproc) -v
+      - name: Build
+        run: cmake --build ${GITHUB_WORKSPACE}/build --parallel $(nproc) -v
