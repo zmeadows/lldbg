@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16...4.1)
+cmake_minimum_required(VERSION 3.16)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
@@ -15,6 +15,45 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(cmake/Warnings.cmake)
 include(cmake/LLDBGDeps.cmake)
+
+# ---------- LLDB discovery (prefer official package config) ----------
+# Hints for users/distros with multiple LLVMs installed:
+set(LLVM_DIR
+    ""
+    CACHE PATH
+          "Path to LLVMConfig.cmake (e.g. /usr/lib/llvm-18/lib/cmake/llvm)")
+set(LLDB_DIR
+    ""
+    CACHE PATH
+          "Path to LLDBConfig.cmake (e.g. /usr/lib/llvm-18/lib/cmake/lldb)")
+
+# 1) Try official config package first
+find_package(LLDB CONFIG QUIET)
+if(NOT LLDB_FOUND)
+  # Some platforms require LLVM to be found first
+  find_package(LLVM CONFIG QUIET)
+  find_package(LLDB CONFIG QUIET)
+endif()
+
+# 2) Fallback to our module search (supports macOS framework + Linux libs)
+if(NOT LLDB_FOUND)
+  find_package(LLDB MODULE REQUIRED)
+endif()
+
+# 3) Normalize to a single target name for the rest of the project
+if(TARGET LLDB::LLDB)
+  add_library(lldbg::lldb ALIAS LLDB::LLDB)
+elseif(TARGET LLDB::liblldb)
+  add_library(lldbg::lldb ALIAS LLDB::liblldb)
+elseif(TARGET lldb)
+  add_library(lldbg::lldb ALIAS lldb)
+elseif(TARGET LLDB)
+  add_library(lldbg::lldb ALIAS LLDB)
+elseif(TARGET lldbg::lldb)
+  # Provided by our FindLLDB.cmake fallback
+else()
+  message(FATAL_ERROR "LLDB found but no known imported target to alias.")
+endif()
 
 set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/bin)
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
@@ -59,22 +98,12 @@ target_link_libraries(lldbgui PRIVATE lldbg_warnings)
 add_definitions(-DLLDBG_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets/")
 
 target_include_directories(lldbgui_lib PUBLIC "${CMAKE_SOURCE_DIR}/src/")
-target_include_directories(lldbgui_lib
-                           PUBLIC "${CMAKE_SOURCE_DIR}/third_party/")
 target_include_directories(lldbgui PUBLIC "${CMAKE_SOURCE_DIR}/src/")
-target_include_directories(lldbgui PUBLIC "${CMAKE_SOURCE_DIR}/third_party/")
-
-find_library(
-  LLDB_LIBRARY
-  NAMES lldb liblldb lldb-18
-  PATHS "/Applications/Xcode.app/Contents/SharedFrameworks/"
-        "/usr/lib/x86_64-linux-gnu/"
-        "/Applications/Xcode15.0.1/Xcode.app/Contents/SharedFrameworks/")
 
 target_compile_definitions(lldbgui_lib PUBLIC IMGUI_DEFINE_MATH_OPERATORS)
 target_link_libraries(
   lldbgui_lib
-  PUBLIC ${LLDB_LIBRARY} # existing LLDB find_library result
+  PUBLIC lldbg::lldb
          OpenGL::GL # from find_package(OpenGL)
          glfw # normalized target
          GLEW::GLEW # normalized/alias target
@@ -82,11 +111,5 @@ target_link_libraries(
          imgui::imgui
          ImGuiFileDialog::ImGuiFileDialog
          cxxopts::cxxopts)
-
-if(NOT LLDB_LIBRARY)
-  message(FATAL_ERROR "LLDB not found")
-endif()
-target_include_directories(lldbgui_lib
-                           PUBLIC "third_party/llvm-18.1.0/lldb/include")
 
 add_subdirectory(test)
