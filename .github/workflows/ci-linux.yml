@@ -1,0 +1,139 @@
+---
+name: ci-linux
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.distro.name }} • ${{ matrix.compiler }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    container:
+      image: ${{ matrix.distro.image }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+        distro:
+          - { name: debian-bullseye, image: debian:11, needs_cmake: true }
+          - { name: debian-bookworm, image: debian:12, needs_cmake: false }
+          - { name: ubuntu-jammy, image: ubuntu:22.04, needs_cmake: false }
+          - { name: ubuntu-noble, image: ubuntu:24.04, needs_cmake: false }
+
+    env:
+      # sccache via GHA backend
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_CACHE_SIZE: "2G"
+
+    steps:
+      # Containers don't include git; checkout runs inside the container
+      - name: Install git for checkout
+        shell: bash
+        run: |
+          set -euxo pipefail
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get -o Acquire::Retries=3 update
+          apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends git ca-certificates
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Base toolchain, cmake, and LLDB headers (system defaults)
+      - name: Install build prerequisites
+        shell: bash
+        run: |
+          set -euxo pipefail
+          export DEBIAN_FRONTEND=noninteractive
+
+          # Update with retries to reduce transient flakes
+          apt-get -o Acquire::Retries=3 update
+
+          # Core packages (cmake kept from distro unless bullseye overrides below)
+          pkgs=(build-essential ninja-build pkg-config cmake)
+
+          if [ "${{ matrix.compiler }}" = "clang" ]; then
+            pkgs+=(clang lldb)   # keep system clang/lldb; remove 'lldb' if not needed
+          fi
+
+          apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends "${pkgs[@]}"
+
+          # LLDB dev headers/libs for C++ API (package name varies by distro)
+          if ! apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends liblldb-dev ; then
+            alt="$(apt-cache search -n '^liblldb-[0-9]+-dev$' | awk '{print $1}' | sort -V | tail -n1 || true)"
+            if [ -n "$alt" ]; then
+              apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends "$alt"
+            else
+              echo "No liblldb-*-dev found; continuing without LLDB dev headers."
+            fi
+          fi
+
+          # Prefer system GL/X11/GLFW/GLEW if available, but don't fail if not (e.g., Ubuntu 'universe' disabled)
+          if ! apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends \
+                libgl1-mesa-dev libx11-dev libxrandr-dev libxinerama-dev libxi-dev libxcursor-dev \
+                libglfw3-dev libglew-dev ; then
+            echo "Optional GL/GLFW/GLEW dev packages not available; falling back to whatever CMake finds."
+          fi
+
+          # Keep containers light (optional)
+          apt-get clean
+          rm -rf /var/lib/apt/lists/*
+
+      # Upgrade CMake only on bullseye (3.18 < 3.20); action adds cmake/ctest to PATH
+      - name: Setup CMake (3.28.x on bullseye)
+        if: ${{ matrix.distro.needs_cmake }}
+        uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: "3.28.x"
+
+      - name: Show CMake version
+        run: cmake --version
+
+      # Compiler cache
+      - name: Set up sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      # Choose toolchain for the build
+      - name: Select compiler
+        shell: bash
+        run: |
+          set -eux
+          if [ "${{ matrix.compiler }}" = "clang" ]; then
+            echo "CC=clang" >> "$GITHUB_ENV"
+            echo "CXX=clang++" >> "$GITHUB_ENV"
+          else
+            echo "CC=gcc" >> "$GITHUB_ENV"
+            echo "CXX=g++" >> "$GITHUB_ENV"
+          fi
+
+      # Configure / build / test via your 'ci' presets
+      - name: Configure
+        env:
+          CMAKE_C_COMPILER_LAUNCHER: sccache
+          CMAKE_CXX_COMPILER_LAUNCHER: sccache
+        run: cmake --preset ci
+
+      - name: Build
+        run: cmake --build --preset ci -- -j"$(nproc)"
+
+      - name: Test
+        run: ctest --preset ci --output-on-failure -j"$(nproc)"
+
+      - name: sccache stats
+        if: always()
+        run: sccache --show-stats || true
