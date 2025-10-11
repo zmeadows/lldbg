@@ -55,10 +55,6 @@
         "LLDBG_WITH_IMGUI_DEMO": "OFF",
         "LLDBG_WARN_AS_ERRORS": "OFF",
         "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "TRUE"
-      },
-      "environment": {
-        "CC": "/usr/bin/clang",
-        "CXX": "/usr/bin/clang++"
       }
     }
   ],
