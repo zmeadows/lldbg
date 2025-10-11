@@ -6,7 +6,7 @@ add_library(lldbg::warnings ALIAS lldbg_warnings)
 # cmake-format: off
 target_compile_options(lldbg_warnings INTERFACE
   $<$<CXX_COMPILER_ID:Clang,AppleClang,GNU>:
-    -Wall -Wextra -Wpedantic -Wformat=2
+    -Wall -Wextra -Wpedantic -Wformat=2 -Wno-deprecated-literal-operator
   >
   $<$<CXX_COMPILER_ID:MSVC>:
     /W4
