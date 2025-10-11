@@ -1,5 +1,5 @@
 {
-  "version": 6,
+  "version": 4,
   "cmakeMinimumRequired": { "major": 3, "minor": 20, "patch": 0 },
 
   "configurePresets": [
@@ -55,8 +55,8 @@
         "LLDBG_WITH_IMGUI_DEMO": "OFF",
         "LLDBG_WARN_AS_ERRORS": "OFF",
         "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "OFF",
-        "CMAKE_C_FLAGS_RELEASE": "-O2",
-        "CMAKE_CXX_FLAGS_RELEASE": "-O2"
+        "CMAKE_C_FLAGS_RELWITHDEBINFO": "-O1 -g1 -gsplit-dwarf",
+        "CMAKE_CXX_FLAGS_RELWITHDEBINFO": "-O1 -g1 -gsplit-dwarf"
       }
     }
   ],
@@ -82,25 +82,6 @@
       "name": "ci",
       "configurePreset": "ci",
       "execution": { "stopOnFailure": true }
-    }
-  ],
-
-  "workflowPresets": [
-    {
-      "name": "dev",
-      "steps": [
-        { "type": "configure", "name": "dev" },
-        { "type": "build", "name": "dev" },
-        { "type": "test", "name": "dev" }
-      ]
-    },
-    {
-      "name": "ci",
-      "steps": [
-        { "type": "configure", "name": "ci" },
-        { "type": "build", "name": "ci" },
-        { "type": "test", "name": "ci" }
-      ]
     }
   ]
 }
