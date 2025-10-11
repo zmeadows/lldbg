@@ -29,8 +29,11 @@ include(cmake/LLDBGDeps.cmake)
 #       "${CMAKE_CXX_FLAGS} -Werror -fsanitize=undefined -fsanitize=address")
 # endif()
 
-file(GLOB LLDBGUI_SOURCES "${CMAKE_SOURCE_DIR}/src/*.cpp"
-     "${CMAKE_SOURCE_DIR}/src/*/*.cpp")
+file(
+  GLOB
+  LLDBGUI_SOURCES
+  "${CMAKE_SOURCE_DIR}/src/*.cpp"
+  "${CMAKE_SOURCE_DIR}/src/*/*.cpp")
 
 # Remove main.cpp from the sources for the library
 list(REMOVE_ITEM LLDBGUI_SOURCES "${CMAKE_SOURCE_DIR}/src/main.cpp")
