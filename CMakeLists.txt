@@ -75,4 +75,7 @@ target_link_libraries(
          ImGuiFileDialog::ImGuiFileDialog
          cxxopts::cxxopts)
 
-add_subdirectory(test)
+option(LLDBG_BUILD_TESTS "Build unit tests" ON)
+if(LLDBG_BUILD_TESTS)
+  add_subdirectory(test)
+endif()
