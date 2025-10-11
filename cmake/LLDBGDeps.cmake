@@ -1,5 +1,13 @@
 include(FetchContent)
 
+macro(lldbg_fetchcontent_declare name)
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.24)
+    FetchContent_Declare(${name} ${ARGN} DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+  else()
+    FetchContent_Declare(${name} ${ARGN})
+  endif()
+endmacro()
+
 option(LLDBG_WITH_IMGUI_DEMO "Build ImGui with demo window" OFF)
 
 # ------------------------- fmt ------------------------------------------------
@@ -7,9 +15,8 @@ option(LLDBG_WITH_IMGUI_DEMO "Build ImGui with demo window" OFF)
 find_package(fmt CONFIG QUIET)
 if(NOT fmt_FOUND)
   message(STATUS "[deps] Fetching fmt")
-  FetchContent_Declare(
-    fmt URL https://github.com/fmtlib/fmt/archive/refs/tags/11.0.2.tar.gz
-            DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+  lldbg_fetchcontent_declare(
+    fmt URL https://github.com/fmtlib/fmt/archive/refs/tags/11.0.2.tar.gz)
   FetchContent_MakeAvailable(fmt)
 endif()
 
@@ -22,6 +29,10 @@ endif()
 
 if(TARGET glfw3 AND NOT TARGET glfw)
   add_library(glfw ALIAS glfw3)
+endif()
+
+if(TARGET glfw AND NOT TARGET glfw::glfw)
+  add_library(glfw::glfw ALIAS glfw)
 endif()
 
 if(NOT TARGET glfw)
@@ -38,9 +49,8 @@ if(NOT TARGET glfw)
   set(GLFW_INSTALL
       OFF
       CACHE BOOL "" FORCE)
-  FetchContent_Declare(
-    glfw URL https://github.com/glfw/glfw/archive/refs/tags/3.4.tar.gz
-             DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+  lldbg_fetchcontent_declare(
+    glfw URL https://github.com/glfw/glfw/archive/refs/tags/3.4.tar.gz)
   FetchContent_MakeAvailable(glfw) # defines 'glfw' target
 endif()
 
@@ -61,14 +71,18 @@ endif()
 if(NOT TARGET GLEW::GLEW)
   message(STATUS "[deps] Fetching GLEW (cmake wrapper)")
   # Use the CMake-ified wrapper; exports glew_s/libglew_static
-  FetchContent_Declare(
+  lldbg_fetchcontent_declare(
     glew
-    GIT_REPOSITORY https://github.com/Perlmint/glew-cmake.git
-    GIT_TAG b51c5193091d48203da8b6e1ed70e6d468bcb532 # <- pinned commit
-    GIT_SHALLOW TRUE
-    GIT_PROGRESS TRUE
-    UPDATE_DISCONNECTED TRUE # don’t “git pull” after first fetch
-    DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+    GIT_REPOSITORY
+    https://github.com/Perlmint/glew-cmake.git
+    GIT_TAG
+    b51c5193091d48203da8b6e1ed70e6d468bcb532 # <- pinned commit
+    GIT_SHALLOW
+    TRUE
+    GIT_PROGRESS
+    TRUE
+    UPDATE_DISCONNECTED
+    TRUE)
 
   set(BUILD_UTILS
       OFF
@@ -99,10 +113,9 @@ endif()
 find_package(cxxopts QUIET CONFIG)
 if(NOT TARGET cxxopts::cxxopts)
   message(STATUS "[deps] Fetching cxxopts")
-  FetchContent_Declare(
-    cxxopts
-    URL https://github.com/jarro2783/cxxopts/archive/refs/tags/v3.2.0.tar.gz
-        DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+  lldbg_fetchcontent_declare(
+    cxxopts URL
+    https://github.com/jarro2783/cxxopts/archive/refs/tags/v3.2.0.tar.gz)
   FetchContent_MakeAvailable(cxxopts) # defines cxxopts::cxxopts
 endif()
 
@@ -111,9 +124,8 @@ endif()
 # app.
 if(NOT TARGET imgui::imgui)
   message(STATUS "[deps] Fetching Dear ImGui")
-  FetchContent_Declare(
-    imgui URL https://github.com/ocornut/imgui/archive/refs/tags/v1.90.9.tar.gz
-              DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+  lldbg_fetchcontent_declare(
+    imgui URL https://github.com/ocornut/imgui/archive/refs/tags/v1.90.9.tar.gz)
   FetchContent_MakeAvailable(imgui)
 
   # After FetchContent_MakeAvailable(imgui)
@@ -176,12 +188,16 @@ if(NOT TARGET imgui::imgui)
 endif()
 
 # ---------------- ImGuiFileDialog (compile-in, no upstream CMake) -------------
-FetchContent_Declare(
+lldbg_fetchcontent_declare(
   imguifiledialog
-  GIT_REPOSITORY https://github.com/aiekick/ImGuiFileDialog.git
-  GIT_TAG v0.6.8
-  GIT_SHALLOW TRUE
-  UPDATE_DISCONNECTED TRUE)
+  GIT_REPOSITORY
+  https://github.com/aiekick/ImGuiFileDialog.git
+  GIT_TAG
+  v0.6.8
+  GIT_SHALLOW
+  TRUE
+  UPDATE_DISCONNECTED
+  TRUE)
 
 FetchContent_GetProperties(imguifiledialog)
 if(NOT imguifiledialog_POPULATED)
