@@ -1,8 +1,3 @@
-# === File: cmake/LLDBGDeps.cmake =============================================
-# Centralized dependency resolution for lldbgui: prefer system packages,
-# fallback to FetchContent. LLDB intentionally left as-is for now.
-
-cmake_minimum_required(VERSION 3.16)
 include(FetchContent)
 
 option(LLDBG_WITH_IMGUI_DEMO "Build ImGui with demo window" OFF)
