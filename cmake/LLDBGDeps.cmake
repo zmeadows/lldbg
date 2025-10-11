@@ -133,7 +133,6 @@ if(NOT TARGET imgui::imgui)
       "${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp"
       $<$<BOOL:${LLDBG_WITH_IMGUI_DEMO}>:"${imgui_SOURCE_DIR}/imgui_demo.cpp">)
 
-  # mark third-party headers as SYSTEM so they don't warn when included by YOUR code
   target_include_directories(imgui SYSTEM PUBLIC "${imgui_SOURCE_DIR}"
                                                  "${imgui_SOURCE_DIR}/backends")
 
@@ -180,3 +179,42 @@ target_compile_options(
 
 target_link_libraries(ImGuiFileDialogLib PUBLIC imgui::imgui)
 add_library(ImGuiFileDialog::ImGuiFileDialog ALIAS ImGuiFileDialogLib)
+
+# ---------- LLDB discovery (prefer official package config) ----------
+# Hints for users/distros with multiple LLVMs installed:
+set(LLVM_DIR
+    ""
+    CACHE PATH
+          "Path to LLVMConfig.cmake (e.g. /usr/lib/llvm-18/lib/cmake/llvm)")
+set(LLDB_DIR
+    ""
+    CACHE PATH
+          "Path to LLDBConfig.cmake (e.g. /usr/lib/llvm-18/lib/cmake/lldb)")
+
+# 1) Try official config package first
+find_package(LLDB CONFIG QUIET)
+if(NOT LLDB_FOUND)
+  # Some platforms require LLVM to be found first
+  find_package(LLVM CONFIG QUIET)
+  find_package(LLDB CONFIG QUIET)
+endif()
+
+# 2) Fallback to our module search (supports macOS framework + Linux libs)
+if(NOT LLDB_FOUND)
+  find_package(LLDB MODULE REQUIRED)
+endif()
+
+# 3) Normalize to a single target name for the rest of the project
+if(TARGET LLDB::LLDB)
+  add_library(lldbg::lldb ALIAS LLDB::LLDB)
+elseif(TARGET LLDB::liblldb)
+  add_library(lldbg::lldb ALIAS LLDB::liblldb)
+elseif(TARGET lldb)
+  add_library(lldbg::lldb ALIAS lldb)
+elseif(TARGET LLDB)
+  add_library(lldbg::lldb ALIAS LLDB)
+elseif(TARGET lldbg::lldb)
+  # Provided by our FindLLDB.cmake fallback
+else()
+  message(FATAL_ERROR "LLDB found but no known imported target to alias.")
+endif()
