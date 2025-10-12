@@ -224,7 +224,10 @@ void OpenFiles::open(FileHandle handle)
 void OpenFiles::open(FileHandle handle, size_t linum)
 {
     open(handle);
-    m_files_linum[m_focus.value()] = std::make_optional<size_t>(linum);
+    if (m_focus.has_value())
+    {
+        m_files_linum[m_focus.value()] = std::make_optional<size_t>(linum);
+    }
 }
 
 void OpenFiles::close(size_t tab_index)
@@ -237,9 +240,8 @@ void OpenFiles::close(size_t tab_index)
     {
         m_focus = {};
     }
-    else
+    else if (m_focus.has_value())
     {
-        assert(m_focus);
         const size_t old_open_file_count = m_files.size();
         const size_t old_focused_tab_idx = *m_focus;
 
@@ -251,5 +253,9 @@ void OpenFiles::close(size_t tab_index)
         {
             m_focus = old_focused_tab_idx - 1;
         }
+    }
+    else
+    {
+        m_focus = 0;
     }
 }

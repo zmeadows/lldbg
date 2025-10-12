@@ -1447,11 +1447,12 @@ __attribute__((flatten)) static void draw(Application& app)
     // Handle highlighted lines
     {
         // Dont focus in every tick
-        // TODO[@zmeadows][P2]: handle size_t -> int conversion
-        const auto [file, linum] = open_files.focus_line();
-        if (linum.has_value() && (*(app.file_viewer.get_highlight_line()) != (int) *linum))
+        // TODO[@zmeadows][P2]: handle size_t -> int conversion, clean this up
+        const auto focus = open_files.focus_line();
+        const auto cur_hline = app.file_viewer.get_highlight_line();
+        if (focus.has_value() && cur_hline.has_value() && *cur_hline != int(focus->second))
         {
-            app.file_viewer.set_highlight_line(int(*linum));
+            app.file_viewer.set_highlight_line(int(focus->second));
         }
     }
 
@@ -1525,19 +1526,26 @@ static void handle_lldb_events(
                         }
                         // TODO Handle the cane stop reason data count > 2
                         assert(th.GetStopReasonDataCount() == 2);
-                        // TODO[@zmeadows][P1]: handle conversion properly
-                        auto breakpoint_id = lldb::break_id_t(th.GetStopReasonDataAtIndex(0));
-                        lldb::SBBreakpoint breakpoint = target->FindBreakpointByID(breakpoint_id);
 
-                        auto location_id = lldb::break_id_t(th.GetStopReasonDataAtIndex(1));
-                        lldb::SBBreakpointLocation location =
-                            breakpoint.FindLocationByID(location_id);
+                        // TODO[@zmeadows][P1]: handle conversion properly, clean this all up
+                        if (target.has_value())
+                        {
+                            auto breakpoint_id = lldb::break_id_t(th.GetStopReasonDataAtIndex(0));
+                            lldb::SBBreakpoint breakpoint =
+                                target->FindBreakpointByID(breakpoint_id);
 
-                        const auto [filepath, linum] = resolve_breakpoint(location);
-                        manually_open_and_or_focus_file(ui, open_files, filepath.c_str(), linum);
-                        set_thread_frame_indices(ui, i);
-                        // ui.stopped_thread_index = i;
-                        // file_viewer.set_highlight_line(linum);
+                            auto location_id = lldb::break_id_t(th.GetStopReasonDataAtIndex(1));
+                            lldb::SBBreakpointLocation location =
+                                breakpoint.FindLocationByID(location_id);
+
+                            const auto [filepath, linum] = resolve_breakpoint(location);
+                            manually_open_and_or_focus_file(
+                                ui, open_files, filepath.c_str(), linum
+                            );
+                            set_thread_frame_indices(ui, i);
+                            // ui.stopped_thread_index = i;
+                            // file_viewer.set_highlight_line(linum);
+                        }
                         break;
                     }
                     // TODO: it should highlight line by line

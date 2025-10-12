@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   build:
-    name: build ⏵ ${{ matrix.os }} [apple-clang]
+    name: build / ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
 

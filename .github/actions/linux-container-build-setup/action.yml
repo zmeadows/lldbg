@@ -91,9 +91,3 @@ runs:
           echo "CC=gcc" >> "$GITHUB_ENV"
           echo "CXX=g++" >> "$GITHUB_ENV"
         fi
-
-    - name: Install mold # fast linker
-      uses: rui314/setup-mold@v1
-      with:
-        mold-version: 2.40.4
-        make-default: false

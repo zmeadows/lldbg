@@ -45,23 +45,14 @@
     },
 
     {
-      "name": "dev-tidy",
-      "inherits": "dev",
-      "cacheVariables": {
-        "CMAKE_CXX_CLANG_TIDY": "clang-tidy;-p=${sourceDir}",
-        "CMAKE_EXPOSE_COMPILE_COMMANDS": true
-      }
-    },
-
-    {
       "name": "ci",
       "displayName": "CI",
       "description": "Non-interactive CI build; export compile_commands; warnings-as-errors.",
       "inherits": ["ninja-base"],
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_EXPORT_COMPILE_COMMANDS": true,
-        "LLDBG_WITH_IMGUI_DEMO": false,
+        "LLDBG_WITH_IMGUI_DEMO": true,
         "LLDBG_WARN_AS_ERRORS": false,
         "CMAKE_INTERPROCEDURAL_OPTIMIZATION": false,
         "CMAKE_C_FLAGS_RELWITHDEBINFO": "-O0 -g0",

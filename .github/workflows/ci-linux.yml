@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   build:
-    name: build ⏵ ${{ matrix.distro.name }} [${{ matrix.compiler }}]
+    name: build / ${{ matrix.distro.name }} / ${{ matrix.compiler }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -39,18 +39,23 @@ jobs:
       CMAKE_BUILD_PARALLEL_LEVEL: 4
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - name: Install Git
+        shell: bash
+        run: |
+          set -euxo pipefail
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get -o Acquire::Retries=3 update
+          apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends git ca-certificates
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - uses: ./.github/actions/setup-linux-build-container
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/linux-container-build-setup
         with:
           compiler: ${{ matrix.compiler }}
           update_cmake: ${{ matrix.distro.needs_cmake }}
 
       - name: Configure
-        shell: bash
         run: cmake --preset ci
 
       - name: Build
