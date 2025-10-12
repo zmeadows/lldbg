@@ -151,9 +151,7 @@ int main(int argc, char** argv)
             for (const std::string& line : handle->contents())
             {
                 if (line.empty())
-                {
                     continue;
-                }
                 auto ret = run_lldb_command(app, line.c_str());
             }
             LOG(Verbose) << "Successfully executed commands in source file: " << source_path;
