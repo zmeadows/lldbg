@@ -76,55 +76,33 @@ set(OpenGL_GL_PREFERENCE "GLVND")
 find_package(OpenGL REQUIRED) # provides OpenGL::GL
 
 # ---- GLAD -------------------------------------------------------------------
-# Try system GLAD first (Config or pkg-config), otherwise FetchContent.
-set(_lldbg_have_glad_target FALSE)
-if(LLDBG_USE_SYSTEM_DEPS)
-  # Config package (vcpkg/homebrew/etc.) typically exports glad::glad
-  find_package(glad CONFIG QUIET)
-  if(TARGET glad::glad)
-    set(_lldbg_have_glad_target TRUE)
-  elseif(TARGET glad)
-    add_library(glad::glad ALIAS glad)
-    set(_lldbg_have_glad_target TRUE)
-  endif()
+# The glad project’s CMake reads these cache vars to drive `python -m glad`.
+# Choose a conservative API that matches your GLFW context (3.2 core).
+set(GLAD_PROFILE "core" CACHE STRING "glad profile")
+set(GLAD_API "gl=3.2" CACHE STRING "glad api (e.g. gl=3.3, gl=4.6)")
+set(GLAD_GENERATOR "c" CACHE STRING "glad generator")
+set(GLAD_SPEC "gl" CACHE STRING "glad spec")
+set(GLAD_EXTENSIONS "" CACHE STRING "comma-separated list or empty")
 
-  if(NOT _lldbg_have_glad_target)
-    find_package(PkgConfig QUIET)
-    if(PKG_CONFIG_FOUND)
-      pkg_check_modules(
-        GLAD
-        IMPORTED_TARGET
-        QUIET
-        glad)
-      if(TARGET PkgConfig::GLAD)
-        add_library(glad::glad ALIAS PkgConfig::GLAD)
-        set(_lldbg_have_glad_target TRUE)
-      endif()
-    endif()
-  endif()
-endif()
+# Require Python (the repo’s CMake will invoke `${Python3_EXECUTABLE} -m glad`)
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
-if(NOT _lldbg_have_glad_target)
-  lldbg_fetchcontent_declare(
-    glad
-    GIT_REPOSITORY https://github.com/Dav1dde/glad.git
-    GIT_TAG ${LLDBG_PIN_GLAD}
-            GIT_SHALLOW
-            TRUE
-            GIT_PROGRESS
-            TRUE
-            UPDATE_DISCONNECTED
-            TRUE)
-  FetchContent_MakeAvailable(glad)
+lldbg_fetchcontent_declare(
+  glad
+  GIT_REPOSITORY https://github.com/Dav1dde/glad.git
+  GIT_TAG ${LLDBG_PIN_GLAD}
+          GIT_SHALLOW
+          TRUE
+          UPDATE_DISCONNECTED
+          TRUE)
+FetchContent_MakeAvailable(
+  glad)
 
-  if(TARGET glad)
-    add_library(glad::glad ALIAS glad)
-  elseif(NOT TARGET glad::glad)
-    message(
-      FATAL_ERROR
-        "GLAD fetched but no known target to alias (expected 'glad' or 'glad::glad')."
-    )
-  endif()
+# Normalize target name
+if(TARGET glad)
+  add_library(glad::glad ALIAS glad)
+else()
+  message(FATAL_ERROR "GLAD fetched but target 'glad' not found.")
 endif()
 
 # ---- Dear ImGui -------------------------------------------------------------
