@@ -1,0 +1,26 @@
+---
+name: format-and-tidy
+on:
+  pull_request:
+  push:
+    branches: [master]
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y clang-format
+      - name: Check formatting
+        run: |
+          git ls-files '*.h' '*.hpp' '*.c' '*.cc' '*.cpp' |
+          xargs -r clang-format --dry-run --Werror
+  tidy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y clang clang-tidy ninja-build cmake
+      - name: Configure (tidy)
+        run: cmake --preset dev-tidy
+      - name: Run clang-tidy
+        run: |
+          run-clang-tidy -p build/dev-tidy || true  # fail if you want strict

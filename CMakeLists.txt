@@ -21,10 +21,11 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE "Debug")
 endif()
 
-# Turn this on per-build (e.g., -DEXPOSE_COMPILE_COMMANDS=ON).
-option(EXPOSE_COMPILE_COMMANDS "Expose compile_commands.json at repo root" OFF)
+# Turn this on per-build (e.g., -DCMAKE_EXPOSE_COMPILE_COMMANDS=ON).
+option(CMAKE_EXPOSE_COMPILE_COMMANDS
+       "Expose compile_commands.json at repo root" OFF)
 
-if(EXPOSE_COMPILE_COMMANDS)
+if(CMAKE_EXPOSE_COMPILE_COMMANDS)
   # Ensure the file is generated in the build dir.
   set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE BOOL "" FORCE)
 
