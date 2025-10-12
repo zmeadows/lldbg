@@ -41,6 +41,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # We just need CMake+Ninja to generate compile_commands.json.
+      # No need to install clang or the rest of LLVM here.
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y ninja-build cmake
+
       - name: Install build prerequisites
         shell: bash
         run: |

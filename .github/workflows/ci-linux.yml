@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   build:
-    name: build ➤ ${{ matrix.distro.name }} • ${{ matrix.compiler }}
+    name: build | ${{ matrix.distro.name }} - ${{ matrix.compiler }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -30,132 +30,29 @@ jobs:
       matrix:
         compiler: [gcc, clang]
         distro:
-          - { name: debian-bullseye, image: debian:11, needs_cmake: true }
-          - { name: debian-bookworm, image: debian:12, needs_cmake: false }
-          - { name: ubuntu-jammy, image: ubuntu:22.04, needs_cmake: true }
-          - { name: ubuntu-noble, image: ubuntu:24.04, needs_cmake: false }
+          - { name: debian-bullseye, image: debian:11, needs_cmake: "true" }
+          - { name: debian-bookworm, image: debian:12, needs_cmake: "false" }
+          - { name: ubuntu-jammy, image: ubuntu:22.04, needs_cmake: "true" }
+          - { name: ubuntu-noble, image: ubuntu:24.04, needs_cmake: "false" }
 
     env:
-      #SCCACHE_GHA_ENABLED: ${{ matrix.compiler == 'clang' && 'true' || 'false' }}
-      #SCCACHE_CACHE_SIZE: "2G"
-      # unique cache per OS+compiler
-      #SCCACHE_GHA_CACHE_NAME: ${{ matrix.distro.name }}-${{ matrix.compiler }}
       CMAKE_BUILD_PARALLEL_LEVEL: 4
 
     steps:
-      # Containers don't include git; checkout runs inside the container
-      - name: Install git for checkout
-        shell: bash
-        run: |
-          set -euxo pipefail
-          export DEBIAN_FRONTEND=noninteractive
-          apt-get -o Acquire::Retries=3 update
-          apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends git ca-certificates
-
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Install build prerequisites
-        shell: bash
-        run: |
-          set -euxo pipefail
-          export DEBIAN_FRONTEND=noninteractive
-
-          pkgs=(build-essential ninja-build pkg-config cmake zlib1g-dev libfmt-dev libopengl-dev wget)
-          if [ "${{ matrix.compiler }}" = "clang" ]; then
-            pkgs+=(clang lldb)
-          fi
-
-          apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends "${pkgs[@]}" || true
-
-          # LLDB dev headers (name varies by distro)
-          if ! apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends liblldb-dev ; then
-            alt="$(apt-cache search -n '^liblldb-[0-9]+-dev$' | awk '{print $1}' | sort -V | tail -n1 || true)"
-            if [ -n "$alt" ]; then
-              apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends "$alt"
-            else
-              echo "No liblldb-*-dev found; continuing without LLDB dev headers."
-            fi
-          fi
-
-          # Optional GL/X11 bits (best-effort)
-          if ! apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends \
-                libgl1-mesa-dev libx11-dev libxrandr-dev libxinerama-dev libxi-dev libxcursor-dev \
-                libglfw3-dev; then
-            echo "Optional GL/GLFW not available; continuing."
-          fi
-
-          # Speed up: avoid building these from source
-          apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends \
-            libfmt-dev libimgui-dev libcxxopts-dev || true
-
-          apt-get clean && rm -rf /var/lib/apt/lists/*
-
-      # Upgrade CMake only on bullseye (3.18 < 3.20); action adds cmake/ctest to PATH
-      - name: Setup CMake (3.28.x on bullseye)
-        if: ${{ matrix.distro.needs_cmake }}
-        uses: jwlawson/actions-setup-cmake@v2
+      # run our custom github action for setting up the lldbg build environment
+      - uses: ./.github/actions/setup-linux-build-container
         with:
-          cmake-version: "3.28.x"
-
-      - name: Show CMake version
-        run: cmake --version
-
-      # Compiler cache
-      #- name: Set up sccache
-      #  uses: mozilla-actions/sccache-action@v0.0.9
-
-      #- name: Start sccache (early) and show status
-      #  shell: bash
-      #  run: |
-      #    set -eux
-      #    sccache --start-server || true
-      #    sccache --zero-stats || true
-      #    sccache --show-stats || true
-      #  env:
-      #    SCCACHE_LOG: warn
-
-      # Choose toolchain for the build
-      - name: Select compiler
-        shell: bash
-        run: |
-          set -eux
-          if [ "${{ matrix.compiler }}" = "clang" ]; then
-            echo "CC=clang" >> "$GITHUB_ENV"
-            echo "CXX=clang++" >> "$GITHUB_ENV"
-          else
-            echo "CC=gcc" >> "$GITHUB_ENV"
-            echo "CXX=g++" >> "$GITHUB_ENV"
-          fi
-
-      - name: Show Presets header
-        run: |
-          echo "---- CMakePresets.json (top) ----"
-          head -n 20 CMakePresets.json || true
-          echo "---------------------------------"
-          cmake --version
-
-      - name: Install mold (fast linker)
-        uses: rui314/setup-mold@v1
-        with:
-          mold-version: 2.40.4
-          make-default: false
+          compiler: ${{ matrix.compiler }}
+          update_cmake: ${{ matrix.distro.needs_cmake }}
 
       - name: Configure
-        #env:
-        #  CMAKE_C_COMPILER_LAUNCHER: sccache
-        #  CMAKE_CXX_COMPILER_LAUNCHER: sccache
         shell: bash
         run: cmake --preset ci
 
       - name: Build
         run: cmake --build --preset ci
-
-      - name: Test
-        run: ctest --preset ci --output-on-failure
-
-      #- name: sccache stats
-      #  if: always()
-      #  run: sccache --show-stats || true
