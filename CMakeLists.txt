@@ -62,6 +62,26 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE "Debug")
 endif()
 
+# Turn this on per-build (e.g., -DEXPOSE_COMPILE_COMMANDS=ON).
+option(EXPOSE_COMPILE_COMMANDS "Expose compile_commands.json at repo root" OFF)
+
+if(EXPOSE_COMPILE_COMMANDS)
+  # Ensure the file is generated in the build dir.
+  set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE BOOL "" FORCE)
+
+  # Create/update a link (or copy on platforms that can't symlink).
+  add_custom_target(
+    expose-compile-commands ALL
+    COMMAND
+      ${CMAKE_COMMAND} -Dsrc=${CMAKE_BINARY_DIR}/compile_commands.json
+      -Ddst=${CMAKE_SOURCE_DIR}/compile_commands.json -P
+      ${CMAKE_SOURCE_DIR}/cmake/ExposeCompileCommands.cmake
+    BYPRODUCTS ${CMAKE_SOURCE_DIR}/compile_commands.json
+    COMMENT
+      "Exposing compile_commands.json at project root (symlink if possible)"
+    VERBATIM)
+endif()
+
 include(cmake/Warnings.cmake)
 include(cmake/LLDBGDeps.cmake)
 
@@ -125,4 +145,3 @@ option(LLDBG_BUILD_TESTS "Build unit tests" ON)
 if(LLDBG_BUILD_TESTS)
   add_subdirectory(test)
 endif()
-
