@@ -31,7 +31,7 @@ jobs:
         distro:
           - { name: debian-bullseye, image: debian:11, needs_cmake: true }
           - { name: debian-bookworm, image: debian:12, needs_cmake: false }
-          - { name: ubuntu-jammy, image: ubuntu:22.04, needs_cmake: false }
+          - { name: ubuntu-jammy, image: ubuntu:22.04, needs_cmake: true }
           - { name: ubuntu-noble, image: ubuntu:24.04, needs_cmake: false }
 
     env:
