@@ -1,7 +1,8 @@
-## clang-format and clang-tidy
+# Code Quality (clang-format / clang-tidy)
 
-Standard versions of of clang-format and clang-tidy are used both in local pre-commit checks as well as on the CI pipeline.
-The current versions are:
+You can use whatever versions of clang-format / clang-tidy you like, or none at all.
+However, the CI pipeline will strictly enforce that both format/tidy pass.
+The standard versions of of clang-format and clang-tidy for the pipeline are:
  - clang-format: 21.1.2
  - clang-tidy: 21.1.1
 
@@ -22,3 +23,7 @@ pipx runs the official wheels and keeps them isolated from your Python/site-pack
 python3 -m venv .venv && source .venv/bin/activate
 python -m pip install "clang-format==21.1.2" "clang-tidy==21.1.1"
 ```
+
+# Tests
+
+There are curently no unit/integration tests, though hopefully that will change soon.
