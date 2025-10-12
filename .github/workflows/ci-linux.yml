@@ -26,6 +26,7 @@ jobs:
 
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         compiler: [gcc, clang]
         distro:
@@ -39,6 +40,7 @@ jobs:
       SCCACHE_CACHE_SIZE: "2G"
       # unique cache per OS+compiler
       SCCACHE_GHA_CACHE_NAME: ${{ matrix.distro.name }}-${{ matrix.compiler }}
+      CMAKE_BUILD_PARALLEL_LEVEL: 1
 
     steps:
       # Containers don't include git; checkout runs inside the container
@@ -149,7 +151,7 @@ jobs:
         run: cmake --build --preset ci
 
       - name: Test
-        run: ctest --preset ci --output-on-failure -j"$(nproc)"
+        run: ctest --preset ci --output-on-failure
 
       - name: sccache stats
         if: always()
