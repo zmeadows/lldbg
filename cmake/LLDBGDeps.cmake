@@ -1,4 +1,3 @@
-# cmake/LLDBGDeps.cmake
 # Central dependency resolution for lldbg.
 # Prefers system packages;
 #   falls back to vendored FetchContent with pinned versions.
@@ -8,7 +7,7 @@ option(LLDBG_USE_SYSTEM_DEPS "Prefer system packages over vendored sources" ON)
 # ---- Version pins (adjust here) ----------------------------------------------
 set(LLDBG_PIN_FMT "9.1.0")
 set(LLDBG_PIN_GLFW "3.3.8")
-set(LLDBG_PIN_GLEW "b51c5193091d48203da8b6e1ed70e6d468bcb532")
+set(LLDBG_PIN_GLAD "v0.1.36")
 set(LLDBG_PIN_IMGUIFILEDIALOG "v0.6.8")
 set(LLDBG_PIN_CXXOPTS "v3.1.1")
 
@@ -76,88 +75,56 @@ endif()
 set(OpenGL_GL_PREFERENCE "GLVND")
 find_package(OpenGL REQUIRED) # provides OpenGL::GL
 
-# ---- GLEW -------------------------------------------------------------------
+# ---- GLAD -------------------------------------------------------------------
+# Try system GLAD first (Config or pkg-config), otherwise FetchContent.
+set(_lldbg_have_glad_target FALSE)
 if(LLDBG_USE_SYSTEM_DEPS)
-  # Prefer a packaged GLEW; normalize to GLEW::GLEW if possible
-  find_package(GLEW QUIET)
+  # Config package (vcpkg/homebrew/etc.) typically exports glad::glad
+  find_package(glad CONFIG QUIET)
+  if(TARGET glad::glad)
+    set(_lldbg_have_glad_target TRUE)
+  elseif(TARGET glad)
+    add_library(glad::glad ALIAS glad)
+    set(_lldbg_have_glad_target TRUE)
+  endif()
 
-  # Case 1: package already exports GLEW::GLEW (Config package)
-  if(TARGET GLEW::GLEW)
-    set(_lldbg_have_glew_target TRUE)
-
-    # Case 2: some packages export glew_s or libglew_static
-  elseif(TARGET glew_s)
-    add_library(GLEW::GLEW ALIAS glew_s)
-    set(_lldbg_have_glew_target TRUE)
-  elseif(TARGET libglew_static)
-    add_library(GLEW::GLEW ALIAS libglew_static)
-    set(_lldbg_have_glew_target TRUE)
-
-    # Case 3: classic FindGLEW with only variables; wrap into an imported target
-  elseif(
-    GLEW_FOUND
-    OR GLEW_LIBRARIES
-    OR GLEW_LIBRARY
-    OR GLEW_LIBRARY_RELEASE)
-    set(_GLEW_LIBS "${GLEW_LIBRARIES}")
-    if(NOT _GLEW_LIBS)
-      if(GLEW_LIBRARY_RELEASE)
-        set(_GLEW_LIBS "${GLEW_LIBRARY_RELEASE}")
-      elseif(GLEW_LIBRARY)
-        set(_GLEW_LIBS "${GLEW_LIBRARY}")
+  if(NOT _lldbg_have_glad_target)
+    find_package(PkgConfig QUIET)
+    if(PKG_CONFIG_FOUND)
+      pkg_check_modules(
+        GLAD
+        IMPORTED_TARGET
+        QUIET
+        glad)
+      if(TARGET PkgConfig::GLAD)
+        add_library(glad::glad ALIAS PkgConfig::GLAD)
+        set(_lldbg_have_glad_target TRUE)
       endif()
     endif()
-    add_library(GLEW::GLEW INTERFACE IMPORTED)
-    if(_GLEW_LIBS)
-      set_target_properties(GLEW::GLEW PROPERTIES INTERFACE_LINK_LIBRARIES
-                                                  "${_GLEW_LIBS}")
-    endif()
-    if(GLEW_INCLUDE_DIRS)
-      set_target_properties(GLEW::GLEW PROPERTIES INTERFACE_INCLUDE_DIRECTORIES
-                                                  "${GLEW_INCLUDE_DIRS}")
-    elseif(GLEW_INCLUDE_DIR)
-      set_target_properties(GLEW::GLEW PROPERTIES INTERFACE_INCLUDE_DIRECTORIES
-                                                  "${GLEW_INCLUDE_DIR}")
-    endif()
-    set(_lldbg_have_glew_target TRUE)
   endif()
 endif()
 
-if(NOT TARGET GLEW::GLEW)
-  message(STATUS "[deps] Fetching GLEW (cmake wrapper)")
-  # Use the CMake-ified wrapper; exports glew_s/libglew_static
+if(NOT _lldbg_have_glad_target)
   lldbg_fetchcontent_declare(
-    glew
-    GIT_REPOSITORY https://github.com/Perlmint/glew-cmake.git
-    GIT_TAG ${LLDBG_PIN_GLEW_CMAKE_COMMIT}
+    glad
+    GIT_REPOSITORY https://github.com/Dav1dde/glad.git
+    GIT_TAG ${LLDBG_PIN_GLAD}
             GIT_SHALLOW
             TRUE
             GIT_PROGRESS
             TRUE
             UPDATE_DISCONNECTED
             TRUE)
+  FetchContent_MakeAvailable(glad)
 
-  set(BUILD_UTILS OFF CACHE BOOL "" FORCE)
-  set(glew-cmake_BUILD_SHARED OFF CACHE BOOL "" FORCE)
-  set(glew-cmake_BUILD_STATIC ON CACHE BOOL "" FORCE)
-
-  FetchContent_MakeAvailable(glew)
-
-  if(TARGET glew_s AND NOT TARGET GLEW::GLEW)
-    add_library(GLEW::GLEW ALIAS glew_s)
-  elseif(TARGET libglew_static AND NOT TARGET GLEW::GLEW)
-    add_library(GLEW::GLEW ALIAS libglew_static)
+  if(TARGET glad)
+    add_library(glad::glad ALIAS glad)
+  elseif(NOT TARGET glad::glad)
+    message(
+      FATAL_ERROR
+        "GLAD fetched but no known target to alias (expected 'glad' or 'glad::glad')."
+    )
   endif()
-
-  # Provide a consistent variable for any downstream scripts that expect it
-  set(GLEW_LIBRARIES GLEW::GLEW CACHE STRING "GLEW link shim" FORCE)
-
-  # Clean up FindGLEW cache vars that can confuse future runs
-  unset(GLEW_LIBRARY CACHE)
-  unset(GLEW_LIBRARY_DEBUG CACHE)
-  unset(GLEW_LIBRARY_RELEASE CACHE)
-  unset(GLEW_INCLUDE_DIR CACHE)
-  unset(GLEW_INCLUDE_DIRS CACHE)
 endif()
 
 # ---- Dear ImGui -------------------------------------------------------------
@@ -229,8 +196,27 @@ if(NOT TARGET imgui::imgui)
     find_package(OpenGL QUIET)
   endif()
 
-  target_link_libraries(imgui PUBLIC glfw OpenGL::GL ${CMAKE_DL_LIBS})
-  target_compile_definitions(imgui PUBLIC IMGUI_DEFINE_MATH_OPERATORS)
+  # --- GLAD integration for vendored ImGui backends ---
+  # Require glad::glad to be defined earlier (system or FetchContent)
+  if(NOT TARGET glad::glad)
+    message(
+      FATAL_ERROR
+        "glad::glad not found. Define GLAD before ImGui in LLDBGDeps.cmake.")
+  endif()
+
+  # Use GLAD as the OpenGL loader for ImGui's OpenGL3 backend,
+  # and stop GLFW from pulling in a GL header first.
+  target_compile_definitions(
+    imgui PUBLIC IMGUI_DEFINE_MATH_OPERATORS IMGUI_IMPL_OPENGL_LOADER_GLAD
+                 GLFW_INCLUDE_NONE)
+
+  # Link GLAD so its headers are visible while compiling the backends
+  target_link_libraries(
+    imgui
+    PUBLIC glfw
+           OpenGL::GL
+           glad::glad
+           ${CMAKE_DL_LIBS})
 
   # QUIET the library's own compilation warnings (Clang/GCC/MSVC)
   target_compile_options(
