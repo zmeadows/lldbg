@@ -60,9 +60,8 @@ jobs:
         run: |
           set -euxo pipefail
           export DEBIAN_FRONTEND=noninteractive
-          apt-get -o Acquire::Retries=3 update
 
-          pkgs=(build-essential ninja-build pkg-config cmake zlib1g-dev libfmt-dev)
+          pkgs=(build-essential ninja-build pkg-config cmake zlib1g-dev libfmt-dev python3 python3-pip)
           if [ "${{ matrix.compiler }}" = "clang" ]; then
             pkgs+=(clang lldb)
           fi
@@ -70,6 +69,7 @@ jobs:
           pkgs+=(lld)
 
           apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends "${pkgs[@]}" || true
+          python3 -m pip install --user glad
 
           # LLDB dev headers (name varies by distro)
           if ! apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends liblldb-dev ; then
@@ -147,7 +147,7 @@ jobs:
             -DCMAKE_MODULE_LINKER_FLAGS="-fuse-ld=lld"
 
       - name: Build
-        run: cmake --build --preset ci -- -j"$(nproc)"
+        run: cmake --build --preset ci
 
       - name: Test
         run: ctest --preset ci --output-on-failure -j"$(nproc)"
