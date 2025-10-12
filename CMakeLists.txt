@@ -49,27 +49,6 @@ add_library(lldbgui_lib ${LLDBGUI_SOURCES})
 #   )
 # endif()
 
-find_program(MOLD mold)
-find_program(LLD ld.lld)
-if(MOLD)
-  target_link_options(
-    lldbgui_lib
-    BEFORE
-    PUBLIC
-    -fuse-ld=mold)
-  message(STATUS "Linker: mold")
-elseif(LLD)
-  target_link_options(
-    lldbgui_lib
-    BEFORE
-    PUBLIC
-    -fuse-ld=lld)
-  message(STATUS "Linker: lld")
-else()
-  message(
-    WARNING "Fast linker not found; using default (ld.bfd). Expect slow links.")
-endif()
-
 # Create the lldbgui executable with main.cpp
 add_executable(lldbgui ${CMAKE_SOURCE_DIR}/src/main.cpp)
 target_link_libraries(lldbgui PRIVATE lldbgui_lib)

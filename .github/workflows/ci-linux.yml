@@ -36,10 +36,10 @@ jobs:
           - { name: ubuntu-noble, image: ubuntu:24.04, needs_cmake: false }
 
     env:
-      SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_CACHE_SIZE: "2G"
+      #SCCACHE_GHA_ENABLED: ${{ matrix.compiler == 'clang' && 'true' || 'false' }}
+      #SCCACHE_CACHE_SIZE: "2G"
       # unique cache per OS+compiler
-      SCCACHE_GHA_CACHE_NAME: ${{ matrix.distro.name }}-${{ matrix.compiler }}
+      #SCCACHE_GHA_CACHE_NAME: ${{ matrix.distro.name }}-${{ matrix.compiler }}
       CMAKE_BUILD_PARALLEL_LEVEL: 4
 
     steps:
@@ -63,12 +63,10 @@ jobs:
           set -euxo pipefail
           export DEBIAN_FRONTEND=noninteractive
 
-          pkgs=(build-essential ninja-build pkg-config cmake zlib1g-dev libfmt-dev libopengl-dev)
+          pkgs=(build-essential ninja-build pkg-config cmake zlib1g-dev libfmt-dev libopengl-dev wget)
           if [ "${{ matrix.compiler }}" = "clang" ]; then
             pkgs+=(clang lldb)
           fi
-          # lld/mold work for both gcc and clang; install unconditionally (ignore if missing)
-          pkgs+=(lld)
 
           apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends "${pkgs[@]}" || true
 
@@ -106,18 +104,18 @@ jobs:
         run: cmake --version
 
       # Compiler cache
-      - name: Set up sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+      #- name: Set up sccache
+      #  uses: mozilla-actions/sccache-action@v0.0.9
 
-      - name: Start sccache (early) and show status
-        shell: bash
-        run: |
-          set -eux
-          sccache --start-server || true
-          sccache --zero-stats || true
-          sccache --show-stats || true
-        env:
-          SCCACHE_LOG: warn
+      #- name: Start sccache (early) and show status
+      #  shell: bash
+      #  run: |
+      #    set -eux
+      #    sccache --start-server || true
+      #    sccache --zero-stats || true
+      #    sccache --show-stats || true
+      #  env:
+      #    SCCACHE_LOG: warn
 
       # Choose toolchain for the build
       - name: Select compiler
@@ -139,10 +137,16 @@ jobs:
           echo "---------------------------------"
           cmake --version
 
+      - name: Install mold (fast linker)
+        uses: rui314/setup-mold@v1
+        with:
+          mold-version: 2.40.4
+          make-default: false
+
       - name: Configure
-        env:
-          CMAKE_C_COMPILER_LAUNCHER: sccache
-          CMAKE_CXX_COMPILER_LAUNCHER: sccache
+        #env:
+        #  CMAKE_C_COMPILER_LAUNCHER: sccache
+        #  CMAKE_CXX_COMPILER_LAUNCHER: sccache
         shell: bash
         run: cmake --preset ci
 
@@ -152,6 +156,6 @@ jobs:
       - name: Test
         run: ctest --preset ci --output-on-failure
 
-      - name: sccache stats
-        if: always()
-        run: sccache --show-stats || true
+      #- name: sccache stats
+      #  if: always()
+      #  run: sccache --show-stats || true
