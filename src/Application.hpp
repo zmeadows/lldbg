@@ -19,9 +19,13 @@
 #include "imgui_impl_opengl3.h"
 // clang-format on
 
-#include <glad/glad.h>
-
 #include <GLFW/glfw3.h>
+
+#if defined(__APPLE__)
+#include <OpenGL/gl3.h>
+#else
+#include <GL/gl.h>
+#endif
 
 // TODO: this struct doesn't need to be publically exposed
 struct UserInterface {

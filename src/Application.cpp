@@ -1500,11 +1500,6 @@ std::optional<UserInterface> UserInterface::init(void) {
   glfwMakeContextCurrent(ui.window);
   glfwSwapInterval(0); // disable vsync
 
-  if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
-    fprintf(stderr, "Failed to initialize GLAD\n");
-    return {};
-  }
-
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
   ImGuiIO &io = ImGui::GetIO();
