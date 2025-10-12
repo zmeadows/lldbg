@@ -1,0 +1,80 @@
+name: "Setup Linux Build Container"
+description: "Setup a linux container with all system packages required to build lldbg."
+inputs:
+  compiler:
+    description: "compiler to use for cmake build"
+    required: false
+    default: "clang"
+  update_cmake:
+    description: "update cmake for older linux images"
+    required: false
+    default: "false"
+runs:
+  using: "composite"
+
+  steps:
+    - name: "Echo Inputs"
+      shell: bash
+      run: |
+        echo "compiler: ${{ inputs.compiler }}"
+        echo "update_cmake: ${{ inputs.update_cmake }}"
+
+    - name: Install Build Dependencies
+      shell: bash
+      run: |
+        set -euxo pipefail
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get -o Acquire::Retries=3 update
+        apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends git ca-certificates
+
+        pkgs=(build-essential ninja-build pkg-config cmake zlib1g-dev libfmt-dev libopengl-dev wget)
+        if [ "${{ inputs.compiler }}" = "clang" ]; then
+          pkgs+=(clang)
+        fi
+
+        apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends "${pkgs[@]}" || true
+
+        if ! apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends liblldb-dev ; then
+          alt="$(apt-cache search -n '^liblldb-[0-9]+-dev$' | awk '{print $1}' | sort -V | tail -n1 || true)"
+          if [ -n "$alt" ]; then
+            apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends "$alt"
+          else
+            echo "No liblldb-*-dev found; continuing without LLDB dev headers."
+          fi
+        fi
+
+        if ! apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends \
+              libgl1-mesa-dev libx11-dev libxrandr-dev libxinerama-dev libxi-dev libxcursor-dev \
+              libglfw3-dev; then
+          echo "Optional GL/GLFW not available; continuing."
+        fi
+
+        # Speed up: avoid building these from source if possible
+        apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends \
+          libfmt-dev libimgui-dev libcxxopts-dev || true
+
+        apt-get clean && rm -rf /var/lib/apt/lists/*
+
+    - name: Update CMake
+      if: ${{ inputs.update_cmake == 'true' }}
+      uses: jwlawson/actions-setup-cmake@v2
+      with:
+        cmake-version: "3.28.x"
+
+    - name: Select Compiler # specify toolchain for the build
+      shell: bash
+      run: |
+        set -eux
+        if [ "${{ inputs.compiler }}" = "clang" ]; then
+          echo "CC=clang" >> "$GITHUB_ENV"
+          echo "CXX=clang++" >> "$GITHUB_ENV"
+        else
+          echo "CC=gcc" >> "$GITHUB_ENV"
+          echo "CXX=g++" >> "$GITHUB_ENV"
+        fi
+
+    - name: Install mold # fast linker
+      uses: rui314/setup-mold@v1
+      with:
+        mold-version: 2.40.4
+        make-default: false
