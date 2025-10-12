@@ -41,10 +41,41 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # We just need CMake+Ninja to generate compile_commands.json.
-      # No need to install clang or the rest of LLVM here.
-      - name: Install build tools
-        run: sudo apt-get update && sudo apt-get install -y ninja-build cmake
+      - name: Install build prerequisites
+        shell: bash
+        run: |
+          set -euxo pipefail
+          export DEBIAN_FRONTEND=noninteractive
+
+          pkgs=(build-essential ninja-build pkg-config cmake zlib1g-dev libfmt-dev libopengl-dev wget)
+          if [ "${{ matrix.compiler }}" = "clang" ]; then
+            pkgs+=(clang lldb)
+          fi
+
+          apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends "${pkgs[@]}" || true
+
+          # LLDB dev headers (name varies by distro)
+          if ! apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends liblldb-dev ; then
+            alt="$(apt-cache search -n '^liblldb-[0-9]+-dev$' | awk '{print $1}' | sort -V | tail -n1 || true)"
+            if [ -n "$alt" ]; then
+              apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends "$alt"
+            else
+              echo "No liblldb-*-dev found; continuing without LLDB dev headers."
+            fi
+          fi
+
+          # Optional GL/X11 bits (best-effort)
+          if ! apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends \
+                libgl1-mesa-dev libx11-dev libxrandr-dev libxinerama-dev libxi-dev libxcursor-dev \
+                libglfw3-dev; then
+            echo "Optional GL/GLFW not available; continuing."
+          fi
+
+          # Speed up: avoid building these from source
+          apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends \
+            libfmt-dev libimgui-dev libcxxopts-dev || true
+
+          apt-get clean && rm -rf /var/lib/apt/lists/*
 
       - uses: actions/setup-python@v5
         with:
