@@ -16,7 +16,7 @@ LLDBCommandLine::LLDBCommandLine(lldb::SBDebugger& debugger)
 lldb::SBCommandReturnObject
 LLDBCommandLine::run_command(const char* command, bool hide_from_history)
 {
-    if (!command)
+    if (command == nullptr)
     {
         LOG(Warning) << "Attempted to run empty command!";
         auto ret = lldb::SBCommandReturnObject();
@@ -30,7 +30,7 @@ LLDBCommandLine::run_command(const char* command, bool hide_from_history)
     lldb::SBCommandReturnObject ret;
     m_interpreter.HandleCommand(command, ret);
 
-    if (ret.GetOutput())
+    if (ret.GetOutput() != nullptr)
     {
         entry.output = std::string(ret.GetOutput());
     }
@@ -39,7 +39,7 @@ LLDBCommandLine::run_command(const char* command, bool hide_from_history)
 
     if (!entry.succeeded)
     {
-        if (ret.GetError())
+        if (ret.GetError() != nullptr)
         {
             entry.error_msg = std::string(ret.GetError());
         }
@@ -59,7 +59,7 @@ LLDBCommandLine::run_command(const char* command, bool hide_from_history)
 
 std::optional<std::string> LLDBCommandLine::expand_and_unalias_command(const char* command)
 {
-    if (!command)
+    if (command == nullptr)
     {
         LOG(Warning) << "Attempted to expand/unalias empty command!";
         return {};
@@ -69,7 +69,7 @@ std::optional<std::string> LLDBCommandLine::expand_and_unalias_command(const cha
     m_interpreter.ResolveCommand(command, ret);
 
     const char* output = ret.GetOutput();
-    if (ret.Succeeded() && output)
+    if (ret.Succeeded() && output != nullptr)
     {
         return std::string(output);
     }

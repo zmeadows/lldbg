@@ -1,39 +1,44 @@
 #pragma once
 
-#include "lldb/API/LLDB.h"
+#include "lldb/API/LLDB.h" // IWYU pragma: keep
+
+#include <cstdint>
+#include <string>
+#include <string_view>
 
 class StreamBuffer
 {
   public:
-    enum class StreamSource
+    enum class StreamSource : std::uint8_t
     {
         StdOut,
         StdErr
     };
 
-    void update(lldb::SBProcess process);
-    inline const char* get(void) const
-    {
-        return m_data;
-    }
-    void clear(void);
-    inline size_t size(void) const
-    {
-        return m_offset;
-    }
+    explicit StreamBuffer(StreamSource source);
 
-    StreamBuffer(StreamSource source);
-    ~StreamBuffer(void);
+    void update(const lldb::SBProcess& process);
 
-    StreamBuffer(const StreamBuffer&) = delete;
-    StreamBuffer& operator=(const StreamBuffer&) = delete;
-    StreamBuffer& operator=(StreamBuffer&&) = delete;
+    void clear()
+    {
+        m_buf.clear();
+    }
+    [[nodiscard]] const char* get() const
+    {
+        return m_buf.c_str();
+    }
+    [[nodiscard]] std::string_view view() const
+    {
+        return m_buf;
+    }
+    [[nodiscard]] std::size_t size() const
+    {
+        return m_buf.size();
+    }
 
   private:
-    size_t m_offset;
-    size_t m_capacity;
-    char* m_data;
-    const StreamSource m_source; // TODO: switch this to template parameter
+    std::string m_buf;           // owns the bytes; always NUL-terminated via c_str()
+    const StreamSource m_source; // TODO: maybe a template param later
 
-    static const size_t MAX_CAPACITY = static_cast<size_t>(2e9);
+    static constexpr std::size_t MAX_CAPACITY = static_cast<std::size_t>(2e9);
 };

@@ -4,7 +4,6 @@
 // Copyright (c) 2024 Yigithan Yigit
 #include "FileSystem.hpp"
 
-#include <cctype>
 #include <list>
 #include <string>
 
@@ -16,8 +15,8 @@
 class ConfigParser
 {
   public:
-    typedef std::map<std::string, std::string> Section;
-    typedef std::map<std::string, Section> Config;
+    using Section = std::map<std::string, std::string>;
+    using Config = std::map<std::string, Section>;
 
     Config config;
     std::list<std::string> errors;
@@ -31,7 +30,7 @@ class ConfigParser
     static inline const std::string char_interpol_sep = ":";
     static inline const std::string char_interpol_end = "}";
 
-    ConfigParser(void) = default;
+    ConfigParser() = default;
 
     void parse(const FileHandle file);
     void serialize(const FileHandle file);

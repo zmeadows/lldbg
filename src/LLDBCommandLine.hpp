@@ -1,6 +1,6 @@
 #pragma once
 
-#include "lldb/API/LLDB.h"
+#include "lldb/API/LLDB.h" // IWYU pragma: keep
 
 #include <optional>
 #include <string>
@@ -22,13 +22,13 @@ class LLDBCommandLine
     std::vector<CommandLineEntry> m_history;
 
   public:
-    LLDBCommandLine(lldb::SBDebugger& debugger);
+    explicit LLDBCommandLine(lldb::SBDebugger& debugger);
 
     lldb::SBCommandReturnObject run_command(const char* command, bool hide_from_history = false);
     std::optional<std::string> expand_and_unalias_command(const char* command);
 
     // TODO: for_each_history_entry
-    const std::vector<CommandLineEntry>& get_history() const
+    [[nodiscard]] const std::vector<CommandLineEntry>& get_history() const
     {
         return m_history;
     }

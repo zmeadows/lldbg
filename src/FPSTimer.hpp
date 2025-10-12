@@ -7,29 +7,24 @@ using namespace std::chrono;
 
 class FPSTimer
 {
-    using Clock = std::conditional<
+    using Clock = std::conditional_t<
         high_resolution_clock::is_steady, high_resolution_clock,
-        std::conditional<
-            system_clock::period::den <= steady_clock::period::den, system_clock,
-            steady_clock>::type>::type;
+        std::conditional_t<
+            system_clock::period::den <= steady_clock::period::den, system_clock, steady_clock>>;
 
     Clock::time_point m_second_start;
     Clock::time_point m_last_frame_end;
-    size_t m_frames_this_second;
-    float m_fps;
+    size_t m_frames_this_second = 0;
+    float m_fps = 0.;
 
   public:
-    FPSTimer(void)
-        : m_second_start(Clock::now()), m_last_frame_end(m_second_start), m_frames_this_second(0),
-          m_fps(0.f)
-    {
-    }
+    FPSTimer() : m_second_start(Clock::now()), m_last_frame_end(m_second_start) {}
 
-    void frame_end(void)
+    void frame_end()
     {
         m_last_frame_end = Clock::now();
 
-        if (duration_cast<microseconds>(m_last_frame_end - m_second_start).count() >= 1e6)
+        if (duration_cast<microseconds>(m_last_frame_end - m_second_start).count() >= long(1e6))
         {
             m_fps = static_cast<float>(m_frames_this_second);
             m_frames_this_second = 0;
@@ -41,7 +36,7 @@ class FPSTimer
         }
     }
 
-    inline float current_fps(void)
+    inline float current_fps()
     {
         return m_fps;
     }

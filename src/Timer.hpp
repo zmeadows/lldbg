@@ -10,7 +10,7 @@ class Timer final
     const Time start;
 
   public:
-    uint64_t elapsed_ns(void)
+    uint64_t elapsed_ns()
     {
         const Time stop = Clock::now();
         auto d = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);

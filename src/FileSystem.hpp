@@ -1,20 +1,15 @@
 #pragma once
 
 #include "Log.hpp"
-#include "lldb/API/LLDB.h"
+#include "lldb/API/LLDB.h" // IWYU pragma: keep
 
 #include <algorithm>
-#include <assert.h>
+#include <cassert>
 #include <filesystem>
-#include <fstream>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <optional>
-#include <set>
-#include <unordered_map>
-#include <unordered_set>
-#include <variant>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -32,16 +27,16 @@ class FileHandle
     static std::map<size_t, std::vector<std::string>> s_contents_cache;
     static std::mutex s_mutex; // all static std::map access must be thread-safe
 
-    FileHandle(size_t h) : m_hash(h) {}
+    explicit FileHandle(size_t h) : m_hash(h) {}
 
   public:
-    FileHandle(void) = delete;
+    FileHandle() = delete;
 
     static std::optional<FileHandle> create(const std::string& filepath);
 
-    const std::vector<std::string>& contents(void);
-    const std::string& filepath(void);
-    const std::string& filename(void);
+    const std::vector<std::string>& contents();
+    const std::string& filepath();
+    const std::string& filename();
 
     inline friend bool operator==(const FileHandle& a, const FileHandle& b)
     {
@@ -67,7 +62,7 @@ class OpenFiles
     void open(FileHandle handle);
     void open(FileHandle handle, size_t linum);
 
-    inline size_t size() const
+    [[nodiscard]] inline size_t size() const
     {
         return m_files.size();
     }
@@ -110,7 +105,7 @@ class OpenFiles
         }
     }
 
-    enum class Action
+    enum class Action : std::uint8_t
     {
         Nothing,
         ChangeFocusTo,
@@ -123,7 +118,9 @@ class OpenFiles
     template <typename Callable> void for_each_open_file(Callable&& f)
     {
         if (m_files.empty())
+        {
             return;
+        }
 
         std::optional<size_t> tab_idx_to_close = {};
         std::optional<size_t> tab_idx_to_focus = {};
@@ -149,9 +146,14 @@ class OpenFiles
         }
 
         if (tab_idx_to_close)
+        {
             this->close(*tab_idx_to_close);
+        }
+
         if (tab_idx_to_focus)
+        {
             m_focus = tab_idx_to_focus;
+        }
     }
 };
 
@@ -164,9 +166,10 @@ class FileBrowserNode
     void open_children();
     std::vector<std::unique_ptr<FileBrowserNode>> m_children;
 
+  public:
     FileBrowserNode() = delete;
 
-    FileBrowserNode(fs::path validated_path)
+    explicit FileBrowserNode(const fs::path& validated_path)
         : m_filepath(fs::canonical(validated_path)), m_filename(m_filepath.filename()),
           m_opened(false)
     {
@@ -175,20 +178,20 @@ class FileBrowserNode
   public:
     static std::unique_ptr<FileBrowserNode> create(std::optional<fs::path> path_request);
 
-    const char* filepath() const
+    [[nodiscard]] const char* filepath() const
     {
         return m_filepath.c_str();
     }
-    const char* filename() const
+    [[nodiscard]] const char* filename() const
     {
         return m_filename.c_str();
     }
-    bool is_directory() const
+    [[nodiscard]] bool is_directory() const
     {
         return fs::is_directory(m_filepath);
     }
 
-    inline const std::vector<std::unique_ptr<FileBrowserNode>>& children(void)
+    inline const std::vector<std::unique_ptr<FileBrowserNode>>& children()
     {
         this->open_children();
         return m_children;

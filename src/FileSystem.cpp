@@ -1,10 +1,10 @@
 #include "FileSystem.hpp"
 
 #include "Log.hpp"
-#include "fmt/format.h"
 
 #include <algorithm>
 #include <cstring>
+#include <fstream>
 #include <optional>
 
 std::map<size_t, std::string> FileHandle::s_filepath_cache;
@@ -55,7 +55,7 @@ std::optional<FileHandle> FileHandle::create(const std::string& filepath)
     return FileHandle(path_hash);
 }
 
-const std::vector<std::string>& FileHandle::contents(void)
+const std::vector<std::string>& FileHandle::contents()
 {
     std::unique_lock<std::mutex> lock(s_mutex);
 
@@ -84,7 +84,7 @@ const std::vector<std::string>& FileHandle::contents(void)
     return insert_iter->second;
 }
 
-const std::string& FileHandle::filepath(void)
+const std::string& FileHandle::filepath()
 {
     std::unique_lock<std::mutex> lock(s_mutex);
     auto it = s_filepath_cache.find(m_hash);
@@ -92,7 +92,7 @@ const std::string& FileHandle::filepath(void)
     return it->second;
 }
 
-const std::string& FileHandle::filename(void)
+const std::string& FileHandle::filename()
 {
     std::unique_lock<std::mutex> lock(s_mutex);
     auto it = s_filename_cache.find(m_hash);
@@ -112,7 +112,7 @@ std::unique_ptr<FileBrowserNode> FileBrowserNode::create(std::optional<fs::path>
                  "working directory";
         }
         const fs::path wd = fs::current_path();
-        return std::unique_ptr<FileBrowserNode>(new FileBrowserNode(wd));
+        return std::make_unique<FileBrowserNode>(wd);
     };
 
     if (!path_request.has_value())
@@ -120,7 +120,7 @@ std::unique_ptr<FileBrowserNode> FileBrowserNode::create(std::optional<fs::path>
         return fallback(false);
     }
 
-    const fs::path relative_path = *path_request;
+    const fs::path& relative_path = *path_request;
 
     if (!fs::exists(relative_path))
     {
@@ -143,7 +143,7 @@ std::unique_ptr<FileBrowserNode> FileBrowserNode::create(std::optional<fs::path>
         return fallback(true);
     }
 
-    return std::unique_ptr<FileBrowserNode>(new FileBrowserNode(canonical_path));
+    return std::make_unique<FileBrowserNode>(canonical_path);
 }
 
 void FileBrowserNode::open_children()
@@ -229,8 +229,9 @@ void OpenFiles::open(FileHandle handle, size_t linum)
 
 void OpenFiles::close(size_t tab_index)
 {
-    m_files.erase(m_files.begin() + tab_index);
-    m_files_linum.erase(m_files_linum.begin() + tab_index);
+    // TODO[@zmeadows][P1]: check for out-of-bounds access
+    m_files.erase(m_files.begin() + long(tab_index));
+    m_files_linum.erase(m_files_linum.begin() + long(tab_index));
 
     if (m_files.empty())
     {
