@@ -7,24 +7,47 @@ include(FindPackageHandleStandardArgs)
 
 # macOS: LLDB.framework (from Xcode / CLT)
 if(APPLE)
-  # find_library returns the framework path when searching for a framework
+  # Determine the selected Developer dir (works with full Xcode and CLT-only)
+  execute_process(COMMAND xcode-select -p OUTPUT_VARIABLE _DEVELOPER_DIR
+                  OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+
+  # Candidate locations across recent Xcode images:
+  # - Xcode 15/16: Developer/Library/PrivateFrameworks
+  # - Older:       SharedFrameworks or Toolchains/.../Library/Frameworks
+  # - CLT-only:    /Library/Developer/CommandLineTools/Library/(Private)Frameworks
+  set(_LLDB_FRAMEWORK_HINTS
+      "/Applications/Xcode.app/Contents/Developer/Library/PrivateFrameworks"
+      "/Applications/Xcode.app/Contents/SharedFrameworks"
+      "${_DEVELOPER_DIR}/Library/PrivateFrameworks"
+      "${_DEVELOPER_DIR}/../SharedFrameworks"
+      "${_DEVELOPER_DIR}/Toolchains/XcodeDefault.xctoolchain/Library/Frameworks"
+      "/Library/Developer/CommandLineTools/Library/PrivateFrameworks"
+      "/Library/Developer/CommandLineTools/Library/Frameworks")
+
+  # Also honor user hints if provided
+  if(DEFINED LLDB_DIR)
+    list(APPEND _LLDB_FRAMEWORK_HINTS "${LLDB_DIR}")
+  endif()
+  if(DEFINED LLVM_DIR)
+    list(APPEND _LLDB_FRAMEWORK_HINTS "${LLVM_DIR}")
+  endif()
+
+  # find_library returns the .framework bundle path for frameworks
   find_library(
     LLDB_FRAMEWORK
     NAMES LLDB
-    PATHS
-      "/Applications/Xcode.app/Contents/SharedFrameworks"
-      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/System/Library/PrivateFrameworks"
-      "/Library/Developer/CommandLineTools/Library/PrivateFrameworks"
+    PATHS ${_LLDB_FRAMEWORK_HINTS}
+    PATH_SUFFIXES "" LLDB.framework
     NO_DEFAULT_PATH)
+
   if(LLDB_FRAMEWORK)
-    if(NOT TARGET lldbg::lldb)
-      add_library(lldbg::lldb INTERFACE IMPORTED)
-      set_target_properties(
-        lldbg::lldb
-        PROPERTIES INTERFACE_LINK_LIBRARIES "${LLDB_FRAMEWORK}"
-                   INTERFACE_INCLUDE_DIRECTORIES "${LLDB_FRAMEWORK}/Headers")
+    set(LLDB_LIBRARY "${LLDB_FRAMEWORK}")
+    # Handle both flat and versioned framework layouts
+    if(EXISTS "${LLDB_FRAMEWORK}/Headers")
+      set(LLDB_INCLUDE_DIR "${LLDB_FRAMEWORK}/Headers")
+    elseif(EXISTS "${LLDB_FRAMEWORK}/Versions/A/Headers")
+      set(LLDB_INCLUDE_DIR "${LLDB_FRAMEWORK}/Versions/A/Headers")
     endif()
-    set(LLDB_FOUND TRUE)
   endif()
 endif()
 
@@ -45,15 +68,26 @@ if(NOT LLDB_FOUND)
     LLDB_INCLUDE_DIR
     NAMES lldb/API/LLDB.h
     HINTS ${_LLDB_HINTS}
-    PATH_SUFFIXES include include/lldb ../include ../include/lldb
-    PATHS /usr/include /usr/local/include /usr/lib/llvm-19/include
-          /usr/lib/llvm-18/include /usr/lib/llvm-17/include
+    PATH_SUFFIXES
+      include
+      include/lldb
+      ../include
+      ../include/lldb
+    PATHS /usr/include
+          /usr/local/include
+          /usr/lib/llvm-19/include
+          /usr/lib/llvm-18/include
+          /usr/lib/llvm-17/include
           /opt/homebrew/opt/llvm/include)
 
   # Likely library locations (names vary by distro/version)
   find_library(
     LLDB_LIBRARY
-    NAMES lldb liblldb lldb-19 lldb-18 lldb-17
+    NAMES lldb
+          liblldb
+          lldb-19
+          lldb-18
+          lldb-17
     HINTS ${_LLDB_HINTS}
     PATH_SUFFIXES lib lib64
     PATHS /usr/lib
