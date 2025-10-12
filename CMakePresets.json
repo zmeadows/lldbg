@@ -55,10 +55,8 @@
         "LLDBG_WITH_IMGUI_DEMO": false,
         "LLDBG_WARN_AS_ERRORS": false,
         "CMAKE_INTERPROCEDURAL_OPTIMIZATION": false,
-        "CMAKE_C_FLAGS_RELWITHDEBINFO": "-O1 -g1 -gsplit-dwarf",
-        "CMAKE_CXX_FLAGS_RELWITHDEBINFO": "-O1 -g1 -gsplit-dwarf",
-        "CMAKE_UNITY_BUILD": true,
-        "CMAKE_UNITY_BUILD_BATCH_SIZE": "8"
+        "CMAKE_C_FLAGS_RELWITHDEBINFO": "-O1 -g1",
+        "CMAKE_CXX_FLAGS_RELWITHDEBINFO": "-O1 -g1"
       }
     }
   ],

@@ -40,7 +40,7 @@ jobs:
       SCCACHE_CACHE_SIZE: "2G"
       # unique cache per OS+compiler
       SCCACHE_GHA_CACHE_NAME: ${{ matrix.distro.name }}-${{ matrix.compiler }}
-      CMAKE_BUILD_PARALLEL_LEVEL: 1
+      CMAKE_BUILD_PARALLEL_LEVEL: 2
 
     steps:
       # Containers don't include git; checkout runs inside the container
@@ -88,6 +88,10 @@ jobs:
                 libglfw3-dev; then
             echo "Optional GL/GLFW not available; continuing."
           fi
+
+          # Speed up: avoid building these from source
+          apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends \
+            libfmt-dev libimgui-dev libcxxopts-dev || true
 
           apt-get clean && rm -rf /var/lib/apt/lists/*
 
