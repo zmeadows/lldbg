@@ -7,7 +7,6 @@ option(LLDBG_USE_SYSTEM_DEPS "Prefer system packages over vendored sources" ON)
 # ---- Version pins (adjust here) ----------------------------------------------
 set(LLDBG_PIN_FMT "9.1.0")
 set(LLDBG_PIN_GLFW "3.3.8")
-set(LLDBG_PIN_GLAD "v0.1.36")
 set(LLDBG_PIN_IMGUIFILEDIALOG "v0.6.8")
 set(LLDBG_PIN_CXXOPTS "v3.1.1")
 
@@ -74,36 +73,6 @@ endif()
 # ------------------------- OpenGL --------------------------------------------
 set(OpenGL_GL_PREFERENCE "GLVND")
 find_package(OpenGL REQUIRED) # provides OpenGL::GL
-
-# ---- GLAD -------------------------------------------------------------------
-# The glad project’s CMake reads these cache vars to drive `python -m glad`.
-# Choose a conservative API that matches your GLFW context (3.2 core).
-set(GLAD_PROFILE "core" CACHE STRING "glad profile")
-set(GLAD_API "gl=3.2" CACHE STRING "glad api (e.g. gl=3.3, gl=4.6)")
-set(GLAD_GENERATOR "c" CACHE STRING "glad generator")
-set(GLAD_SPEC "gl" CACHE STRING "glad spec")
-set(GLAD_EXTENSIONS "" CACHE STRING "comma-separated list or empty")
-
-# Require Python (the repo’s CMake will invoke `${Python3_EXECUTABLE} -m glad`)
-find_package(Python3 COMPONENTS Interpreter REQUIRED)
-
-lldbg_fetchcontent_declare(
-  glad
-  GIT_REPOSITORY https://github.com/Dav1dde/glad.git
-  GIT_TAG ${LLDBG_PIN_GLAD}
-          GIT_SHALLOW
-          TRUE
-          UPDATE_DISCONNECTED
-          TRUE)
-FetchContent_MakeAvailable(
-  glad)
-
-# Normalize target name
-if(TARGET glad)
-  add_library(glad::glad ALIAS glad)
-else()
-  message(FATAL_ERROR "GLAD fetched but target 'glad' not found.")
-endif()
 
 # ---- Dear ImGui -------------------------------------------------------------
 if(LLDBG_USE_SYSTEM_DEPS)
@@ -174,29 +143,12 @@ if(NOT TARGET imgui::imgui)
     find_package(OpenGL QUIET)
   endif()
 
-  # --- GLAD integration for vendored ImGui backends ---
-  # Require glad::glad to be defined earlier (system or FetchContent)
-  if(NOT TARGET glad::glad)
-    message(
-      FATAL_ERROR
-        "glad::glad not found. Define GLAD before ImGui in LLDBGDeps.cmake.")
-  endif()
+  target_compile_definitions(imgui PUBLIC IMGUI_DEFINE_MATH_OPERATORS
+                                          GLFW_INCLUDE_NONE)
 
-  # Use GLAD as the OpenGL loader for ImGui's OpenGL3 backend,
-  # and stop GLFW from pulling in a GL header first.
-  target_compile_definitions(
-    imgui PUBLIC IMGUI_DEFINE_MATH_OPERATORS IMGUI_IMPL_OPENGL_LOADER_GLAD
-                 GLFW_INCLUDE_NONE)
+  target_link_libraries(imgui PUBLIC glfw OpenGL::GL ${CMAKE_DL_LIBS})
 
-  # Link GLAD so its headers are visible while compiling the backends
-  target_link_libraries(
-    imgui
-    PUBLIC glfw
-           OpenGL::GL
-           glad::glad
-           ${CMAKE_DL_LIBS})
-
-  # QUIET the library's own compilation warnings (Clang/GCC/MSVC)
+  # QUIET the library's own compilation warnings...
   target_compile_options(
     imgui
     PRIVATE $<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wno-nontrivial-memcall

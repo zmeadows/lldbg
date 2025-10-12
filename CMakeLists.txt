@@ -65,16 +65,14 @@ add_definitions(-DLLDBG_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets/")
 target_include_directories(lldbgui_lib PUBLIC "${CMAKE_SOURCE_DIR}/src/")
 target_include_directories(lldbgui PUBLIC "${CMAKE_SOURCE_DIR}/src/")
 
-target_compile_definitions(
-  lldbgui_lib PUBLIC IMGUI_DEFINE_MATH_OPERATORS IMGUI_IMPL_OPENGL_LOADER_GLAD
-                     GLFW_INCLUDE_NONE)
+target_compile_definitions(lldbgui_lib PUBLIC IMGUI_DEFINE_MATH_OPERATORS
+                                              GLFW_INCLUDE_NONE)
 
 target_link_libraries(
   lldbgui_lib
   PUBLIC lldbg::lldb
          OpenGL::GL
          glfw
-         glad::glad
          fmt::fmt
          imgui::imgui
          ImGuiFileDialog::ImGuiFileDialog
