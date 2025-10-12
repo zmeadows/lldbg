@@ -1,0 +1,107 @@
+---
+name: ci-macos
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build ➤ ${{ matrix.os }} • apple-clang
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        # macos-13: Intel (x86_64); macos-14: Apple Silicon (arm64)
+        os: [macos-13, macos-14]
+
+    env:
+      LLDBG_USE_SYSTEM_DEPS: "ON"
+      CMAKE_BUILD_PARALLEL_LEVEL: 4
+      CTEST_OUTPUT_ON_FAILURE: "1"
+      CXXFLAGS: "-DGL_SILENCE_DEPRECATION"
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HOMEBREW_NO_INSTALL_CLEANUP: "1"
+      HOMEBREW_NO_ANALYTICS: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Optional: cache Homebrew downloads to speed repeated runs.
+      - name: Cache Homebrew downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/Homebrew
+            /Users/runner/Library/Caches/Homebrew
+          key: brew-${{ runner.os }}-${{ matrix.os }}-${{ hashFiles('.github/workflows/ci-macos.yml') }}
+          restore-keys: |
+            brew-${{ runner.os }}-${{ matrix.os }}-
+
+      - name: Install build prerequisites (Homebrew)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          brew install cmake ninja pkg-config
+          brew install fmt glfw cxxopts
+          # LLDB CMake package is shipped with 'llvm' (no standalone 'lldb' formula)
+          brew install llvm
+
+          # Expose prefixes so CMake can find CONFIG packages deterministically
+          echo "BREW_PREFIX=$(brew --prefix)" >> "$GITHUB_ENV"
+          echo "LLVM_PREFIX=$(brew --prefix llvm)" >> "$GITHUB_ENV"
+          # Prefer the LLVM prefix (contains lib/cmake/{llvm,lldb}); also include the generic brew prefix.
+          echo "CMAKE_PREFIX_PATH=$(brew --prefix llvm):$(brew --prefix)" >> "$GITHUB_ENV"
+          echo "LLVM_DIR=$(brew --prefix llvm)/lib/cmake/llvm" >> "$GITHUB_ENV"
+          echo "LLDB_DIR=$(brew --prefix llvm)/lib/cmake/lldb" >> "$GITHUB_ENV"
+
+      - name: Use AppleClang (match local CMake policy)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          echo "CC=$(xcrun --find clang)"   >> "$GITHUB_ENV"
+          echo "CXX=$(xcrun --find clang++)" >> "$GITHUB_ENV"
+          # Set target arch to match runner (avoids accidental universal/other arch)
+          case "$(uname -m)" in
+            arm64)  echo "CMAKE_OSX_ARCHITECTURES=arm64"  >> "$GITHUB_ENV" ;;
+            x86_64) echo "CMAKE_OSX_ARCHITECTURES=x86_64" >> "$GITHUB_ENV" ;;
+            *)      echo "CMAKE_OSX_ARCHITECTURES=$(uname -m)" >> "$GITHUB_ENV" ;;
+          esac
+
+      - name: Configure
+        shell: bash
+        env:
+          CMAKE_FIND_PACKAGE_PREFER_CONFIG: "ON"
+        run: |
+          set -euxo pipefail
+          cmake --preset ci \
+            -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH" \
+            -DLLVM_DIR="$LLVM_DIR" \
+            -DLLDB_DIR="$LLDB_DIR" \
+            -DCMAKE_C_COMPILER="$CC" \
+            -DCMAKE_CXX_COMPILER="$CXX" \
+            -DCMAKE_OSX_ARCHITECTURES="$CMAKE_OSX_ARCHITECTURES"
+
+      - name: Build
+        shell: bash
+        run: cmake --build --preset ci
+
+      - name: Test
+        shell: bash
+        run: ctest --preset ci --output-on-failure

@@ -204,6 +204,8 @@ if(NOT TARGET cxxopts::cxxopts)
 endif()
 
 # ---------- LLDB discovery (prefer official package config) ----------
+set(CMAKE_FIND_PACKAGE_PREFER_CONFIG ON)
+
 # Hints for users/distros with multiple LLVMs installed:
 set(LLVM_DIR ""
     CACHE PATH
@@ -212,20 +214,67 @@ set(LLDB_DIR ""
     CACHE PATH
           "Path to LLDBConfig.cmake (e.g. /usr/lib/llvm-18/lib/cmake/lldb)")
 
-# 1) Try official config package first
-find_package(LLDB CONFIG QUIET)
-if(NOT LLDB_FOUND)
-  # Some platforms require LLVM to be found first
+# Always prefer official CMake packages if present.
+# (Config mode only; we deliberately do not search MODULEs yet.)
+set(_lldb_try_config TRUE)
+
+# 1) Try LLDB Config directly
+if(_lldb_try_config)
+  find_package(LLDB CONFIG QUIET)
+endif()
+
+# 2) If LLDB not found, some platforms require LLVM found first
+if(NOT LLDB_FOUND AND _lldb_try_config)
   find_package(LLVM CONFIG QUIET)
   find_package(LLDB CONFIG QUIET)
 endif()
 
-# 2) Fallback to our module search (supports macOS framework + Linux libs)
+# 3) If still not found, try to auto-discover a likely prefix and retry Config mode
+#    - On any platform: use `llvm-config --cmakedir` if available
+#    - On macOS: also try Homebrew prefix (no install, just hint if brew exists)
+if(NOT LLDB_FOUND)
+  # Try llvm-config (common on Linux; also present if Homebrew llvm installed)
+  find_program(_LLVM_CONFIG_EXEC llvm-config QUIET)
+  if(_LLVM_CONFIG_EXEC)
+    execute_process(
+      COMMAND "${_LLVM_CONFIG_EXEC}" --cmakedir OUTPUT_VARIABLE _LLVM_CMAKEDIR
+      OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+    if(_LLVM_CMAKEDIR AND EXISTS "${_LLVM_CMAKEDIR}")
+      list(APPEND CMAKE_PREFIX_PATH "${_LLVM_CMAKEDIR}")
+    endif()
+  endif()
+
+  # Try Homebrew prefix on macOS (ARM: /opt/homebrew, Intel: /usr/local)
+  if(APPLE)
+    find_program(_BREW_EXEC brew QUIET)
+    if(_BREW_EXEC)
+      execute_process(
+        COMMAND "${_BREW_EXEC}" --prefix OUTPUT_VARIABLE _BREW_PREFIX
+        OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+      if(_BREW_PREFIX AND EXISTS "${_BREW_PREFIX}")
+        # Add the prefix so CMake can discover ${prefix}/lib/cmake/{lldb,llvm}
+        list(APPEND CMAKE_PREFIX_PATH "${_BREW_PREFIX}")
+      endif()
+    endif()
+  endif()
+
+  # Retry Config mode after adding any discovered prefixes
+  find_package(LLDB CONFIG QUIET)
+  if(NOT LLDB_FOUND)
+    find_package(LLVM CONFIG QUIET)
+    find_package(LLDB CONFIG QUIET)
+  endif()
+endif()
+
+# 4) Fallback to our MODULE search (supports macOS framework + Linux libs)
+#    This uses cmake/FindLLDB.cmake which should handle:
+#      - macOS LLDB.framework + toolchain headers
+#      - Linux liblldb + headers
 if(NOT LLDB_FOUND)
   find_package(LLDB MODULE REQUIRED)
 endif()
 
-# 3) Normalize to a single target name for the rest of the project
+# 5) Normalize to a single target name for the rest of the project
 if(TARGET LLDB::LLDB)
   add_library(lldbg::lldb ALIAS LLDB::LLDB)
 elseif(TARGET LLDB::liblldb)
@@ -237,5 +286,19 @@ elseif(TARGET LLDB)
 elseif(TARGET lldbg::lldb)
   # Provided by our FindLLDB.cmake fallback
 else()
-  message(FATAL_ERROR "LLDB found but no known imported target to alias.")
+  message(
+    FATAL_ERROR
+      "LLDB was not discovered.\n"
+      "Tips:\n"
+      "  • Provide LLDB/LLVM CMake packages via CMAKE_PREFIX_PATH or LLDB_DIR/LLVM_DIR.\n"
+      "  • macOS: `brew install llvm` then set CMAKE_PREFIX_PATH to `$(brew --prefix llvm)` or just `$(brew --prefix)`.\n"
+      "  • Linux: install the lldb development package for your distro, or build/install LLVM+LLDB.\n"
+  )
 endif()
+
+# Status: show where LLDB came from (helpful for local builds)
+get_target_property(_LLDBG_LLDB_INCS lldbg::lldb INTERFACE_INCLUDE_DIRECTORIES)
+get_target_property(_LLDBG_LLDB_LIBS lldbg::lldb INTERFACE_LINK_LIBRARIES)
+message(STATUS "LLDBG: Using lldbg::lldb")
+message(STATUS "       includes: ${_LLDBG_LLDB_INCS}")
+message(STATUS "       link libs: ${_LLDBG_LLDB_LIBS}")
