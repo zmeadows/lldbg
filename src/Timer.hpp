@@ -2,13 +2,14 @@
 
 #include <chrono>
 
-class Timer final {
+class Timer final
+{
     using Clock = std::chrono::high_resolution_clock;
     using Time = Clock::time_point;
 
     const Time start;
 
-public:
+  public:
     uint64_t elapsed_ns(void)
     {
         const Time stop = Clock::now();
@@ -18,4 +19,3 @@ public:
 
     Timer() : start(Clock::now()) {}
 };
-

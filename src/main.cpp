@@ -7,6 +7,7 @@
 // TODO: remove un-used includes
 // TODO: create Forward.hpp as in SerenityOS
 #include "Application.hpp"
+#include "ConfigParser.hpp"
 #include "Defer.hpp"
 #include "FileSystem.hpp"
 #include "Log.hpp"
@@ -16,7 +17,6 @@
 #include "fmt/format.h"
 #include "imgui.h"
 #include "lldb/API/LLDB.h"
-#include "ConfigParser.hpp"
 
 int main(int argc, char** argv)
 {
@@ -44,36 +44,45 @@ int main(int argc, char** argv)
 
     auto result = options.parse(argc, argv);
 
-    if (result.count("help")) {
+    if (result.count("help"))
+    {
         std::cout << options.help() << std::endl;
         return EXIT_SUCCESS;
     }
 
-    if (result.count("loglevel")) {
+    if (result.count("loglevel"))
+    {
         const std::string loglevel = result["loglevel"].as<std::string>();
-        if (loglevel == "debug") {
-            Logger::get_instance()->set_log_level((int)LogLevel::Debug);
+        if (loglevel == "debug")
+        {
+            Logger::get_instance()->set_log_level((int) LogLevel::Debug);
         }
-        else if (loglevel == "verbose") {
-            Logger::get_instance()->set_log_level((int)LogLevel::Verbose);
+        else if (loglevel == "verbose")
+        {
+            Logger::get_instance()->set_log_level((int) LogLevel::Verbose);
         }
-        else if (loglevel == "info") {
-            Logger::get_instance()->set_log_level((int)LogLevel::Info);
+        else if (loglevel == "info")
+        {
+            Logger::get_instance()->set_log_level((int) LogLevel::Info);
         }
-        else if (loglevel == "warning") {
-            Logger::get_instance()->set_log_level((int)LogLevel::Warning);
+        else if (loglevel == "warning")
+        {
+            Logger::get_instance()->set_log_level((int) LogLevel::Warning);
         }
-        else if (loglevel == "error") {
-            Logger::get_instance()->set_log_level((int)LogLevel::Error);
+        else if (loglevel == "error")
+        {
+            Logger::get_instance()->set_log_level((int) LogLevel::Error);
         }
-        else {
+        else
+        {
             LOG(Error) << "Invalid log level specified: " << loglevel;
             return EXIT_FAILURE;
         }
         LOG(Verbose) << "Setting log level to: " << loglevel;
     }
 
-    if (auto lldb_error = lldb::SBDebugger::InitializeWithErrorHandling(); !lldb_error.Success()) {
+    if (auto lldb_error = lldb::SBDebugger::InitializeWithErrorHandling(); !lldb_error.Success())
+    {
         const char* lldb_error_cstr = lldb_error.GetCString();
         std::cerr << (lldb_error_cstr ? lldb_error_cstr : "Unknown LLDB error!");
         std::cerr << "Failed to initialize LLDB, exiting...";
@@ -82,48 +91,59 @@ int main(int argc, char** argv)
     Defer(lldb::SBDebugger::Terminate());
 
     auto ui = UserInterface::init();
-    if (!ui.has_value()) {
+    if (!ui.has_value())
+    {
         LOG(Error) << "Failed to initialize graphics/UI.\n Exiting...";
         return EXIT_FAILURE;
     }
 
     std::optional<fs::path> workdir = {};
-    if (result.count("workdir")) {
+    if (result.count("workdir"))
+    {
         fs::path workdir_request = fs::path(result["workdir"].as<std::string>());
-        if (fs::exists(workdir_request) && fs::is_directory(workdir_request)) {
+        if (fs::exists(workdir_request) && fs::is_directory(workdir_request))
+        {
             workdir = workdir_request;
         }
     }
 
     Application app(*ui, workdir);
 
-    if (result.count("source-before-file")) {
+    if (result.count("source-before-file"))
+    {
         const std::string source_path = result["source-before-file"].as<std::string>();
         auto handle = FileHandle::create(source_path);
-        if (handle.has_value()) {
-            for (const std::string& line : handle->contents()) {
-                if (line.empty()) {
+        if (handle.has_value())
+        {
+            for (const std::string& line : handle->contents())
+            {
+                if (line.empty())
+                {
                     continue;
                 }
                 auto ret = run_lldb_command(app, line.c_str());
             }
             LOG(Verbose) << "Successfully executed commands in source file: " << source_path;
         }
-        else {
+        else
+        {
             LOG(Error) << "Invalid filepath passed to source-before-file argument: " << source_path;
         }
     }
 
-    if (result.count("file")) {
+    if (result.count("file"))
+    {
         // TODO: detect and open main file of specified executable
         StringBuffer target_set_cmd;
         target_set_cmd.format("file {}", result["file"].as<std::string>());
         run_lldb_command(app, target_set_cmd.data());
 
-        if (result.count("positional")) {
+        if (result.count("positional"))
+        {
             StringBuffer argset_command;
             argset_command.format_("settings set target.run-args ");
-            for (const auto& arg : result["positional"].as<std::vector<std::string>>()) {
+            for (const auto& arg : result["positional"].as<std::vector<std::string>>())
+            {
                 argset_command.format_("{} ", arg);
             }
             argset_command.format_("{}", '\0');
@@ -131,19 +151,24 @@ int main(int argc, char** argv)
         }
     }
 
-    if (result.count("source")) {
+    if (result.count("source"))
+    {
         const std::string source_path = result["source"].as<std::string>();
         auto handle = FileHandle::create(source_path);
-        if (handle.has_value()) {
-            for (const std::string& line : handle->contents()) {
-                if (line.empty()) {
+        if (handle.has_value())
+        {
+            for (const std::string& line : handle->contents())
+            {
+                if (line.empty())
+                {
                     continue;
                 }
                 auto ret = run_lldb_command(app, line.c_str());
             }
             LOG(Verbose) << "Successfully executed commands in source file: " << source_path;
         }
-        else {
+        else
+        {
             LOG(Error) << "Invalid filepath passed to --source argument: " << source_path;
         }
     }

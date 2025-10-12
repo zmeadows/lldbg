@@ -27,27 +27,32 @@ std::optional<int> FileViewer::render(void)
     std::optional<int> clicked_line = {};
 
     StringBuffer line_buffer;
-    for (size_t i = 0; i < m_lines.size(); i++) {
+    for (size_t i = 0; i < m_lines.size(); i++)
+    {
         const size_t line_number = i + 1;
 
         line_buffer.format("   {}  {}\n", line_number, m_lines[i]);
 
         bool selected = false;
         if (m_highlighted_line.has_value() &&
-            line_number == static_cast<size_t>(*m_highlighted_line)) {
+            line_number == static_cast<size_t>(*m_highlighted_line))
+        {
             selected = true;
-            if (m_highlight_line_needs_focus) {
+            if (m_highlight_line_needs_focus)
+            {
                 ImGui::SetScrollHereY();
                 m_highlight_line_needs_focus = false;
             }
         }
 
         ImGui::Selectable(line_buffer.data(), selected);
-        if (ImGui::IsItemClicked()) {
+        if (ImGui::IsItemClicked())
+        {
             clicked_line = line_number;
         }
 
-        if (bps != nullptr && bps->find(line_number) != bps->end()) {
+        if (bps != nullptr && bps->find(line_number) != bps->end())
+        {
             ImVec2 pad = style.FramePadding;
             ImVec2 pos = window->DC.CursorPos;
             ImVec2 txt = ImGui::CalcTextSize("X");
@@ -64,48 +69,57 @@ std::optional<int> FileViewer::render(void)
 
 void FileViewer::synchronize_breakpoint_cache(lldb::SBTarget target)
 {
-    for (auto& [_, bps] : m_breakpoint_cache) bps.clear();
+    for (auto& [_, bps] : m_breakpoint_cache)
+        bps.clear();
 
-    for (uint32_t i = 0; i < target.GetNumBreakpoints(); i++) {
+    for (uint32_t i = 0; i < target.GetNumBreakpoints(); i++)
+    {
         lldb::SBBreakpoint bp = target.GetBreakpointAtIndex(i);
         lldb::SBBreakpointLocation location = bp.GetLocationAtIndex(0);
 
-        if (!location.IsValid()) {
+        if (!location.IsValid())
+        {
             LOG(Error) << "Invalid breakpoint location encountered by LLDB.";
         }
 
         lldb::SBAddress address = location.GetAddress();
 
-        if (!address.IsValid()) {
+        if (!address.IsValid())
+        {
             LOG(Error) << "Invalid lldb::SBAddress for breakpoint encountered.";
         }
 
         lldb::SBLineEntry line_entry = address.GetLineEntry();
 
-        if (!line_entry.IsValid()) {
+        if (!line_entry.IsValid())
+        {
             LOG(Error) << "Invalid lldb::SBLineEntry for breakpoint encountered.";
             continue;
         }
 
         // auto file_spec = line_entry.GetFileSpec();
 
-        const std::string bp_filepath =
-            fmt::format("{}/{}", line_entry.GetFileSpec().GetDirectory(),
-                        line_entry.GetFileSpec().GetFilename());
+        const std::string bp_filepath = fmt::format(
+            "{}/{}", line_entry.GetFileSpec().GetDirectory(), line_entry.GetFileSpec().GetFilename()
+        );
 
         const auto maybe_handle = FileHandle::create(bp_filepath);
-        if (!maybe_handle) {
+        if (!maybe_handle)
+        {
             LOG(Error) << "Invalid filepath found for breakpoint: " << bp_filepath;
             continue;
         }
         const FileHandle handle = *maybe_handle;
 
-        if (auto it = m_breakpoint_cache.find(handle); it == m_breakpoint_cache.end()) {
-            m_breakpoint_cache.emplace(handle,
-                                       std::unordered_set<int>({(int)line_entry.GetLine()}));
+        if (auto it = m_breakpoint_cache.find(handle); it == m_breakpoint_cache.end())
+        {
+            m_breakpoint_cache.emplace(
+                handle, std::unordered_set<int>({(int) line_entry.GetLine()})
+            );
         }
-        else {
-            it->second.insert((int)line_entry.GetLine());
+        else
+        {
+            it->second.insert((int) line_entry.GetLine());
         }
     }
 }
@@ -115,10 +129,12 @@ void FileViewer::show(FileHandle handle)
     m_lines = handle.contents();
     LOG(Debug) << "Showing file: " << handle.filepath();
 
-    if (const auto it = m_breakpoint_cache.find(handle); it != m_breakpoint_cache.end()) {
+    if (const auto it = m_breakpoint_cache.find(handle); it != m_breakpoint_cache.end())
+    {
         m_breakpoints = it;
     }
-    else {
+    else
+    {
         m_breakpoints = {};
     }
 }
