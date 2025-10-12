@@ -7,3 +7,5 @@ imgui.ini
 **/.DS_Store
 test/test
 tags
+compile_commands.json
+build_dev.sh
