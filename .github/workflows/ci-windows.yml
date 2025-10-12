@@ -1,0 +1,73 @@
+---
+name: ci (windows-msys2)
+
+on:
+  push: { branches: [main, master] }
+  pull_request: { branches: [main, master] }
+  workflow_dispatch:
+
+permissions: { contents: read }
+
+concurrency:
+  group: ci-win-msys2-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-msys2:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Fast, cached packages: Clang toolchain + LLDB + CMake + Ninja + Python
+      - name: Setup MSYS2 (Clang64) + deps
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: CLANG64
+          update: true
+          install: >-
+            git
+            mingw-w64-clang-x86_64-toolchain
+            mingw-w64-clang-x86_64-lldb
+            mingw-w64-clang-x86_64-cmake
+            mingw-w64-clang-x86_64-ninja
+            mingw-w64-clang-x86_64-python
+
+      - name: Show LLDB (sanity)
+        run: |
+          ls -l /clang64/include/lldb/API/LLDB.h || true
+          ls -l /clang64/lib/liblldb* || true
+          ls -l /clang64/lib/cmake/lldb || true
+
+      # Configure
+      - name: Configure
+        env:
+          CC: clang
+          CXX: clang++
+        run: |
+          # Prefer CONFIG if present; otherwise fall back to the module hints.
+          if [ -f /clang64/lib/cmake/lldb/LLDBConfig.cmake ]; then
+            cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+              -DCMAKE_PREFIX_PATH=/clang64 \
+              -DLLDBG_USE_SYSTEM_DEPS=ON \
+              -DLLDBG_PREFER_CLANG=ON
+          else
+            cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+              -DCMAKE_PREFIX_PATH=/clang64 \
+              -DLLDBG_USE_SYSTEM_DEPS=ON \
+              -DLLDBG_PREFER_CLANG=ON \
+              -DLLDB_INCLUDE_DIR=/clang64/include \
+              -DLLDB_LIBRARY=/clang64/lib/liblldb.dll.a
+          fi
+
+      - name: Build
+        run: cmake --build build -j"$(nproc)"
+
+      - name: Test
+        env:
+          # Ensure liblldb.dll is on PATH for test-time loads
+          PATH: /clang64/bin:$PATH
+        run: ctest --test-dir build --output-on-failure
