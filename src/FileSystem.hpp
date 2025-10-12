@@ -79,12 +79,14 @@ class OpenFiles
         }
     }
 
-    inline std::pair<std::optional<FileHandle>, std::optional<size_t>> focus_line()
+    inline std::optional<std::pair<FileHandle, size_t>> focus_line()
     {
-        auto file = focus();
-        if (file)
+        auto o_file = focus();
+        if (o_file.has_value() && m_focus.has_value())
         {
-            return {file, m_files_linum[*m_focus]};
+            auto file = o_file.value();
+            auto o_linum = m_files_linum[*m_focus];
+            return std::make_pair(file, o_linum.has_value() ? *o_linum : 0);
         }
         else
         {

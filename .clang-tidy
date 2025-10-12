@@ -1,5 +1,8 @@
 Checks: >
-  clang-analyzer-*,
+  portability-avoid-pragma-once,
+  bugprone-unchecked-optional-access,
+  hicpp-no-array-decay,
+  -clang-analyzer-*,
   bugprone-*,
   performance-*,
   readability-implicit-bool-conversion,
@@ -14,7 +17,8 @@ Checks: >
   -hicpp-signed-bitwise,
   -modernize-use-trailing-return-type,
   -hicpp-uppercase-literal-suffix,
-  -bugprone-easily-swappable-parameters
+  -bugprone-easily-swappable-parameters,
+  -portability-avoid-pragma-once
 WarningsAsErrors: "*"
-HeaderFilterRegex: "(src|test)/"
+HeaderFilterRegex: "^(src|include|lib)/"
 FormatStyle: none

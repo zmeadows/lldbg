@@ -25,6 +25,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
+
       - name: Install pinned clang-format
         run: |
           python -m pip install --upgrade pip
@@ -32,7 +33,7 @@ jobs:
           clang-format --version
 
       # Check formatting ONLY for C/C++ files under top-level src/
-      - name: Check formatting (src/* only)
+      - name: Run clang-format # src/* only
         shell: bash
         run: |
           git -c core.quotePath=false ls-files -z -- 'src' \
@@ -48,32 +49,37 @@ jobs:
       image: ubuntu:24.04
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - name: Install Git
+        shell: bash
+        run: |
+          set -euxo pipefail
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get -o Acquire::Retries=3 update
+          apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends git ca-certificates
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - uses: ./.github/actions/setup-linux-build-container
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/linux-container-build-setup
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
+
       - name: Install pinned clang-tidy
         run: |
           python -m pip install "clang-tidy==${CT_VERSION}"
           clang-tidy --version
 
-      - name: Configure (dev preset -> compile_commands.json in build/dev/)
+      - name: Configure # dev preset -> compile_commands.json in build/dev/
         run: cmake --preset dev
 
       # Run clang-tidy ONLY for C/C++ sources under top-level src/.
       # Header filter also restricted to src/ to avoid build-tree deps.
-      - name: Run clang-tidy (src/* only)
+      - name: Run clang-tidy # src/* only
         shell: bash
         run: |
-          git -c core.quotePath=false ls-files -z -- 'src' \
-            | grep -z -E '\.(c|cc|cpp|cxx|m|mm)$' \
-            | xargs -0 -r -n1 -P"$(nproc)" \
-              clang-tidy -p build/dev \
-                --header-filter='(^|.*/)(src)/' \
-                --warnings-as-errors='*' --
+          git -c safe.directory="$GITHUB_WORKSPACE" -c core.quotePath=false \
+            ls-files -z -- 'src' -- '*.c' '*.cc' '*.cpp' '*.cxx' '*.m' '*.mm' \
+          | xargs -0 -r -n32 -P"$(nproc)" \
+              clang-tidy -p build/dev --config-file=.clang-tidy -quiet
