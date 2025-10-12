@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   build:
-    name: build | ${{ matrix.distro.name }} - ${{ matrix.compiler }}
+    name: build ⏵ ${{ matrix.distro.name }} [${{ matrix.compiler }}]
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -44,7 +44,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      # run our custom github action for setting up the lldbg build environment
       - uses: ./.github/actions/setup-linux-build-container
         with:
           compiler: ${{ matrix.compiler }}

@@ -1,0 +1,79 @@
+---
+name: code-quality
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+# Pin tool versions here to keep CI and local dev in sync.
+env:
+  CF_VERSION: "21.1.2" # clang-format
+  CT_VERSION: "21.1.1" # clang-tidy
+
+jobs:
+  format:
+    name: clang-format
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # Install ONLY clang-format (via PyPI wheel), not the whole LLVM toolchain.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Install pinned clang-format
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "clang-format==${CF_VERSION}"
+          clang-format --version
+
+      # Check formatting ONLY for C/C++ files under top-level src/
+      - name: Check formatting (src/* only)
+        shell: bash
+        run: |
+          git -c core.quotePath=false ls-files -z -- 'src' \
+            | grep -z -E '\.(h|hh|hpp|hxx|c|cc|cpp|cxx|m|mm)$' \
+            | xargs -0 -r clang-format --dry-run --Werror
+
+  tidy:
+    name: clang-tidy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    container:
+      image: ubuntu:24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup-linux-build-container
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Install pinned clang-tidy
+        run: |
+          python -m pip install "clang-tidy==${CT_VERSION}"
+          clang-tidy --version
+
+      - name: Configure (dev preset -> compile_commands.json in build/dev/)
+        run: cmake --preset dev
+
+      # Run clang-tidy ONLY for C/C++ sources under top-level src/.
+      # Header filter also restricted to src/ to avoid build-tree deps.
+      - name: Run clang-tidy (src/* only)
+        shell: bash
+        run: |
+          git -c core.quotePath=false ls-files -z -- 'src' \
+            | grep -z -E '\.(c|cc|cpp|cxx|m|mm)$' \
+            | xargs -0 -r -n1 -P"$(nproc)" \
+              clang-tidy -p build/dev \
+                --header-filter='(^|.*/)(src)/' \
+                --warnings-as-errors='*' --
