@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   build:
-    name: ${{ matrix.distro.name }} • ${{ matrix.compiler }}
+    name: build ➤ ${{ matrix.distro.name }} • ${{ matrix.compiler }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -26,7 +26,7 @@ jobs:
 
     strategy:
       fail-fast: false
-      max-parallel: 1
+      max-parallel: 8
       matrix:
         compiler: [gcc, clang]
         distro:
@@ -40,7 +40,7 @@ jobs:
       SCCACHE_CACHE_SIZE: "2G"
       # unique cache per OS+compiler
       SCCACHE_GHA_CACHE_NAME: ${{ matrix.distro.name }}-${{ matrix.compiler }}
-      CMAKE_BUILD_PARALLEL_LEVEL: 2
+      CMAKE_BUILD_PARALLEL_LEVEL: 4
 
     steps:
       # Containers don't include git; checkout runs inside the container
@@ -67,7 +67,7 @@ jobs:
           if [ "${{ matrix.compiler }}" = "clang" ]; then
             pkgs+=(clang lldb)
           fi
-          # lld works for both gcc and clang; install unconditionally (ignore if missing)
+          # lld/mold work for both gcc and clang; install unconditionally (ignore if missing)
           pkgs+=(lld)
 
           apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends "${pkgs[@]}" || true
@@ -144,12 +144,7 @@ jobs:
           CMAKE_C_COMPILER_LAUNCHER: sccache
           CMAKE_CXX_COMPILER_LAUNCHER: sccache
         shell: bash
-        run: |
-          set -eux
-          cmake --preset ci \
-            -DCMAKE_EXE_LINKER_FLAGS="-fuse-ld=lld" \
-            -DCMAKE_SHARED_LINKER_FLAGS="-fuse-ld=lld" \
-            -DCMAKE_MODULE_LINKER_FLAGS="-fuse-ld=lld"
+        run: cmake --preset ci
 
       - name: Build
         run: cmake --build --preset ci
