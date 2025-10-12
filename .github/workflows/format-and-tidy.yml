@@ -1,28 +1,70 @@
 ---
 name: format-and-tidy
+
 on:
   pull_request:
   push:
     branches: [master]
+
+# Pin tool versions ONCE here to keep CI and local dev in sync.
+# These are the current latest as of Oct 2025.
+env:
+  CF_VERSION: "21.1.2" # clang-format
+  CT_VERSION: "21.1.1" # clang-tidy
+
 jobs:
   format:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y clang-format
-      - name: Check formatting
+
+      # Install ONLY clang-format (via PyPI wheel), not the whole LLVM toolchain.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Install pinned clang-format
         run: |
-          git ls-files '*.h' '*.hpp' '*.c' '*.cc' '*.cpp' |
-          xargs -r clang-format --dry-run --Werror
+          python -m pip install --upgrade pip
+          python -m pip install "clang-format==${CF_VERSION}"
+          clang-format --version
+
+      # Check formatting ONLY for C/C++ files under top-level src/
+      - name: Check formatting (src/* only)
+        shell: bash
+        run: |
+          git -c core.quotePath=false ls-files -z -- 'src' \
+            | grep -z -E '\.(h|hh|hpp|hxx|c|cc|cpp|cxx|m|mm)$' \
+            | xargs -0 -r clang-format --dry-run --Werror
+
   tidy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y clang clang-tidy ninja-build cmake
-      - name: Configure (tidy)
-        run: cmake --preset dev
-      - name: Run clang-tidy
+
+      # We just need CMake+Ninja to generate compile_commands.json.
+      # No need to install clang or the rest of LLVM here.
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y ninja-build cmake
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Install pinned clang-tidy
         run: |
-          run-clang-tidy -p build/dev -j "$(nproc)" \
-            "(.*/)?src/.*\.(c|cc|cpp|cxx|mm)$" \
-            -header-filter="(^|.*/)(src|include)/"
+          python -m pip install "clang-tidy==${CT_VERSION}"
+          clang-tidy --version
+
+      - name: Configure (dev preset -> compile_commands.json in build/dev/)
+        run: cmake --preset dev
+
+      # Run clang-tidy ONLY for C/C++ sources under top-level src/.
+      # Header filter also restricted to src/ to avoid build-tree deps.
+      - name: Run clang-tidy (src/* only)
+        shell: bash
+        run: |
+          git -c core.quotePath=false ls-files -z -- 'src' \
+            | grep -z -E '\.(c|cc|cpp|cxx|m|mm)$' \
+            | xargs -0 -r -n1 -P"$(nproc)" \
+              clang-tidy -p build/dev \
+                --header-filter='(^|.*/)(src)/' \
+                --warnings-as-errors='*' --
