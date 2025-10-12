@@ -22,38 +22,57 @@ runs:
     - name: Install Build Dependencies
       shell: bash
       run: |
-        set -euxo pipefail
+        set -euo pipefail
         export DEBIAN_FRONTEND=noninteractive
-        apt-get -o Acquire::Retries=3 update
-        apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends git ca-certificates
 
-        pkgs=(build-essential ninja-build pkg-config cmake zlib1g-dev libfmt-dev libopengl-dev wget)
+        # Use sudo on hosted runners; noop inside root containers
+        if command -v sudo >/dev/null 2>&1; then SUDO="sudo"; else SUDO=""; fi
+
+        $SUDO apt-get -o Acquire::Retries=3 update
+
+        PKGS=(
+          build-essential ninja-build pkg-config cmake zlib1g-dev libfmt-dev libopengl-dev wget git ca-certificates
+          # Optional GL/X11 bits (best-effort)
+          libgl1-mesa-dev libx11-dev libxrandr-dev libxinerama-dev libxi-dev libxcursor-dev libglfw3-dev
+          # Optional helper libs (best-effort)
+          libimgui-dev libcxxopts-dev
+        )
+
+        # Optional compiler from workflow input
         if [ "${{ inputs.compiler }}" = "clang" ]; then
-          pkgs+=(clang)
+          PKGS+=(clang)
         fi
 
-        apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends "${pkgs[@]}" || true
+        # LLDB dev headers: prefer generic, else fall back to latest versioned package
+        if $SUDO apt-get -s install -y --no-install-recommends liblldb-dev >/dev/null 2>&1; then
+          LLDB_PKG=liblldb-dev
+        else
+          LLDB_PKG="$($SUDO apt-cache search -n '^liblldb-[0-9]+-dev$' | awk '{print $1}' | sort -V | tail -n1 || true)"
+        fi
+        if [ -n "${LLDB_PKG:-}" ]; then PKGS+=("$LLDB_PKG"); else echo "No LLDB dev headers available."; fi
 
-        if ! apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends liblldb-dev ; then
-          alt="$(apt-cache search -n '^liblldb-[0-9]+-dev$' | awk '{print $1}' | sort -V | tail -n1 || true)"
-          if [ -n "$alt" ]; then
-            apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends "$alt"
+        # De-duplicate package names
+        mapfile -t PKGS < <(printf '%s\n' "${PKGS[@]}" | awk '!seen[$0]++')
+
+        # Filter to installable packages using a dry-run (-s).
+        OK=()
+        for p in "${PKGS[@]}"; do
+          if $SUDO apt-get -s install -y --no-install-recommends "$p" >/dev/null 2>&1; then
+            OK+=("$p")
           else
-            echo "No liblldb-*-dev found; continuing without LLDB dev headers."
+            echo "Skipping unavailable package: $p"
           fi
+        done
+
+        # Install whatever is available in one go (don’t fail the job if something goes sideways)
+        if [ ${#OK[@]} -gt 0 ]; then
+          $SUDO apt-get -o Acquire::Retries=3 -o Dpkg::Use-Pty=0 install -y --no-install-recommends "${OK[@]}" || true
+        else
+          echo "No requested packages are available on this image."
         fi
 
-        if ! apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends \
-              libgl1-mesa-dev libx11-dev libxrandr-dev libxinerama-dev libxi-dev libxcursor-dev \
-              libglfw3-dev; then
-          echo "Optional GL/GLFW not available; continuing."
-        fi
-
-        # Speed up: avoid building these from source if possible
-        apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends \
-          libfmt-dev libimgui-dev libcxxopts-dev || true
-
-        apt-get clean && rm -rf /var/lib/apt/lists/*
+        $SUDO apt-get clean
+        $SUDO rm -rf /var/lib/apt/lists/*
 
     - name: Update CMake
       if: ${{ inputs.update_cmake == 'true' }}
