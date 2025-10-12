@@ -10,13 +10,8 @@
 #include "lldb/lldb-enumerations.h"
 
 #include <cassert>
-#include <chrono>
+#include <cstdint>
 #include <filesystem>
-#include <iostream>
-#include <map>
-#include <queue>
-#include <thread>
-#include <unordered_set>
 
 namespace fs = std::filesystem;
 
@@ -43,7 +38,7 @@ static std::map<std::string, std::string> s_debug_stream;
 #define DEBUG_STREAM(x) void(x);
 #endif
 
-static std::pair<fs::path, size_t> get_stop_location_from_frame(lldb::SBFrame frame)
+static std::pair<fs::path, size_t> get_stop_location_from_frame(const lldb::SBFrame& frame)
 {
     lldb::SBFileSpec spec = frame.GetLineEntry().GetFileSpec();
     const char* filename = spec.GetFilename();
@@ -90,10 +85,10 @@ static std::pair<bool, bool> process_is_finished(lldb::SBProcess& process)
     return {exited || failed, !failed};
 }
 
-static void set_thread_indices(UserInterface& ui, uint32_t thread_index, uint32_t frame_index)
+static void set_thread_frame_indices(UserInterface& ui, uint32_t idx)
 {
-    ui.viewed_thread_index = thread_index;
-    ui.viewed_frame_index = frame_index;
+    ui.viewed_thread_index = idx;
+    ui.viewed_frame_index = idx;
 }
 
 static bool process_is_running(lldb::SBProcess& process)
@@ -178,7 +173,9 @@ static std::optional<lldb::SBProcess> find_process(lldb::SBDebugger& debugger)
 {
     auto target = find_target(debugger);
     if (!target.has_value())
+    {
         return {};
+    }
 
     lldb::SBProcess process = target->GetProcess();
 
@@ -217,7 +214,7 @@ static void kill_process(lldb::SBProcess& process)
 
 static std::string build_string(const char* cstr)
 {
-    return cstr ? std::string(cstr) : std::string();
+    return cstr != nullptr ? std::string(cstr) : std::string();
 }
 
 static void glfw_error_callback(int error, const char* description)
@@ -290,14 +287,18 @@ static bool FileTreeNode(const char* label)
     bool opened = ImGui::TreeNodeBehaviorIsOpen(id);
     bool hovered, held;
 
-    if (ImGui::ButtonBehavior(bb, id, &hovered, &held, true))
+    if (ImGui::ButtonBehavior(bb, id, &hovered, &held, 1))
+    {
         window->DC.StateStorage->SetInt(id, opened ? 0 : 1);
+    }
 
     if (hovered || held)
+    {
         window->DrawList->AddRectFilled(
             bb.Min, bb.Max,
             ImGui::GetColorU32(held ? ImGuiCol_HeaderActive : ImGuiCol_HeaderHovered)
         );
+    }
 
     // Icon, text
     float button_sz = g.FontSize + g.Style.FramePadding.y * 2;
@@ -315,7 +316,9 @@ static bool FileTreeNode(const char* label)
     ImGui::ItemAdd(bb, id);
 
     if (opened)
+    {
         ImGui::TreePush(label);
+    }
 
     return opened;
 }
@@ -411,7 +414,9 @@ static void draw_open_files(Application& app)
                         }
 
                         if (!breakpoint_exists)
+                        {
                             run_lldb_command(app, breakpoint_command.data());
+                        }
                         else
                         {
                             breakpoint_command.clear();
@@ -490,7 +495,7 @@ static void draw_file_browser(Application& app, FileBrowserNode* node_to_draw, s
 
         if (FileTreeNode(tree_node_label))
         {
-            for (auto& child_node : node_to_draw->children())
+            for (const auto& child_node : node_to_draw->children())
             {
                 draw_file_browser(app, child_node.get(), depth + 1);
             }
@@ -800,13 +805,14 @@ static void draw_console(Application& app)
             }
 
             // TODO: resize input_buf when necessary?
-            static char input_buf[2048];
+            std::array<char, 2048> input_buf = {};
             if (ImGui::InputText(
-                    "lldb console", input_buf, 2048, command_input_flags, command_input_callback
+                    "lldb console", input_buf.data(), 2048, command_input_flags,
+                    command_input_callback
                 ))
             {
-                run_lldb_command(app, input_buf);
-                memset(input_buf, 0, sizeof(input_buf));
+                run_lldb_command(app, input_buf.data());
+                input_buf.fill(0);
                 input_buf[0] = '\0';
                 app.ui.ran_command_last_frame = true;
             }
@@ -1033,7 +1039,9 @@ static void draw_stack_trace(
                     auto frame = StackFrame::create(viewed_thread.GetFrameAtIndex(i));
 
                     if (!frame)
+                    {
                         continue;
+                    }
 
                     if (ImGui::Selectable(
                             frame->function_name.c_str(), i == ui.viewed_frame_index,
@@ -1072,7 +1080,7 @@ static void draw_local_recursive(lldb::SBValue local)
     const char* local_name = local.GetName();
     const char* local_value = local.GetValue();
 
-    if (!local_type || !local_name)
+    if (local_type == nullptr || local_name == nullptr)
     {
         return;
     }
@@ -1112,7 +1120,7 @@ static void draw_local_recursive(lldb::SBValue local)
         ImGui::NextColumn();
         ImGui::TextUnformatted(local_type);
         ImGui::NextColumn();
-        if (local_value)
+        if (local_value != nullptr)
         {
             ImGui::TextUnformatted(local_value);
         }
@@ -1177,7 +1185,7 @@ static void draw_locals_and_registers(
 
                         const char* collection_name = regcol.GetName();
 
-                        if (!collection_name)
+                        if (collection_name == nullptr)
                         {
                             LOG(Warning) << "Skipping over invalid/un-named register collection";
                             continue;
@@ -1193,7 +1201,7 @@ static void draw_locals_and_registers(
                                 const char* reg_name = reg.GetName();
                                 const char* reg_value = reg.GetValue();
 
-                                if (!reg_name || !reg_value)
+                                if (reg_name == nullptr || reg_value == nullptr)
                                 {
                                     LOG(Warning) << "skipping invalid register";
                                     continue;
@@ -1367,20 +1375,23 @@ __attribute__((flatten)) static void draw(Application& app)
     UserInterface& ui = app.ui;
     auto& open_files = app.open_files;
     ImGui::SetNextWindowPos(ImVec2(0.f, 0.f), ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(ui.window_width, ui.window_height), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(
+        ImVec2(float(ui.window_width), float(ui.window_height)), ImGuiCond_Always
+    );
 
-    static constexpr auto main_window_flags =
+    static constexpr ImGuiWindowFlags main_window_flags =
         ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoResize |
         ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings |
         ImGuiWindowFlags_NoTitleBar;
 
-    ImGui::Begin("lldbg", 0, main_window_flags);
+    ImGui::Begin("lldbg", nullptr, main_window_flags);
     ImGui::PushFont(ui.font);
 
     {
         Splitter(
             "##S1", true, 3.0f, &ui.file_browser_width, &ui.file_viewer_width,
-            0.05 * ui.window_width, 0.05 * ui.window_width, ui.window_height, false, ImVec2(0, 0)
+            0.05f * float(ui.window_width), 0.05f * float(ui.window_width), float(ui.window_height),
+            false, ImVec2(0, 0)
         );
 
         ImGui::BeginGroup();
@@ -1396,8 +1407,9 @@ __attribute__((flatten)) static void draw(Application& app)
 
     {
         Splitter(
-            "##S2", false, 3.0f, &ui.file_viewer_height, &ui.console_height, 0.1 * ui.window_height,
-            0.1 * ui.window_height, ui.file_viewer_width, false, ImVec2(0, 0)
+            "##S2", false, 3.0f, &ui.file_viewer_height, &ui.console_height,
+            0.1f * float(ui.window_height), 0.1f * float(ui.window_height), ui.file_viewer_width,
+            false, ImVec2(0, 0)
         );
 
         ImGui::BeginGroup();
@@ -1411,15 +1423,15 @@ __attribute__((flatten)) static void draw(Application& app)
 
     {
         float stack_height =
-            (ui.window_height * ui.dpi_scale - 2 * ImGui::GetFrameHeightWithSpacing()) / 4;
+            (float(ui.window_height) * ui.dpi_scale - 2 * ImGui::GetFrameHeightWithSpacing()) / 4;
 
         ImGui::BeginGroup();
 
         // 1.05 for exact split
         Splitter(
             "##S3", true, 3.0f, &ui.file_viewer_width, &ui.stack_trace_width,
-            0.05 * ui.window_width, 0.2 * ui.window_width, ui.window_height, true,
-            ImVec2(ui.file_browser_width * 1.05, 0)
+            0.05f * float(ui.window_width), 0.2f * float(ui.window_width), float(ui.window_height),
+            true, ImVec2(ui.file_browser_width * 1.05f, 0)
         );
 
         // TODO: let locals tab have all the expanded space
@@ -1435,9 +1447,12 @@ __attribute__((flatten)) static void draw(Application& app)
     // Handle highlighted lines
     {
         // Dont focus in every tick
+        // TODO[@zmeadows][P2]: handle size_t -> int conversion
         const auto [file, linum] = open_files.focus_line();
         if (linum.has_value() && (*(app.file_viewer.get_highlight_line()) != (int) *linum))
-            app.file_viewer.set_highlight_line(*linum);
+        {
+            app.file_viewer.set_highlight_line(int(*linum));
+        }
     }
 
     ImGui::PopFont();
@@ -1459,7 +1474,9 @@ static void handle_lldb_events(
     {
         const bool event_found = listener.GetNextEvent(event);
         if (!event_found)
+        {
             break;
+        }
 
         if (!event.IsValid())
         {
@@ -1484,7 +1501,7 @@ static void handle_lldb_events(
             const lldb::StateType new_state = lldb::SBProcess::GetStateFromEvent(event);
             const char* state_descr = lldb::SBDebugger::StateAsCString(new_state);
 
-            if (state_descr)
+            if (state_descr != nullptr)
             {
                 LOG(Debug) << "Found process event with new state: " << state_descr;
             }
@@ -1503,19 +1520,22 @@ static void handle_lldb_events(
                     {
                         // https://lldb.llvm.org/cpp_reference/classlldb_1_1SBThread.html#af284261156e100f8d63704162f19ba76
                         if (th.GetStopReasonDataCount() != 2)
+                        {
                             LOG(Debug) << "Stop Reason Data Count" << th.GetStopReasonDataCount();
+                        }
                         // TODO Handle the cane stop reason data count > 2
                         assert(th.GetStopReasonDataCount() == 2);
-                        lldb::break_id_t breakpoint_id = th.GetStopReasonDataAtIndex(0);
+                        // TODO[@zmeadows][P1]: handle conversion properly
+                        auto breakpoint_id = lldb::break_id_t(th.GetStopReasonDataAtIndex(0));
                         lldb::SBBreakpoint breakpoint = target->FindBreakpointByID(breakpoint_id);
 
-                        lldb::break_id_t location_id = th.GetStopReasonDataAtIndex(1);
+                        auto location_id = lldb::break_id_t(th.GetStopReasonDataAtIndex(1));
                         lldb::SBBreakpointLocation location =
                             breakpoint.FindLocationByID(location_id);
 
                         const auto [filepath, linum] = resolve_breakpoint(location);
                         manually_open_and_or_focus_file(ui, open_files, filepath.c_str(), linum);
-                        set_thread_indices(ui, i, i);
+                        set_thread_frame_indices(ui, i);
                         // ui.stopped_thread_index = i;
                         // file_viewer.set_highlight_line(linum);
                         break;
@@ -1526,7 +1546,7 @@ static void handle_lldb_events(
                         lldb::SBFrame frame = th.GetSelectedFrame();
                         const auto [filepath, linum] = get_stop_location_from_frame(frame);
                         manually_open_and_or_focus_file(ui, open_files, filepath.c_str(), linum);
-                        set_thread_indices(ui, i, i);
+                        set_thread_frame_indices(ui, i);
                     }
                     default:
                     {
@@ -1594,8 +1614,9 @@ static void update_window_dimensions(UserInterface& ui)
     if (ui.window_resized_last_frame)
     {
         // re-scale the size of the invididual panels to account for window resize
-        const float scale_factor_width = new_width / ui.window_width;
-        const float scale_factor_height = new_height / ui.window_height;
+        // TODO[@zmeadows][P2]: handle conversion carefully
+        const float scale_factor_width = float(new_width) / float(ui.window_width);
+        const float scale_factor_height = float(new_height) / float(ui.window_height);
 
 #ifdef DEBUG
         DEBUG_STREAM(new_width);
@@ -1629,7 +1650,7 @@ static void update_window_dimensions(UserInterface& ui)
 
 int main_loop(Application& app)
 {
-    while (!glfwWindowShouldClose(app.ui.window))
+    while (glfwWindowShouldClose(app.ui.window) == 0)
     {
         glfwPollEvents();
 
@@ -1664,7 +1685,7 @@ int main_loop(Application& app)
 
         update_window_dimensions(app.ui);
 
-        app.fps_timer.wait_for_frame_duration(1.75 * 16666);
+        app.fps_timer.wait_for_frame_duration(int(1.75 * 16666));
         app.fps_timer.frame_end();
         app.ui.frames_rendered++;
     }
@@ -1672,7 +1693,7 @@ int main_loop(Application& app)
     return EXIT_SUCCESS;
 }
 
-std::optional<UserInterface> UserInterface::init(void)
+std::optional<UserInterface> UserInterface::init()
 {
     UserInterface ui;
 
@@ -1702,11 +1723,11 @@ std::optional<UserInterface> UserInterface::init(void)
 
     ui.window_width = 1920.f;
     ui.window_height = 1080.f;
-    ui.file_browser_width = ui.window_width * 0.15f;
-    ui.file_viewer_width = ui.window_width * 0.52f;
-    ui.file_viewer_height = ui.window_height * 0.6f;
-    ui.console_height = ui.window_height * 0.4f;
-    ui.stack_trace_width = ui.window_width * 0.33f;
+    ui.file_browser_width = float(ui.window_width) * 0.15f;
+    ui.file_viewer_width = float(ui.window_width) * 0.52f;
+    ui.file_viewer_height = float(ui.window_height) * 0.6f;
+    ui.console_height = float(ui.window_height) * 0.4f;
+    ui.stack_trace_width = float(ui.window_width) * 0.33f;
 
     glfwMakeContextCurrent(ui.window);
     glfwSwapInterval(0); // disable vsync
@@ -1742,7 +1763,7 @@ std::optional<UserInterface> UserInterface::init(void)
 Application::Application(const UserInterface& ui_, std::optional<fs::path> workdir)
     : debugger(lldb::SBDebugger::Create()), listener(debugger.GetListener()), cmdline(debugger),
       _stdout(StreamBuffer::StreamSource::StdOut), _stderr(StreamBuffer::StreamSource::StdErr),
-      file_browser(FileBrowserNode::create(workdir)), ui(ui_)
+      file_browser(FileBrowserNode::create(std::move(workdir))), ui(ui_)
 {
 }
 

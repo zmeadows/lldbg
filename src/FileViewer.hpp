@@ -18,8 +18,8 @@ class FileViewer
 
   public:
     void show(FileHandle handle);
-    std::optional<int> render(void);
-    void synchronize_breakpoint_cache(lldb::SBTarget target);
+    std::optional<int> render();
+    void synchronize_breakpoint_cache(const lldb::SBTarget& target);
 
     inline void set_highlight_line(int line)
     {

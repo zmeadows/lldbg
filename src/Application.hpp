@@ -4,18 +4,16 @@
 #include "FileSystem.hpp"
 #include "FileViewer.hpp"
 #include "LLDBCommandLine.hpp"
-#include "Log.hpp"
 #include "StreamBuffer.hpp"
 
 #include <cassert>
-#include <iostream>
 #include <lldb/API/LLDB.h>
 
 // clang-format off
 #include "imgui.h"
 #include "imgui_internal.h"
-#include "imgui_impl_glfw.h"
-#include "imgui_impl_opengl3.h"
+#include "imgui_impl_glfw.h" // IWYU pragma: keep
+#include "imgui_impl_opengl3.h" // IWYU pragma: keep
 // clang-format on
 
 #include <GLFW/glfw3.h>
@@ -35,8 +33,8 @@ struct UserInterface
 
     uint32_t stopped_thread_index = 0;
 
-    float window_width = -1.f;  // in pixels
-    float window_height = -1.f; // in pixels
+    int window_width = -1;  // in pixels
+    int window_height = -1; // in pixels
     float dpi_scale = 1.f;
 
     float file_browser_width = -1.f;
@@ -56,7 +54,7 @@ struct UserInterface
     ImFont* font = nullptr;
     GLFWwindow* window = nullptr;
 
-    static std::optional<UserInterface> init(void);
+    static std::optional<UserInterface> init();
 
   private:
     UserInterface() = default;
@@ -81,6 +79,7 @@ struct Application
 
     Application() = delete;
     Application(const Application&) = delete;
+    Application(Application&&) = delete;
     Application& operator=(const Application&) = delete;
     Application& operator=(Application&&) = delete;
 };

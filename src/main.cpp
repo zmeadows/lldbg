@@ -1,22 +1,13 @@
-#include <fstream>
-#include <iostream>
-#include <ostream>
-#include <string>
-#include <vector>
-
-// TODO: remove un-used includes
-// TODO: create Forward.hpp as in SerenityOS
 #include "Application.hpp"
-#include "ConfigParser.hpp"
 #include "Defer.hpp"
 #include "FileSystem.hpp"
 #include "Log.hpp"
 #include "StringBuffer.hpp"
-#include "Timer.hpp"
 #include "cxxopts.hpp"
-#include "fmt/format.h"
-#include "imgui.h"
-#include "lldb/API/LLDB.h"
+
+#include <iostream>
+#include <string>
+#include <vector>
 
 int main(int argc, char** argv)
 {
@@ -44,13 +35,13 @@ int main(int argc, char** argv)
 
     auto result = options.parse(argc, argv);
 
-    if (result.count("help"))
+    if (result.count("help") > 0)
     {
-        std::cout << options.help() << std::endl;
+        std::cout << options.help() << '\n';
         return EXIT_SUCCESS;
     }
 
-    if (result.count("loglevel"))
+    if (result.count("loglevel") > 0)
     {
         const std::string loglevel = result["loglevel"].as<std::string>();
         if (loglevel == "debug")
@@ -84,7 +75,7 @@ int main(int argc, char** argv)
     if (auto lldb_error = lldb::SBDebugger::InitializeWithErrorHandling(); !lldb_error.Success())
     {
         const char* lldb_error_cstr = lldb_error.GetCString();
-        std::cerr << (lldb_error_cstr ? lldb_error_cstr : "Unknown LLDB error!");
+        std::cerr << (lldb_error_cstr != nullptr ? lldb_error_cstr : "Unknown LLDB error!");
         std::cerr << "Failed to initialize LLDB, exiting...";
         return EXIT_FAILURE;
     }
@@ -98,7 +89,7 @@ int main(int argc, char** argv)
     }
 
     std::optional<fs::path> workdir = {};
-    if (result.count("workdir"))
+    if (result.count("workdir") > 0)
     {
         fs::path workdir_request = fs::path(result["workdir"].as<std::string>());
         if (fs::exists(workdir_request) && fs::is_directory(workdir_request))
@@ -109,7 +100,7 @@ int main(int argc, char** argv)
 
     Application app(*ui, workdir);
 
-    if (result.count("source-before-file"))
+    if (result.count("source-before-file") > 0)
     {
         const std::string source_path = result["source-before-file"].as<std::string>();
         auto handle = FileHandle::create(source_path);
@@ -131,14 +122,14 @@ int main(int argc, char** argv)
         }
     }
 
-    if (result.count("file"))
+    if (result.count("file") > 0)
     {
         // TODO: detect and open main file of specified executable
         StringBuffer target_set_cmd;
         target_set_cmd.format("file {}", result["file"].as<std::string>());
         run_lldb_command(app, target_set_cmd.data());
 
-        if (result.count("positional"))
+        if (result.count("positional") > 0)
         {
             StringBuffer argset_command;
             argset_command.format_("settings set target.run-args ");
@@ -151,7 +142,7 @@ int main(int argc, char** argv)
         }
     }
 
-    if (result.count("source"))
+    if (result.count("source") > 0)
     {
         const std::string source_path = result["source"].as<std::string>();
         auto handle = FileHandle::create(source_path);

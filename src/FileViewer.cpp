@@ -8,7 +8,7 @@
 #include "imgui_internal.h"
 // clang-format on
 
-std::optional<int> FileViewer::render(void)
+std::optional<int> FileViewer::render()
 {
     const std::unordered_set<int>* const bps =
         (m_breakpoints.has_value() && m_breakpoints != m_breakpoint_cache.end())
@@ -51,7 +51,8 @@ std::optional<int> FileViewer::render(void)
             clicked_line = line_number;
         }
 
-        if (bps != nullptr && bps->find(line_number) != bps->end())
+        // TODO[@zmeadows][P2]: carefully handle size_t/int conversion here
+        if (bps != nullptr && bps->find(int(line_number)) != bps->end())
         {
             ImVec2 pad = style.FramePadding;
             ImVec2 pos = window->DC.CursorPos;
@@ -67,10 +68,12 @@ std::optional<int> FileViewer::render(void)
     return clicked_line;
 }
 
-void FileViewer::synchronize_breakpoint_cache(lldb::SBTarget target)
+void FileViewer::synchronize_breakpoint_cache(const lldb::SBTarget& target)
 {
     for (auto& [_, bps] : m_breakpoint_cache)
+    {
         bps.clear();
+    }
 
     for (uint32_t i = 0; i < target.GetNumBreakpoints(); i++)
     {

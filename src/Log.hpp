@@ -1,6 +1,5 @@
 #pragma once
 
-#include <iostream>
 #include <memory>
 #include <mutex>
 #include <sstream>
@@ -11,7 +10,7 @@
 // also include lldb version/commit number?
 #define LOG(LEV) LogMessageStream(LogLevel::LEV)
 
-enum class LogLevel
+enum class LogLevel : std::uint8_t
 {
     Debug = 80,
     Verbose = 60,
@@ -25,7 +24,7 @@ struct LogMessage
     const LogLevel level;
     const std::string message;
 
-    LogMessage(LogLevel level, const std::string& message) : level(level), message(message) {}
+    LogMessage(LogLevel level, std::string message) : level(level), message(std::move(message)) {}
 };
 
 class Logger
@@ -37,7 +36,7 @@ class Logger
     static std::mutex s_mutex;
 
   public:
-    static Logger* get_instance(void)
+    static Logger* get_instance()
     {
         std::unique_lock<std::mutex> lock(s_mutex);
         if (!s_instance)
@@ -116,14 +115,20 @@ class LogMessageStream
         return *this;
     }
 
-    LogMessageStream(LogLevel level) : level(level) {}
+    explicit LogMessageStream(LogLevel level) : level(level) {}
 
     ~LogMessageStream()
     {
         if (Logger::get_instance()->get_log_level() >= (int) level)
         {
-            oss << std::endl;
+            oss << '\n';
             Logger::get_instance()->log(level, oss.str());
         }
     }
+
+    LogMessageStream() = delete;
+    LogMessageStream(const LogMessageStream&) = delete;
+    LogMessageStream(LogMessageStream&&) = delete;
+    LogMessageStream& operator=(const LogMessageStream&) = delete;
+    LogMessageStream& operator=(LogMessageStream&&) = delete;
 };
