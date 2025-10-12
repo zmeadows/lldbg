@@ -45,6 +45,15 @@
     },
 
     {
+      "name": "dev-tidy",
+      "inherits": "dev",
+      "cacheVariables": {
+        "CMAKE_CXX_CLANG_TIDY": "clang-tidy;-p=${sourceDir}",
+        "CMAKE_EXPOSE_COMPILE_COMMANDS": true
+      }
+    },
+
+    {
       "name": "ci",
       "displayName": "CI",
       "description": "Non-interactive CI build; export compile_commands; warnings-as-errors.",
