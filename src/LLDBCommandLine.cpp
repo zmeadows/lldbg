@@ -13,10 +13,11 @@ LLDBCommandLine::LLDBCommandLine(lldb::SBDebugger& debugger)
     run_command("settings set target.x86-disassembly-flavor intel", true);
 }
 
-lldb::SBCommandReturnObject LLDBCommandLine::run_command(const char* command,
-                                                         bool hide_from_history)
+lldb::SBCommandReturnObject
+LLDBCommandLine::run_command(const char* command, bool hide_from_history)
 {
-    if (!command) {
+    if (!command)
+    {
         LOG(Warning) << "Attempted to run empty command!";
         auto ret = lldb::SBCommandReturnObject();
         ret.SetStatus(lldb::eReturnStatusInvalid);
@@ -29,22 +30,27 @@ lldb::SBCommandReturnObject LLDBCommandLine::run_command(const char* command,
     lldb::SBCommandReturnObject ret;
     m_interpreter.HandleCommand(command, ret);
 
-    if (ret.GetOutput()) {
+    if (ret.GetOutput())
+    {
         entry.output = std::string(ret.GetOutput());
     }
 
     entry.succeeded = ret.Succeeded();
 
-    if (!entry.succeeded) {
-        if (ret.GetError()) {
+    if (!entry.succeeded)
+    {
+        if (ret.GetError())
+        {
             entry.error_msg = std::string(ret.GetError());
         }
-        else {
+        else
+        {
             entry.error_msg = "Unknown failure reason!";
         }
     }
 
-    if (!hide_from_history) {
+    if (!hide_from_history)
+    {
         m_history.emplace_back(std::move(entry));
     }
 
@@ -53,7 +59,8 @@ lldb::SBCommandReturnObject LLDBCommandLine::run_command(const char* command,
 
 std::optional<std::string> LLDBCommandLine::expand_and_unalias_command(const char* command)
 {
-    if (!command) {
+    if (!command)
+    {
         LOG(Warning) << "Attempted to expand/unalias empty command!";
         return {};
     }
@@ -62,10 +69,12 @@ std::optional<std::string> LLDBCommandLine::expand_and_unalias_command(const cha
     m_interpreter.ResolveCommand(command, ret);
 
     const char* output = ret.GetOutput();
-    if (ret.Succeeded() && output) {
+    if (ret.Succeeded() && output)
+    {
         return std::string(output);
     }
-    else {
+    else
+    {
         return {};
     }
 }
