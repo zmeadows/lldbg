@@ -10,7 +10,7 @@
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
         "CMAKE_CXX_STANDARD": "17",
-        "CMAKE_CXX_STANDARD_REQUIRED": "ON"
+        "CMAKE_CXX_STANDARD_REQUIRED": true
       },
       "vendor": {
         "jetbrains.com/clion": { "toolchain": "Default" }
@@ -23,11 +23,11 @@
       "description": "Fast Release build; no dev extras.",
       "inherits": ["ninja-base"],
       "cacheVariables": {
-        "LDBG_BUILD_TESTS": "OFF",
+        "LDBG_BUILD_TESTS": false,
         "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "TRUE",
-        "LLDBG_WITH_IMGUI_DEMO": "OFF",
-        "LLDBG_WARN_AS_ERRORS": "OFF"
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": true,
+        "LLDBG_WITH_IMGUI_DEMO": false,
+        "LLDBG_WARN_AS_ERRORS": false
       }
     },
 
@@ -38,9 +38,9 @@
       "inherits": ["ninja-base"],
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-        "LLDBG_WITH_IMGUI_DEMO": "ON",
-        "LLDBG_WARN_AS_ERRORS": "OFF"
+        "CMAKE_EXPORT_COMPILE_COMMANDS": true,
+        "LLDBG_WITH_IMGUI_DEMO": true,
+        "LLDBG_WARN_AS_ERRORS": false
       }
     },
 
@@ -51,12 +51,14 @@
       "inherits": ["ninja-base"],
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-        "LLDBG_WITH_IMGUI_DEMO": "OFF",
-        "LLDBG_WARN_AS_ERRORS": "OFF",
-        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "OFF",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": true,
+        "LLDBG_WITH_IMGUI_DEMO": false,
+        "LLDBG_WARN_AS_ERRORS": false,
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": false,
         "CMAKE_C_FLAGS_RELWITHDEBINFO": "-O1 -g1 -gsplit-dwarf",
-        "CMAKE_CXX_FLAGS_RELWITHDEBINFO": "-O1 -g1 -gsplit-dwarf"
+        "CMAKE_CXX_FLAGS_RELWITHDEBINFO": "-O1 -g1 -gsplit-dwarf",
+        "CMAKE_UNITY_BUILD": true,
+        "CMAKE_UNITY_BUILD_BATCH_SIZE": "8"
       }
     }
   ],
