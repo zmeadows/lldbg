@@ -84,8 +84,8 @@ jobs:
           # Optional GL/X11 bits (best-effort)
           if ! apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends \
                 libgl1-mesa-dev libx11-dev libxrandr-dev libxinerama-dev libxi-dev libxcursor-dev \
-                libglfw3-dev libglew-dev ; then
-            echo "Optional GL/GLFW/GLEW not available; continuing."
+                libglfw3-dev; then
+            echo "Optional GL/GLFW not available; continuing."
           fi
 
           apt-get clean && rm -rf /var/lib/apt/lists/*
