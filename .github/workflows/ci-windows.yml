@@ -1,5 +1,5 @@
 ---
-name: ci (windows-msys2)
+name: ci-windows
 
 on:
   push: { branches: [main, master] }
@@ -9,7 +9,7 @@ on:
 permissions: { contents: read }
 
 concurrency:
-  group: ci-win-msys2-${{ github.ref }}
+  group: ci-windows-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -71,3 +71,149 @@ jobs:
           # Ensure liblldb.dll is on PATH for test-time loads
           PATH: /clang64/bin:$PATH
         run: ctest --test-dir build --output-on-failure
+
+  build-msvc:
+    runs-on: windows-latest
+    env:
+      LLVM_URL: "https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.3/clang+llvm-21.1.3-x86_64-pc-windows-msvc.tar.xz"
+      CMAKE_BUILD_PARALLEL_LEVEL: "4"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # Put cl.exe (MSVC) on PATH
+      - uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install Ninja
+        run: choco install ninja -y
+
+      # Cache the extracted prebuilt LLVM tree so we don't redownload every run
+      - name: Cache prebuilt LLVM
+        id: cache-llvm
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}\clang-llvm-21.1.3-msvc
+          key: prebuilt-llvm21.1.3-${{ runner.os }}-msvc
+
+      - name: Download & extract LLVM (if cache miss)
+        if: steps.cache-llvm.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $dest = "$env:RUNNER_TEMP\clang-llvm-21.1.3-msvc"
+          New-Item -ItemType Directory -Force -Path $dest | Out-Null
+          $tar = "$env:RUNNER_TEMP\llvm21.tar.xz"
+          Write-Host "Downloading $env:LLVM_URL"
+          Invoke-WebRequest $env:LLVM_URL -OutFile $tar
+          # Extract .tar.xz (bsdtar on the runner handles xz)
+          tar -xf $tar -C $dest
+
+      - name: Locate LLVM/LLDB CMake packages
+        id: locate
+        shell: pwsh
+        run: |
+          $root = Get-ChildItem -Path "$env:RUNNER_TEMP\clang-llvm-21.1.3-msvc" -Directory | Select-Object -First 1
+          if (-not $root) { throw "LLVM archive not found/extracted." }
+          $llvmDir = Join-Path $root.FullName "lib\cmake\llvm"
+          $lldbDir = Join-Path $root.FullName "lib\cmake\lldb"
+          if (!(Test-Path $llvmDir)) { throw "Missing LLVM_DIR at $llvmDir" }
+          if (!(Test-Path $lldbDir)) { throw "Missing LLDB_DIR at $lldbDir" }
+          "root=$($root.FullName)"   >> $env:GITHUB_OUTPUT
+          "LLVM_DIR=$llvmDir"        >> $env:GITHUB_OUTPUT
+          "LLDB_DIR=$lldbDir"        >> $env:GITHUB_OUTPUT
+          Write-Host "LLVM root: $($root.FullName)"
+
+      # Optional: make LLVM/LLDB tools available if any post-build step needs them
+      - name: Add LLVM bin to PATH
+        shell: pwsh
+        run: echo "${{ steps.locate.outputs.root }}\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Configure (MSVC + prebuilt LLVM/LLDB)
+        run: >
+          cmake -S . -B build-msvc -G "Ninja"
+          -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl
+          -DCMAKE_BUILD_TYPE=Release
+          -DLLVM_DIR="${{ steps.locate.outputs.LLVM_DIR }}"
+          -DLLDB_DIR="${{ steps.locate.outputs.LLDB_DIR }}"
+          -DLLDBG_ENABLE_LLDB=ON
+
+      - name: Build
+        run: cmake --build build-msvc --config Release -- -v
+
+  windows-msvc-prebuilt-audit:
+    name: Audit prebuilt LLVM/LLDB (MSVC tarballs)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Probe candidate tarballs for LLDB bits
+        shell: pwsh
+        run: |
+          $candidates = @(
+            # Add/remove versions as you like:
+            "https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.3/clang+llvm-21.1.3-x86_64-pc-windows-msvc.tar.xz",
+            "https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.2/clang+llvm-21.1.2-x86_64-pc-windows-msvc.tar.xz",
+            "https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.1/clang+llvm-21.1.1-x86_64-pc-windows-msvc.tar.xz",
+            "https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.0/clang+llvm-21.1.0-x86_64-pc-windows-msvc.tar.xz",
+            "https://github.com/llvm/llvm-project/releases/download/llvmorg-20.1.0/clang+llvm-20.1.0-x86_64-pc-windows-msvc.tar.xz",
+            "https://github.com/llvm/llvm-project/releases/download/llvmorg-19.1.7/clang+llvm-19.1.7-x86_64-pc-windows-msvc.tar.xz",
+            "https://github.com/llvm/llvm-project/releases/download/llvmorg-19.1.0/clang+llvm-19.1.0-x86_64-pc-windows-msvc.tar.xz",
+            "https://github.com/llvm/llvm-project/releases/download/llvmorg-18.1.8/clang+llvm-18.1.8-x86_64-pc-windows-msvc.tar.xz"
+          )
+
+          $report = @()
+          $rootOut = Join-Path $env:RUNNER_TEMP "llvm-prebuilt-scan"
+          New-Item -ItemType Directory -Force -Path $rootOut | Out-Null
+
+          foreach ($url in $candidates) {
+            try {
+              $name = ([IO.Path]::GetFileNameWithoutExtension([IO.Path]::GetFileNameWithoutExtension($url))) # strip .tar.xz
+              $destDir = Join-Path $rootOut $name
+              if (-not (Test-Path $destDir)) { New-Item -ItemType Directory -Force -Path $destDir | Out-Null }
+
+              $txz = Join-Path $rootOut "$name.tar.xz"
+              Write-Host "==> Downloading $url"
+              Invoke-WebRequest -Uri $url -OutFile $txz -UseBasicParsing -ErrorAction Stop
+
+              # Extract tar.xz using built-in bsdtar
+              tar -xf $txz -C $destDir
+
+              # The archive expands to a single top-level folder; find it:
+              $top = Get-ChildItem -Path $destDir -Directory | Select-Object -First 1
+              if (-not $top) { throw "No top-level directory after extract." }
+
+              $includeLLDB = Join-Path $top.FullName "include\lldb"
+              $liblldbLib  = Get-ChildItem -Recurse -Path (Join-Path $top.FullName "lib") -Filter "liblldb.lib" -ErrorAction SilentlyContinue | Select-Object -First 1
+              $lldbCMake   = Get-ChildItem -Recurse -Path (Join-Path $top.FullName "lib\cmake") -Filter "LLDBConfig.cmake" -ErrorAction SilentlyContinue | Select-Object -First 1
+
+              $hasHeaders  = Test-Path $includeLLDB
+              $hasLib      = [bool]$liblldbLib
+              $hasCMake    = [bool]$lldbCMake
+
+              $report += [pscustomobject]@{
+                Tarball = $name
+                HAS_HEADERS = $hasHeaders
+                HAS_LIB     = $hasLib
+                HAS_CMAKE   = $hasCMake
+                Root        = $top.FullName
+              }
+            }
+            catch {
+              $report += [pscustomobject]@{
+                Tarball = $url
+                HAS_HEADERS = $false; HAS_LIB = $false; HAS_CMAKE = $false
+                Root = "DOWNLOAD/EXTRACT FAILED: $($_.Exception.Message)"
+              }
+            }
+          }
+
+          # Pretty print summary
+          $report | Format-Table -AutoSize | Out-String | Write-Host
+
+          # Also emit a GitHub Actions log-friendly line for the first “fully OK” hit
+          $firstOK = $report | Where-Object { $_.HAS_HEADERS -and $_.HAS_LIB } | Select-Object -First 1
+          if ($firstOK) {
+            Write-Host "::notice title=LLDB prebuilt found::${($firstOK.Tarball)} has headers+lib (CMake package present: ${($firstOK.HAS_CMAKE)}) at ${($firstOK.Root)}"
+          } else {
+            Write-Host "::warning title=No full LLDB prebuilt found::None of the tested tarballs had both headers and lib."
+          }
