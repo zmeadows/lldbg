@@ -1,5 +1,6 @@
 [![ci-linux](https://github.com/zmeadows/lldbg/actions/workflows/ci-linux.yml/badge.svg)](https://github.com/zmeadows/lldbg/actions/workflows/ci-linux.yml)
 [![ci-macos](https://github.com/zmeadows/lldbg/actions/workflows/ci-macos.yml/badge.svg)](https://github.com/zmeadows/lldbg/actions/workflows/ci-macos.yml)
+[![ci-windows](https://github.com/zmeadows/lldbg/actions/workflows/ci-windows.yml/badge.svg)](https://github.com/zmeadows/lldbg/actions/workflows/ci-windows.yml)
 [![code-quality](https://github.com/zmeadows/lldbg/actions/workflows/code-quality.yml/badge.svg)](https://github.com/zmeadows/lldbg/actions/workflows/code-quality.yml)
 
 ---

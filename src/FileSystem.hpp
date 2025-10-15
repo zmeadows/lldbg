@@ -10,7 +10,19 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <string>
 #include <vector>
+
+// Convert a path to a UTF-8 std::string (works cross-platform).
+static std::string to_utf8(const std::filesystem::path& p)
+{
+#ifdef _WIN32
+    // In C++17 this returns std::string containing UTF-8 on MSVC/libc++/libstdc++
+    return p.u8string();
+#else
+    return p.string();
+#endif
+}
 
 namespace fs = std::filesystem;
 
@@ -32,7 +44,7 @@ class FileHandle
   public:
     FileHandle() = delete;
 
-    static std::optional<FileHandle> create(const std::string& filepath);
+    static std::optional<FileHandle> create(const std::filesystem::path& filepath);
 
     const std::vector<std::string>& contents();
     const std::string& filepath();
@@ -180,14 +192,16 @@ class FileBrowserNode
   public:
     static std::unique_ptr<FileBrowserNode> create(std::optional<fs::path> path_request);
 
-    [[nodiscard]] const char* filepath() const
+    [[nodiscard]] std::string filepath() const
     {
-        return m_filepath.c_str();
+        return to_utf8(m_filepath);
     }
-    [[nodiscard]] const char* filename() const
+
+    [[nodiscard]] std::string filename() const
     {
-        return m_filename.c_str();
+        return to_utf8(m_filename);
     }
+
     [[nodiscard]] bool is_directory() const
     {
         return fs::is_directory(m_filepath);

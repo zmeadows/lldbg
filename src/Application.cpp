@@ -385,7 +385,7 @@ static void draw_open_files(Application& app)
                         const fs::path filepath = focus_handle->filepath();
                         StringBuffer breakpoint_command;
                         breakpoint_command.format(
-                            "breakpoint set --file {} --line {}", filepath.c_str(), *clicked_line
+                            "breakpoint set --file {} --line {}", to_utf8(filepath), *clicked_line
                         );
 
                         // Check if the breakpoint already exists
@@ -470,7 +470,7 @@ static void manually_open_and_or_focus_file(
 }
 
 static void manually_open_and_or_focus_file(
-    UserInterface& ui, OpenFiles& open_files, const char* filepath, size_t linum = 0
+    UserInterface& ui, OpenFiles& open_files, const fs::path& filepath, size_t linum = 0
 )
 {
     if (auto handle = FileHandle::create(filepath); handle.has_value())
@@ -490,10 +490,10 @@ static void draw_file_browser(Application& app, FileBrowserNode* node_to_draw, s
 
     if (node_to_draw->is_directory())
     {
-        const char* tree_node_label =
+        const std::string tree_node_label =
             depth == 0 ? node_to_draw->filepath() : node_to_draw->filename();
 
-        if (FileTreeNode(tree_node_label))
+        if (FileTreeNode(tree_node_label.c_str()))
         {
             for (const auto& child_node : node_to_draw->children())
             {
@@ -504,7 +504,7 @@ static void draw_file_browser(Application& app, FileBrowserNode* node_to_draw, s
     }
     else
     {
-        if (ImGui::Selectable(node_to_draw->filename()))
+        if (ImGui::Selectable(node_to_draw->filename().c_str()))
         {
             manually_open_and_or_focus_file(app.ui, app.open_files, node_to_draw->filepath());
         }
@@ -1309,9 +1309,7 @@ static void draw_breakpoints_and_watchpoints(
                         ))
                     {
                         fs::path breakpoint_filepath = fs::path(directory) / fs::path(filename);
-                        manually_open_and_or_focus_file(
-                            ui, open_files, breakpoint_filepath.c_str()
-                        );
+                        manually_open_and_or_focus_file(ui, open_files, breakpoint_filepath);
                         ui.viewed_breakpoint_index = i;
                     }
                     ImGui::NextColumn();
@@ -1539,9 +1537,7 @@ static void handle_lldb_events(
                                 breakpoint.FindLocationByID(location_id);
 
                             const auto [filepath, linum] = resolve_breakpoint(location);
-                            manually_open_and_or_focus_file(
-                                ui, open_files, filepath.c_str(), linum
-                            );
+                            manually_open_and_or_focus_file(ui, open_files, filepath, linum);
                             set_thread_frame_indices(ui, i);
                             // ui.stopped_thread_index = i;
                             // file_viewer.set_highlight_line(linum);
@@ -1553,7 +1549,7 @@ static void handle_lldb_events(
                     {
                         lldb::SBFrame frame = th.GetSelectedFrame();
                         const auto [filepath, linum] = get_stop_location_from_frame(frame);
-                        manually_open_and_or_focus_file(ui, open_files, filepath.c_str(), linum);
+                        manually_open_and_or_focus_file(ui, open_files, filepath, linum);
                         set_thread_frame_indices(ui, i);
                     }
                     default:

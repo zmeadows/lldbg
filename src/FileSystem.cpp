@@ -12,7 +12,7 @@ std::map<size_t, std::string> FileHandle::s_filename_cache;
 std::map<size_t, std::vector<std::string>> FileHandle::s_contents_cache;
 std::mutex FileHandle::s_mutex;
 
-std::optional<FileHandle> FileHandle::create(const std::string& filepath)
+std::optional<FileHandle> FileHandle::create(const fs::path& filepath)
 {
     const fs::path canonical_path = fs::canonical(filepath);
 
@@ -178,7 +178,7 @@ void FileBrowserNode::open_children()
                 }
                 else
                 {
-                    return strcmp(a->filename(), b->filename()) < 0;
+                    return a->filename() < b->filename();
                 }
             }
         );
