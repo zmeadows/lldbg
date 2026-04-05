@@ -1,6 +1,7 @@
 #include "FileViewer.hpp"
 
 #include "Defer.hpp"
+#include "Lex.hpp"
 #include "StringBuffer.hpp"
 
 // clang-format off
@@ -26,12 +27,10 @@ std::optional<int> FileViewer::render()
 
     std::optional<int> clicked_line = {};
 
-    StringBuffer line_buffer;
+    LexState state = LexState::Normal;
     for (size_t i = 0; i < m_lines.size(); i++)
     {
         const size_t line_number = i + 1;
-
-        line_buffer.format("   {}  {}\n", line_number, m_lines[i]);
 
         bool selected = false;
         if (m_highlighted_line.has_value() &&
@@ -45,24 +44,84 @@ std::optional<int> FileViewer::render()
             }
         }
 
-        ImGui::Selectable(line_buffer.data(), selected);
+        std::string id = "##line_" + std::to_string(line_number);
+        ImGui::Selectable(id.c_str(), selected, ImGuiSelectableFlags_AllowOverlap);
+
         if (ImGui::IsItemClicked())
         {
             clicked_line = line_number;
         }
 
-        // TODO[@zmeadows][P2]: carefully handle size_t/int conversion here
-        if (bps != nullptr && bps->find(int(line_number)) != bps->end())
+        const ImVec2 row_min = ImGui::GetItemRectMin();
+        const ImVec2 row_max = ImGui::GetItemRectMax();
+
+        // Draw line number in gutter
+        const std::string line_number_text = std::to_string(line_number);
+        ImVec2 line_number_pos = row_min;
+        line_number_pos.x += m_breakpoint_gutter_width;
+        line_number_pos.y += style.FramePadding.y;
+
+        window->DrawList->AddText(
+            line_number_pos, IM_COL32(120, 120, 120, 255), line_number_text.c_str()
+        );
+
+        // Draw seperator between line numbers and code
+        const float separator_x =
+            row_min.x + m_breakpoint_gutter_width + m_line_number_gutter_width + 2.0f;
+        window->DrawList->AddLine(
+            ImVec2(separator_x, row_min.y), ImVec2(separator_x, row_max.y),
+            IM_COL32(60, 60, 60, 255)
+        );
+
+        // Draw code
+        ImVec2 text_pos = row_min;
+        text_pos.x += m_breakpoint_gutter_width + m_line_number_gutter_width + m_gutter_padding;
+        text_pos.y += style.FramePadding.y;
+
+        const auto tokens = Lex::lex_cpp_line(std::string_view(m_lines[i]), state);
+
+        for (const auto& token : tokens)
         {
-            ImVec2 pad = style.FramePadding;
-            ImVec2 pos = window->DC.CursorPos;
-            ImVec2 txt = ImGui::CalcTextSize("X");
-            pos.x += 1.3f * txt.x;
-            pos.y -= (txt.y + 2.f * pad.y) / 2.f;
-            window->DrawList->AddCircleFilled(pos, txt.y / 3.f, IM_COL32(255, 0, 0, 255));
+            std::string_view text(m_lines[i].c_str() + token.start, token.length);
+
+            ImU32 color = ImGui::GetColorU32(ImGuiCol_Text);
+            switch (token.kind)
+            {
+            case TokenKind::Keyword:
+                color = IM_COL32(86, 156, 214, 255);
+                break;
+            case TokenKind::String:
+            case TokenKind::Character:
+                color = IM_COL32(206, 145, 120, 255);
+                break;
+            case TokenKind::Comment:
+                color = IM_COL32(106, 153, 85, 255);
+                break;
+            case TokenKind::Number:
+                color = IM_COL32(181, 206, 168, 255);
+                break;
+            case TokenKind::Preprocessor:
+                color = IM_COL32(155, 155, 0, 255);
+                break;
+            default:
+                break;
+            }
+
+            window->DrawList->AddText(text_pos, color, text.data(), text.data() + text.size());
+
+            const ImVec2 text_size = ImGui::CalcTextSize(text.data(), text.data() + text.size());
+            text_pos.x += text_size.x;
         }
 
-        line_buffer.clear();
+        // Draw breakpoint marker in gutter
+        if (bps != nullptr && bps->find(int(line_number)) != bps->end())
+        {
+            ImVec2 bp_pos = row_min;
+            bp_pos.x += m_breakpoint_gutter_width * 0.5f;
+            bp_pos.y += (row_max.y - row_min.y) * 0.5f;
+
+            window->DrawList->AddCircleFilled(bp_pos, 4.0f, IM_COL32(255, 0, 0, 255));
+        }
     }
 
     return clicked_line;
