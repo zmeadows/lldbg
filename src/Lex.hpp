@@ -6,6 +6,12 @@
 #include <unordered_set>
 #include <vector>
 
+enum class LexState
+{
+    Normal,
+    InBlockComment
+};
+
 enum class TokenKind
 {
     Normal,
@@ -267,7 +273,7 @@ namespace Lex
         return (i > start) ? i : start + 1;
     }
 
-    inline std::vector<TokenSpan> lex_cpp_line(std::string_view line)
+    inline std::vector<TokenSpan> lex_cpp_line(std::string_view line, LexState& state)
     {
         std::vector<TokenSpan> tokens;
         const size_t n = line.size();
@@ -311,75 +317,136 @@ namespace Lex
 
         while (i < n)
         {
-            // Line comment
-            if ((i + 1) < n && line[i] == '/' && line[i + 1] == '/')
+            /*
+             * Block comment
+             * Test
+             * 
+             */
+            if (state == LexState::InBlockComment)
             {
-                flush_normal_until(i, tokens, normal_start);
-                push_token(tokens, TokenKind::Comment, i, n);
-                normal_start = n;
-                break;
-            }
+                size_t start = i;
 
-            // String literal
-            if (line[i] == '"')
-            {
-                flush_normal_until(i, tokens, normal_start);
-                const size_t end = consume_string_like(line, i, '"');
-                push_token(tokens, TokenKind::String, i, end);
-                i = end;
-                normal_start = i;
-                continue;
-            }
-
-            // Character literal
-            if (line[i] == '\'')
-            {
-                flush_normal_until(i, tokens, normal_start);
-                const size_t end = consume_string_like(line, i, '\'');
-                push_token(tokens, TokenKind::Character, i, end);
-                i = end;
-                normal_start = i;
-                continue;
-            }
-
-            // Number
-            if (is_digit(line[i]))
-            {
-                const bool previous_is_identifier = i > 0 && is_identifier_char(line[i - 1]);
-
-                if (!previous_is_identifier)
-                {
-                    flush_normal_until(i, tokens, normal_start);
-                    const size_t end = consume_number(line, i);
-                    push_token(tokens, TokenKind::Number, i, end);
-                    i = end;
-                    normal_start = i;
-                    continue;
-                }
-            }
-
-            // Identifier / keyword
-            if (is_identifier_start(line[i]))
-            {
-                const size_t start = i;
-                ++i;
-                while (i < n && is_identifier_char(line[i]))
+                while ((i + 1) < n && !(line[i] == '*' && line[i + 1] == '/'))
                 {
                     ++i;
                 }
 
-                std::string_view ident = line.substr(start, i - start);
-                if (cpp_keywords().find(ident) != cpp_keywords().end())
+                if ((i + 1) < n)
                 {
-                    flush_normal_until(start, tokens, normal_start);
-                    push_token(tokens, TokenKind::Keyword, start, i);
+                    i += 2; // consume */
+                    push_token(tokens, TokenKind::Comment, start, i);
+                    state = LexState::Normal;
                     normal_start = i;
+                    continue;
+                }
+                else
+                {
+                    // entire rest of line is still comment
+                    push_token(tokens, TokenKind::Comment, start, n);
+                    return tokens;
+                }
+            }
+            else
+            {
+                // Line comment
+                if ((i + 1) < n && line[i] == '/' && line[i + 1] == '/')
+                {
+                    flush_normal_until(i, tokens, normal_start);
+                    push_token(tokens, TokenKind::Comment, i, n);
+                    normal_start = n;
+                    break;
                 }
 
-                continue;
-            }
+                // Block comment
+                if ((i + 1) < n && line[i] == '/' && line[i + 1] == '*')
+                {
+                    flush_normal_until(i, tokens, normal_start);
 
-            ++i;
+                    const size_t start = i;
+                    i += 2; // consume /*
+
+                    while ((i + 1) < n && !(line[i] == '*' && line[i + 1] == '/'))
+                    {
+                        ++i;
+                    }
+
+                    if ((i + 1) < n)
+                    {
+                        i += 2; // consume */
+                        push_token(tokens, TokenKind::Comment, start, i);
+                        normal_start = i;
+                    }
+                    else
+                    {
+                        push_token(tokens, TokenKind::Comment, start, n);
+                        state = LexState::InBlockComment;
+                        return tokens;
+                    }
+
+                    continue;
+                }
+
+                // String literal
+                if (line[i] == '"')
+                {
+                    flush_normal_until(i, tokens, normal_start);
+                    const size_t end = consume_string_like(line, i, '"');
+                    push_token(tokens, TokenKind::String, i, end);
+                    i = end;
+                    normal_start = i;
+                    continue;
+                }
+
+                // Character literal
+                if (line[i] == '\'')
+                {
+                    flush_normal_until(i, tokens, normal_start);
+                    const size_t end = consume_string_like(line, i, '\'');
+                    push_token(tokens, TokenKind::Character, i, end);
+                    i = end;
+                    normal_start = i;
+                    continue;
+                }
+
+                // Number
+                if (is_digit(line[i]))
+                {
+                    const bool previous_is_identifier = i > 0 && is_identifier_char(line[i - 1]);
+
+                    if (!previous_is_identifier)
+                    {
+                        flush_normal_until(i, tokens, normal_start);
+                        const size_t end = consume_number(line, i);
+                        push_token(tokens, TokenKind::Number, i, end);
+                        i = end;
+                        normal_start = i;
+                        continue;
+                    }
+                }
+
+                // Identifier / keyword
+                if (is_identifier_start(line[i]))
+                {
+                    const size_t start = i;
+                    ++i;
+                    while (i < n && is_identifier_char(line[i]))
+                    {
+                        ++i;
+                    }
+
+                    std::string_view ident = line.substr(start, i - start);
+                    if (cpp_keywords().find(ident) != cpp_keywords().end())
+                    {
+                        flush_normal_until(start, tokens, normal_start);
+                        push_token(tokens, TokenKind::Keyword, start, i);
+                        normal_start = i;
+                    }
+
+                    continue;
+                }
+
+                ++i;
+            }
         }
 
         if (normal_start < n)

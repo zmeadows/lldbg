@@ -16,6 +16,10 @@ class FileViewer
     std::optional<int> m_highlighted_line = {};
     bool m_highlight_line_needs_focus = false;
 
+    static constexpr float m_breakpoint_gutter_width = 18.0f;
+    static constexpr float m_line_number_gutter_width = 44.0f;
+    static constexpr float m_gutter_padding = 6.0f;
+
   public:
     void show(FileHandle handle);
     std::optional<int> render();

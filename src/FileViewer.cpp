@@ -27,6 +27,7 @@ std::optional<int> FileViewer::render()
 
     std::optional<int> clicked_line = {};
 
+    LexState state = LexState::Normal;
     for (size_t i = 0; i < m_lines.size(); i++)
     {
         const size_t line_number = i + 1;
@@ -43,10 +44,6 @@ std::optional<int> FileViewer::render()
             }
         }
 
-        StringBuffer line_buffer;
-        line_buffer.format("   {}  {}", line_number, m_lines[i]);
-
-        // 1. Invisible selectable row
         std::string id = "##line_" + std::to_string(line_number);
         ImGui::Selectable(id.c_str(), selected, ImGuiSelectableFlags_AllowOverlap);
 
@@ -58,16 +55,34 @@ std::optional<int> FileViewer::render()
         const ImVec2 row_min = ImGui::GetItemRectMin();
         const ImVec2 row_max = ImGui::GetItemRectMax();
 
-        // 2. Draw syntax-highlighted text manually on top of the row
+        // Draw line number in gutter
+        const std::string line_number_text = std::to_string(line_number);
+        ImVec2 line_number_pos = row_min;
+        line_number_pos.x += m_breakpoint_gutter_width;
+        line_number_pos.y += style.FramePadding.y;
+
+        window->DrawList->AddText(
+            line_number_pos, IM_COL32(120, 120, 120, 255), line_number_text.c_str()
+        );
+
+        // Draw seperator between line numbers and code
+        const float separator_x =
+            row_min.x + m_breakpoint_gutter_width + m_line_number_gutter_width + 2.0f;
+        window->DrawList->AddLine(
+            ImVec2(separator_x, row_min.y), ImVec2(separator_x, row_max.y),
+            IM_COL32(60, 60, 60, 255)
+        );
+
+        // Draw code
         ImVec2 text_pos = row_min;
-        text_pos.x += style.FramePadding.x;
+        text_pos.x += m_breakpoint_gutter_width + m_line_number_gutter_width + m_gutter_padding;
         text_pos.y += style.FramePadding.y;
 
-        const auto tokens = Lex::lex_cpp_line(line_buffer.view());
+        const auto tokens = Lex::lex_cpp_line(std::string_view(m_lines[i]), state);
 
         for (const auto& token : tokens)
         {
-            std::string_view text(line_buffer.data() + token.start, token.length);
+            std::string_view text(m_lines[i].c_str() + token.start, token.length);
 
             ImU32 color = ImGui::GetColorU32(ImGuiCol_Text);
             switch (token.kind)
@@ -94,22 +109,19 @@ std::optional<int> FileViewer::render()
 
             window->DrawList->AddText(text_pos, color, text.data(), text.data() + text.size());
 
-            ImVec2 text_size = ImGui::CalcTextSize(text.data(), text.data() + text.size());
+            const ImVec2 text_size = ImGui::CalcTextSize(text.data(), text.data() + text.size());
             text_pos.x += text_size.x;
         }
 
-        // 3. Breakpoint marker
+        // Draw breakpoint marker in gutter
         if (bps != nullptr && bps->find(int(line_number)) != bps->end())
         {
-            ImVec2 txt = ImGui::CalcTextSize("X");
             ImVec2 bp_pos = row_min;
-            bp_pos.x += 1.3f * txt.x;
+            bp_pos.x += m_breakpoint_gutter_width * 0.5f;
             bp_pos.y += (row_max.y - row_min.y) * 0.5f;
 
-            window->DrawList->AddCircleFilled(bp_pos, txt.y / 3.f, IM_COL32(255, 0, 0, 255));
+            window->DrawList->AddCircleFilled(bp_pos, 4.0f, IM_COL32(255, 0, 0, 255));
         }
-
-        line_buffer.clear();
     }
 
     return clicked_line;
