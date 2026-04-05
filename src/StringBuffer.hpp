@@ -2,6 +2,7 @@
 
 #include "fmt/core.h"
 #include "fmt/format.h"
+#include "string_view"
 
 // Just a convenience class to ensure all fmt buffers are nul-terminated
 class StringBuffer
@@ -37,5 +38,10 @@ class StringBuffer
     void push_back(char chr)
     {
         m_buffer.push_back(chr);
+    }
+
+    [[nodiscard]] std::string_view view() const
+    {
+        return m_buffer.data();
     }
 };

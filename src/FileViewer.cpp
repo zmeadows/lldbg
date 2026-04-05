@@ -1,6 +1,7 @@
 #include "FileViewer.hpp"
 
 #include "Defer.hpp"
+#include "Lex.hpp"
 #include "StringBuffer.hpp"
 
 // clang-format off
@@ -26,12 +27,9 @@ std::optional<int> FileViewer::render()
 
     std::optional<int> clicked_line = {};
 
-    StringBuffer line_buffer;
     for (size_t i = 0; i < m_lines.size(); i++)
     {
         const size_t line_number = i + 1;
-
-        line_buffer.format("   {}  {}\n", line_number, m_lines[i]);
 
         bool selected = false;
         if (m_highlighted_line.has_value() &&
@@ -45,21 +43,70 @@ std::optional<int> FileViewer::render()
             }
         }
 
-        ImGui::Selectable(line_buffer.data(), selected);
+        StringBuffer line_buffer;
+        line_buffer.format("   {}  {}", line_number, m_lines[i]);
+
+        // 1. Invisible selectable row
+        std::string id = "##line_" + std::to_string(line_number);
+        ImGui::Selectable(id.c_str(), selected, ImGuiSelectableFlags_AllowOverlap);
+
         if (ImGui::IsItemClicked())
         {
             clicked_line = line_number;
         }
 
-        // TODO[@zmeadows][P2]: carefully handle size_t/int conversion here
+        const ImVec2 row_min = ImGui::GetItemRectMin();
+        const ImVec2 row_max = ImGui::GetItemRectMax();
+
+        // 2. Draw syntax-highlighted text manually on top of the row
+        ImVec2 text_pos = row_min;
+        text_pos.x += style.FramePadding.x;
+        text_pos.y += style.FramePadding.y;
+
+        const auto tokens = Lex::lex_cpp_line(line_buffer.view());
+
+        for (const auto& token : tokens)
+        {
+            std::string_view text(line_buffer.data() + token.start, token.length);
+
+            ImU32 color = ImGui::GetColorU32(ImGuiCol_Text);
+            switch (token.kind)
+            {
+            case TokenKind::Keyword:
+                color = IM_COL32(86, 156, 214, 255);
+                break;
+            case TokenKind::String:
+            case TokenKind::Character:
+                color = IM_COL32(206, 145, 120, 255);
+                break;
+            case TokenKind::Comment:
+                color = IM_COL32(106, 153, 85, 255);
+                break;
+            case TokenKind::Number:
+                color = IM_COL32(181, 206, 168, 255);
+                break;
+            case TokenKind::Preprocessor:
+                color = IM_COL32(155, 155, 0, 255);
+                break;
+            default:
+                break;
+            }
+
+            window->DrawList->AddText(text_pos, color, text.data(), text.data() + text.size());
+
+            ImVec2 text_size = ImGui::CalcTextSize(text.data(), text.data() + text.size());
+            text_pos.x += text_size.x;
+        }
+
+        // 3. Breakpoint marker
         if (bps != nullptr && bps->find(int(line_number)) != bps->end())
         {
-            ImVec2 pad = style.FramePadding;
-            ImVec2 pos = window->DC.CursorPos;
             ImVec2 txt = ImGui::CalcTextSize("X");
-            pos.x += 1.3f * txt.x;
-            pos.y -= (txt.y + 2.f * pad.y) / 2.f;
-            window->DrawList->AddCircleFilled(pos, txt.y / 3.f, IM_COL32(255, 0, 0, 255));
+            ImVec2 bp_pos = row_min;
+            bp_pos.x += 1.3f * txt.x;
+            bp_pos.y += (row_max.y - row_min.y) * 0.5f;
+
+            window->DrawList->AddCircleFilled(bp_pos, txt.y / 3.f, IM_COL32(255, 0, 0, 255));
         }
 
         line_buffer.clear();
