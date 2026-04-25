@@ -1420,8 +1420,7 @@ __attribute__((flatten)) static void draw(Application& app)
     ImGui::SameLine();
 
     {
-        float stack_height =
-            (float(ui.window_height) * ui.dpi_scale - 2 * ImGui::GetFrameHeightWithSpacing()) / 4;
+        float stack_height = (float(ui.window_height) - 2 * ImGui::GetFrameHeightWithSpacing()) / 4;
 
         ImGui::BeginGroup();
 
@@ -1601,51 +1600,21 @@ static void update_window_dimensions(UserInterface& ui)
 {
     int new_width = -1;
     int new_height = -1;
-
-    glfwGetFramebufferSize(ui.window, &new_width, &new_height);
+    glfwGetWindowSize(ui.window, &new_width, &new_height);
     assert(new_width > 0 && new_height > 0);
 
-    int window_width = -1;
-    int window_height = -1;
-    glfwGetWindowSize(ui.window, &window_width, &window_height);
-
-    float dpi_scale_factor =
-        (float) std::max(window_width, window_height) / (float) std::max(new_width, new_height);
-
-    ui.window_resized_last_frame = new_width != ui.window_width || new_height != ui.window_height ||
-                                   dpi_scale_factor != ui.dpi_scale;
+    ui.window_resized_last_frame = (new_width != ui.window_width || new_height != ui.window_height);
 
     if (ui.window_resized_last_frame)
     {
-        // re-scale the size of the invididual panels to account for window resize
-        // TODO[@zmeadows][P2]: handle conversion carefully
-        const float scale_factor_width = float(new_width) / float(ui.window_width);
-        const float scale_factor_height = float(new_height) / float(ui.window_height);
+        const float scale_w = float(new_width) / float(ui.window_width);
+        const float scale_h = float(new_height) / float(ui.window_height);
 
-#ifdef DEBUG
-        DEBUG_STREAM(new_width);
-        DEBUG_STREAM(new_height);
-        DEBUG_STREAM(window_width);
-        DEBUG_STREAM(window_height);
-        DEBUG_STREAM(scale_factor_width);
-        DEBUG_STREAM(scale_factor_height);
-        DEBUG_STREAM(dpi_scale_factor);
-#endif
-
-        if (dpi_scale_factor < ui.dpi_scale)
-        {
-            ui.dpi_scale = dpi_scale_factor;
-        }
-        else
-        {
-            ui.dpi_scale = 1.f / ui.dpi_scale;
-        }
-
-        ui.file_browser_width *= scale_factor_width * ui.dpi_scale;
-        ui.file_viewer_width *= scale_factor_width * ui.dpi_scale;
-        ui.file_viewer_height *= scale_factor_height * ui.dpi_scale;
-        ui.console_height *= scale_factor_height * ui.dpi_scale;
-        ui.stack_trace_width *= scale_factor_width * ui.dpi_scale;
+        ui.file_browser_width *= scale_w;
+        ui.file_viewer_width *= scale_w;
+        ui.file_viewer_height *= scale_h;
+        ui.console_height *= scale_h;
+        ui.stack_trace_width *= scale_w;
 
         ui.window_width = new_width;
         ui.window_height = new_height;
@@ -1666,7 +1635,9 @@ int main_loop(Application& app)
         tick(app);
 
         ImGui::Render();
-        glViewport(0, 0, app.ui.window_width, app.ui.window_height);
+        int fb_w, fb_h;
+        glfwGetFramebufferSize(app.ui.window, &fb_w, &fb_h);
+        glViewport(0, 0, fb_w, fb_h);
         static const ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
         glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
         glClear(GL_COLOR_BUFFER_BIT);
@@ -1741,9 +1712,14 @@ std::optional<UserInterface> UserInterface::init()
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
 
+    float xscale = 1.0f;
+    glfwGetWindowContentScale(ui.window, &xscale, nullptr);
+    ui.dpi_scale = xscale; // 2.0 on Retina, 1.0 otherwise
+
     io.Fonts->AddFontDefault();
     static const std::string font_path = fmt::format("{}/ttf/Hack-Regular.ttf", LLDBG_ASSETS_DIR);
-    ui.font = io.Fonts->AddFontFromFileTTF(font_path.c_str(), 15.0f);
+    ui.font = io.Fonts->AddFontFromFileTTF(font_path.c_str(), 15.0f * xscale);
+    io.FontGlobalScale = 1.0f / xscale;
 
     ImGui::StyleColorsDark();
     // ImGui::StyleColorsClassic();
